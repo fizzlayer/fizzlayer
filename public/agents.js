@@ -111,28 +111,12 @@
     finally { button.disabled = false; }
   });
 
-  $('pair-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = $('pair-form').querySelector('button[type=submit]');
-    const code = $('pair-code').value.trim();
-    $('pair-message').textContent = '';
-    if (!code) { $('pair-message').textContent = 'Enter the code shown by fizz pair.'; $('pair-code').focus(); return; }
-    button.disabled = true;
-    try {
-      const result = await api('/api/devices', 'POST', { action: 'claim', code, name: $('pair-name').value.trim() });
-      $('pair-message').textContent = `Claimed "${result.device_name}". Approve the request on the device to finish pairing.`;
-      $('pair-form').reset();
-    } catch (error) { $('pair-message').textContent = error.message; }
-    finally { button.disabled = false; }
-  });
-
   $('agents-sign-out').addEventListener('click', async () => {
     try { await api('/api/session', 'DELETE'); location.href = '/app.html'; }
     catch (error) { $('page-error').textContent = error.message; }
   });
 
   $('mcp-url').textContent = mcpUrl;
-  $('install-cmd').textContent = `curl -fsSL ${location.origin}/install.sh | sh`;
   (async () => {
     try {
       const me = await api('/api/me');

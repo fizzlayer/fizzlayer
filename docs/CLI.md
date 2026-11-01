@@ -30,7 +30,7 @@ Create or sign in to your Fizzlayer account, then run:
 fizz pair --name "Workshop Pi"
 ```
 
-1. Enter the displayed code on the **Agents** page, or ask a connected agent to claim it with the `pair_device` MCP tool.
+1. Enter the displayed code on the **Sensors** or **Agents** page, or ask a connected agent to claim it with the `pair_device` MCP tool.
 2. Return to the device terminal and check the account and requesting agent.
 3. Approve the request to create a Custom sensor and save its device key.
 4. Send a sample and view it on the dashboard:

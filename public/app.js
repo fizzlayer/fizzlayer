@@ -316,6 +316,11 @@ $('setup-start').addEventListener('click', async () => {
   }
 });
 $('setup-retry').addEventListener('click', loadSetup);
+$('setup-chat').addEventListener('click', () => {
+  showDashboard([]);
+  $('chat-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('chat-input').focus({ preventScroll: true });
+});
 async function signOut() {
   try {
     await send('/api/session', 'DELETE');

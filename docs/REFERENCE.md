@@ -71,7 +71,7 @@ The Sensors page can create additional sensors, switch a sensor to API mode, rot
 | `POST /api/ingest` | Send readings using a sensor API key |
 | `GET`, `POST`, `DELETE /api/phone` | Pair and revoke phone devices; phone posts motion, voice, and location data |
 | `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold rules |
-| `POST /api/chat` | Ask Fizz about readings and create alerts directly |
+| `POST /api/chat` | Ask Fizz about readings, add sensors, claim device pairing codes, and create alerts |
 | `GET`, `POST /api/voice` | Check voice availability, transcribe microphone audio, and speak agent replies (session cookie) |
 
 For API ingestion, use a unique `event_id` for each sample; retries with the same ID are idempotent. Metrics are validated against the sensor type. For example, a Temperature sensor accepts `temperature_c`:
@@ -95,6 +95,14 @@ Alerts are evaluated in Supabase whenever a numeric reading is inserted. An aler
 Create an AgentPhone agent and attach a voice-enabled phone number to it. Calls use the agent's first attached number. Existing SMS rules are kept as dashboard alerts, and queued texts are skipped. Calls speak the alert as their greeting and use a short hosted conversation to repeat it if needed; Fizz disables audio recording for these calls. The delivery status means the provider accepted the send, rather than confirming receipt on the recipient's device.
 
 Notifications are only sent where the AgentPhone key is set, so preview deployments sharing the database leave queued alerts for production. Chat uses Vercel AI Gateway to answer from stored customer readings and creates alerts directly when the customer clearly asks. It asks for missing details, validates the owned sensor and reported numeric metric/unit, and reports success only after the database saves the rule. Identical active alerts are reused. Phone calls are enabled only when requested with a US number supplied in the conversation. The browser includes up to 12 recent messages so follow-up instructions work; history is cleared at sign-out. An AI outage does not stop ingestion or alert evaluation.
+
+## Add sensors and pair devices in chat
+
+Ask Fizz to add a sensor, for example, “Add a sample Temperature sensor named Cold room” or “Add an API Humidity sensor named Greenhouse.” Fizz asks for a type, name, and source when they are missing. API sensors return a one-time credential card; the key is kept outside reply text and the conversation history sent to the model. Phone sensors appear in Sensors, where you can create a phone link. Repeated requests for the same owned name, type, and mode reuse the existing sensor.
+
+New accounts can choose **Set up with Fizz in chat** to add their first sensor without loading sample data.
+
+Ask “Help me pair my Raspberry Pi” for installation commands, then send “Pair my device with code 7K3P-Q9DM.” The server accepts only a code supplied in a user message, uses the signed-in customer's session to claim it, and requires approval in the device terminal. Claiming a code does not yet connect the device. After approval, run `fizz run --every 60`; the device appears as a Custom sensor. Expired or used codes require a new `fizz pair` run. The same chat actions are available through voice chat.
 
 ## Talk to Fizz
 

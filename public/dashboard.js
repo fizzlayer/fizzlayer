@@ -123,7 +123,7 @@
       const latest = sensor.latest_reading;
       const metric = node('p', 'live-metric', latest?.metric ? kinds.metricLabel(latest.metric) : 'Awaiting first reading');
       const value = node('p', 'live-value', kinds.formatReading(latest));
-      const foot = node('p', 'live-foot', latest ? `Updated ${new Date(latest.observed_at || latest.received_at).toLocaleTimeString()}` : 'A sample will appear shortly');
+      const foot = node('p', 'live-foot', latest ? `Updated ${new Date(latest.observed_at || latest.received_at).toLocaleTimeString()}` : sensor.mode === 'simulated' ? 'A sample will appear shortly' : 'Connect your sensor to send its first reading');
       card.append(top, metric, value, sensorTrend(sensor), foot);
       list.append(card);
     }
@@ -377,6 +377,38 @@
     return summary;
   }
 
+  function setupSummary(result) {
+    const panel = node('div', 'chat-setup');
+    const link = node('a', '', (result.pairing || result.pairing_setup) ? 'View device setup in Sensors' : 'Manage this sensor');
+    link.href = (result.pairing || result.pairing_setup) ? '/sensors.html#pair-device' : '/sensors.html#your-sensors-title';
+    if (result.pairing_setup) {
+      panel.append(node('strong', '', 'Connect your Linux device'), node('p', '', 'Run these commands in a terminal on your Raspberry Pi or Linux device, then paste the displayed pairing code into this chat.'));
+      const commands = node('pre');
+      commands.append(node('code', '', `curl -fsSL ${location.origin}/install.sh | sh\nFIZZ_API=${location.origin} fizz pair`));
+      panel.append(commands, node('p', '', 'After I claim the code, approve the request in that terminal and run fizz run --every 60.'));
+    }
+    if (result.sensor_setup) {
+      panel.append(node('strong', '', 'Sensor API credentials'), node('p', '', 'Copy this key now. It is shown once and is not included in chat history sent to Fizz.'));
+      const idLabel = node('p', '', 'Sensor ID');
+      const keyLabel = node('p', '', 'API key');
+      const id = node('code', '', result.sensor_setup.sensor_id);
+      const key = node('code', '', result.sensor_setup.api_key);
+      const copy = node('button', 'secondary', 'Copy API key');
+      copy.type = 'button';
+      const status = node('p', 'chat-setup-status');
+      status.setAttribute('role', 'status');
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(result.sensor_setup.api_key);
+          status.textContent = 'API key copied.';
+        } catch { status.textContent = 'Select the API key above and copy it manually.'; }
+      });
+      panel.append(idLabel, id, keyLabel, key, copy, status);
+    }
+    panel.append(link);
+    return panel;
+  }
+
   function setThinking(active) {
     $('dashboard').classList.toggle('fizz-thinking', active);
   }
@@ -409,7 +441,11 @@
       chatHistory = chatHistory.slice(-12);
       if (result.rule) {
         pending.append(createdAlertSummary(result.rule));
-        await refresh();
+      }
+      if (result.sensor || result.pairing || result.pairing_setup) pending.append(setupSummary(result));
+      if (result.rule || result.sensor) {
+        try { await refresh(); }
+        catch { $('chat-error').textContent = 'Your change was saved, but the dashboard could not refresh. Open Sensors or refresh the page to see it.'; }
       }
       $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
       return result;
@@ -492,7 +528,7 @@
       sessionGeneration++;
       document.title = 'Overview · Fizzlayer';
       $('dashboard-username').textContent = username;
-      $('dashboard-subtitle').textContent = 'Your sensors are ready.';
+      $('dashboard-subtitle').textContent = initialSensors?.length ? 'Your sensors are ready.' : 'Ask Fizz to add your first sensor or pair a device.';
       sensors = initialSensors || [];
       renderSensors();
       if (timer) clearInterval(timer);
@@ -520,7 +556,7 @@
       setThinking(false);
       window.fizzVoiceClips.reset();
       $('chat-messages').replaceChildren();
-      appendMessage('agent', 'Hi, I’m Fizz. I can help you understand your sensors and keep an eye on what matters. What would you like to know?');
+      appendMessage('agent', 'Hi, I’m Fizz. I can add sensors, pair devices, and help you understand your readings. What would you like to know?');
       $('chat-input').value = '';
       $('chat-error').textContent = '';
       $('alert-notify').value = 'none';

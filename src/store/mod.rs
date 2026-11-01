@@ -27,6 +27,18 @@ pub enum StoreError {
 }
 
 impl Supabase {
+    #[cfg(test)]
+    pub(crate) fn test_store(url: &str) -> Self {
+        Self {
+            client: Client::builder()
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap(),
+            rest_url: Url::parse(url).unwrap(),
+            service_role_key: "test-service-key".into(),
+        }
+    }
+
     pub fn from_env() -> Result<Self, ConnectionError> {
         let project_url =
             env::var("SUPABASE_URL").map_err(|_| ConnectionError::MissingConfiguration)?;

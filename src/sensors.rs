@@ -8,7 +8,7 @@ use crate::{
     store::Supabase,
 };
 
-const KINDS: [&str; 9] = [
+pub(crate) const KINDS: [&str; 9] = [
     "water",
     "gas",
     "radio",

@@ -11,6 +11,8 @@
   <script src="/voice-clips.js" defer></script>
   <script src="/sensors.js" defer></script>
   <link rel="stylesheet" href="/workspace.css">
+  <link rel="stylesheet" href="/device-pairing.css">
+  <script src="/device-pairing.js" defer></script>
 </head>
 <body><main class="shell dashboard-active"><section class="dashboard" aria-labelledby="sensors-title">
   <a class="skip-link" href="#workspace-content">Skip to content</a>
@@ -24,8 +26,27 @@
       </header>
       <div class="workspace-content" id="workspace-content" tabindex="-1"><div class="workspace-topbar"><div class="workspace-breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Sensors</strong></div><span><span class="status-dot" aria-hidden="true"></span> Personal workspace</span></div>
   <div class="sensors-heading"><div><p class="setup-eyebrow">YOUR SIGNALS / YOUR RULES</p><h1 id="sensors-title">Sensors</h1><p>Give Fizz more ways to understand your world.</p></div><img src="/fizz-agent.svg" alt="" aria-hidden="true"></div>
+  <section class="dash-panel device-pairing" id="pair-device" aria-labelledby="pair-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">PAIR A DEVICE</p><h2 id="pair-title">Pair a device</h2></div></div>
+    <p class="pair-intro">Connect a Raspberry Pi or Linux computer as a live sensor. Enter the code from <code>fizz pair</code> below, then approve the connection in your device terminal.</p>
+    <details class="pair-setup"><summary>How to install the CLI and add a device</summary>
+    <ol class="pair-steps">
+      <li><strong>Install the CLI on your device</strong><p>Open a terminal on your Raspberry Pi or Linux computer and run:</p><div class="pair-command"><pre><code id="install-cmd"></code></pre><button class="secondary" type="button" data-copy-command="install-cmd" aria-label="Copy CLI install command">Copy</button></div></li>
+      <li><strong>Get a pairing code</strong><p>Run this command on the same device. Keep the terminal open.</p><div class="pair-command"><pre><code id="pair-cmd"></code></pre><button class="secondary" type="button" data-copy-command="pair-cmd" aria-label="Copy device pairing command">Copy</button></div><p>Enter the code below. Codes expire after 15 minutes.</p></li>
+      <li><strong>Pair and approve</strong><p>Submit the code here, then return to the device terminal. Check the account name and approve the request to finish connecting. You can also ask a connected agent to claim the code.</p></li>
+      <li><strong>Start sending readings</strong><p>After approval, run this on your device to stream CPU temperature, load, memory, and disk usage where available:</p><div class="pair-command"><pre><code id="run-cmd">fizz run --every 60</code></pre><button class="secondary" type="button" data-copy-command="run-cmd" aria-label="Copy command to start device readings">Copy</button></div><p>Your device appears as a Custom sensor on the <a href="/sensors.html#your-sensors-title">Sensors page</a>. Keep the command running to send a reading every minute.</p></li>
+    </ol>
+    </details>
+    <form id="pair-form" class="pair-form">
+      <label for="pair-code">Pairing code<input id="pair-code" maxlength="24" required placeholder="7K3P-Q9DM" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="pair-message"></label>
+      <label for="pair-name">Device name <span class="optional">(optional)</span><input id="pair-name" maxlength="80" placeholder="e.g. Garage Pi" autocomplete="off"></label>
+      <button class="primary" type="submit">Pair device</button>
+    </form>
+    <p class="form-message" id="pair-message" role="status" aria-live="polite"></p>
+    <p class="pair-help">Using an ESP32 or another microcontroller? Create a sensor below and choose <strong>Connect API</strong> to send readings with its own key. To connect a phone, add a Phone sensor and choose <strong>Create phone link</strong>.</p>
+  </section>
   <section class="dash-panel sensor-add" aria-labelledby="add-title"><div class="section-heading"><div><p class="setup-eyebrow">01 / EXPAND FIZZ</p><h2 id="add-title">Add a sensor</h2></div></div><form id="add-sensor-form" class="sensor-add-form"><div class="kind-field"><span class="field-label" id="new-kind-label">Type</span><input type="hidden" id="new-kind" value="water"><div class="kind-picker" id="kind-picker"><button type="button" class="kind-button" id="kind-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="kind-options" aria-labelledby="new-kind-label kind-button"></button><ul class="kind-options" id="kind-options" role="listbox" tabindex="-1" aria-labelledby="new-kind-label" hidden></ul></div></div><label for="new-name">Name<input id="new-name" maxlength="60" placeholder="e.g. Kitchen temperature"></label><button class="primary" type="submit">Add sample sensor +</button></form><p class="form-message" id="add-message" role="status"></p></section>
-  <section class="sensor-collection" aria-labelledby="your-sensors-title"><div class="section-heading"><div><p class="setup-eyebrow">02 / YOUR SENSORS</p><h2 id="your-sensors-title">Connected to Fizzlayer</h2></div><span id="sensor-count"></span></div><div id="sensor-list" class="sensor-list"></div><p id="sensor-empty" class="dashboard-empty" hidden>No sensors yet. Add one above to start with sample data.</p></section>
+  <section class="sensor-collection" aria-labelledby="your-sensors-title"><div class="section-heading"><div><p class="setup-eyebrow">02 / YOUR SENSORS</p><h2 id="your-sensors-title">Connected to Fizzlayer</h2></div><span id="sensor-count"></span></div><div id="sensor-list" class="sensor-list"></div><p id="sensor-empty" class="dashboard-empty" hidden>No sensors yet. Pair a device above, or add a sample sensor to explore.</p></section>
   <section class="dash-panel voice-clips-panel" id="voice-clips-panel" aria-labelledby="voice-clips-title" hidden>
     <div class="section-heading"><div><p class="setup-eyebrow">VOICE FROM YOUR PHONE</p><h2 id="voice-clips-title">Voice clips</h2></div></div>
     <p class="voice-clips-status" id="voice-clips-status" role="status"></p>

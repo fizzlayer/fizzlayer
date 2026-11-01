@@ -1,0 +1,23 @@
+.device-pairing { margin-bottom: 28px; }
+.device-pairing .pair-setup { margin: 20px 0; }
+.device-pairing .pair-setup summary { width: fit-content; cursor: pointer; color: var(--accent); font-size: 16px; font-weight: 500; padding-block: 8px; }
+.device-pairing .pair-intro, .device-pairing .pair-help { color: var(--muted); font-size: 16px; line-height: 1.7; }
+.device-pairing .pair-steps { color: var(--ink); font-size: 16px; line-height: 1.7; padding-left: 24px; margin: 24px 0; }
+.device-pairing .pair-steps li { padding-left: 6px; margin-bottom: 24px; }
+.device-pairing .pair-steps strong { font-weight: 600; }
+.device-pairing .pair-steps p { margin: 6px 0 12px; color: var(--muted); }
+.device-pairing .pair-command { display: flex; align-items: start; gap: 12px; margin-bottom: 12px; min-width: 0; }
+.device-pairing .pair-command pre { flex: 1; min-width: 0; margin: 0; overflow-x: auto; padding: 16px; border: 1px solid #274758; border-radius: 6px; background: #102a3b; color: #d7f5fc; font-size: 14px; line-height: 1.7; }
+.device-pairing .pair-command code { color: inherit; font-family: var(--mono); font-size: inherit; }
+.device-pairing .pair-command button { flex: none; }
+.device-pairing .pair-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 16px; padding-top: 24px; border-top: 1px solid var(--line); }
+.device-pairing .pair-form label { min-width: 0; margin: 0; font-size: 15px; }
+.device-pairing .pair-form input { display: block; width: 100%; min-height: 46px; margin-top: 8px; font-size: 16px; }
+.device-pairing .pair-form button { min-height: 46px; }
+.device-pairing .optional { color: var(--muted); }
+.device-pairing .pair-help { margin: 24px 0 0; }
+@media (max-width: 800px) {
+  .device-pairing .pair-form { grid-template-columns: 1fr; }
+  .device-pairing .pair-command { flex-wrap: wrap; }
+  .device-pairing .pair-command pre { flex-basis: 100%; }
+}

@@ -405,3 +405,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .fa-nav-gear { --nav-icon: url('/icons/fontawesome/gear.svg'); }
 .fa-nav-comment-dots { --nav-icon: url('/icons/fontawesome/comment-dots.svg'); }
 .fa-nav-triangle-exclamation { --nav-icon: url('/icons/fontawesome/triangle-exclamation.svg'); }
+
+.setup-chat { margin-top: 12px; }
+.chat-setup { min-width: 0; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 16px; line-height: 1.6; }
+.chat-setup > strong { display: block; font-weight: 600; }
+.chat-setup > code { display: block; overflow-wrap: anywhere; padding: 10px; margin: 8px 0 12px; background: #edf6f9; border: 1px solid #d7e7ee; border-radius: 5px; font-size: 14px; user-select: all; }
+.chat-setup > a { display: block; margin-top: 12px; }
+.chat-setup .chat-setup-status { font-size: 14px; }
+.chat-setup pre { max-width: 100%; overflow-x: auto; padding: 12px; background: #edf6f9; border: 1px solid #d7e7ee; border-radius: 5px; font-size: 14px; line-height: 1.7; }

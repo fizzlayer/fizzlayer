@@ -31,7 +31,7 @@ curl -fsSL https://fizzlayer.com/install.sh | sh
 fizz pair
 ```
 
-Enter the displayed pairing code on the **Agents** page, or ask a connected agent to claim it. Approve the request at the device, then start streaming:
+Enter the displayed pairing code on the **Sensors** or **Agents** page, or ask a connected agent to claim it. Approve the request at the device, then start streaming:
 
 ```sh
 fizz run --every 60
