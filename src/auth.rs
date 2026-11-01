@@ -24,6 +24,8 @@ use vercel_runtime::{Request, Response, ResponseBody};
 use crate::customer::{
     SUPABASE_COOKIE, client_ip, cookie, error, invite_code, json_body, reply_with, session_cookie,
 };
+use crate::security::request_origin;
+#[cfg(test)]
 use crate::security::site_origin;
 use crate::store::Supabase;
 use crate::waitlist::normalize_email;
@@ -75,7 +77,7 @@ fn start_google(request: &Request, invite: Option<&str>) -> Response<ResponseBod
             None => return back_to_app(Some("invalid_invite"), &[]),
         },
     };
-    let (Ok(store), Some(origin)) = (Supabase::from_env(), site_origin(host(request))) else {
+    let (Ok(store), Some(origin)) = (Supabase::from_env(), request_origin(request)) else {
         return back_to_app(Some("failed"), &[]);
     };
     let mut bytes = [0u8; 32];
@@ -134,7 +136,7 @@ async fn finish_google(request: &Request, code: &str) -> Response<ResponseBody> 
 
 pub async fn action(request: Request) -> Response<ResponseBody> {
     let ip = client_ip(&request);
-    let origin = site_origin(host(&request));
+    let origin = request_origin(&request);
     let supabase_token = cookie(&request, SUPABASE_COOKIE).map(str::to_owned);
     // Passkey responses carry public keys and signatures, so allow a few kilobytes.
     let data = match json_body(request, 16 * 1024).await {
@@ -737,12 +739,6 @@ fn looks_like_jwt(token: &str) -> bool {
 /// The S256 code challenge from RFC 7636.
 fn pkce_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(digest::digest(&digest::SHA256, verifier.as_bytes()))
-}
-
-/// Supabase only redirects to URLs on its allow list, so links built from this origin must match
-/// the project's Redirect URLs, such as `https://fizzlayer.com/api/auth`.
-fn host(request: &Request) -> Option<&str> {
-    request.headers().get("host")?.to_str().ok()
 }
 
 fn back_to_app(auth_error: Option<&str>, cookies: &[&str]) -> Response<ResponseBody> {

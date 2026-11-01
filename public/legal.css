@@ -1,6 +1,5 @@
-/* Privacy Policy and Terms of Service. VT323 is a narrow pixel font, so body text is set large
-   with generous line height and a short measure to stay comfortable for long reading. */
-:root { color-scheme: dark; font-family: "VT323", monospace; }
+/* Privacy Policy and Terms of Service, using the shared Geist typography. */
+:root { color-scheme: dark; font-family: var(--sans); }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
 body { margin: 0; background: #0b1722; color: #f4f9fa; }
@@ -25,7 +24,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid #f4f9fa; outline-offs
 .updated { margin: 0 0 2rem; color: #9fbfc8; font-size: 1.35rem; }
 
 /* Body copy: about 65 characters per line at this size. */
-.legal p, .legal li { max-width: 40rem; font-size: 1.6rem; line-height: 1.3; color: #dbe9ed; }
+.legal p, .legal li { max-width: 40rem; font-size: 1.6rem; line-height: 1.65; color: #dbe9ed; }
 .legal p { margin: 0 0 1rem; }
 .legal code { font-family: inherit; color: #a9eaf7; }
 .legal strong { color: #f4f9fa; font-weight: 400; background: #18394a; padding: 0 .2rem; }

@@ -16,7 +16,7 @@
     if (content !== undefined) el.textContent = content;
     return el;
   }
-  const date = (value) => value ? new Date(value).toLocaleDateString([], { dateStyle: 'medium' }) : '—';
+  const date = (value) => value ? new Date(value).toLocaleDateString([], { dateStyle: 'medium' }) : 'Not available';
   const keyIcon = () => $('key-icon').content.firstElementChild.cloneNode(true);
   function keyBadge() {
     const badge = node('span', 'key-badge');
@@ -39,10 +39,10 @@
   function render(account) {
     $('settings-username').textContent = account.username;
     $('account-username').textContent = account.username;
-    $('account-email').textContent = account.email || '—';
+    $('account-email').textContent = account.email || 'Not available';
     const methods = (account.providers || []).map((p) => providerNames[p] || p.charAt(0).toUpperCase() + p.slice(1));
     if (account.passkeys.length) methods.push('Passkey');
-    $('account-methods').textContent = methods.join(', ') || '—';
+    $('account-methods').textContent = methods.join(', ') || 'Not available';
     $('account-since').textContent = date(account.created_at);
     canAddPasskey = account.can_add_passkey;
 

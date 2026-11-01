@@ -253,7 +253,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     };
     // Browsers may only call this from Fizz itself; agents send no Origin header.
     if let Some(origin) = header("origin") {
-        let expected = crate::security::site_origin(header("host").as_deref());
+        let expected = crate::security::request_origin(&request);
         if Some(origin.as_str()) != expected.as_deref() {
             return rpc_error(403, Value::Null, -32600, "Origin not allowed.", None);
         }

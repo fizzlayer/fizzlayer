@@ -24,6 +24,13 @@
     return element;
   }
 
+  function arrowLabel(element, text) {
+    if (text !== undefined) element.textContent = text;
+    element.append(' ', el('span', 'fa-arrow fa-arrow-diagonal'));
+    element.lastElementChild.setAttribute('aria-hidden', 'true');
+    return element;
+  }
+
   function trend(sensor, detail = false) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 320 70');
@@ -69,7 +76,7 @@
       title.append(el('h3', '', sensor.name), el('span', '', info.label.toUpperCase()));
       top.append(kinds.badge(sensor.kind), title, el('span', 'mode-pill simulated', 'SAMPLE'));
       const foot = el('div', 'live-foot');
-      foot.append(el('span', '', sensor.zone === 'office' ? 'Office' : sensor.zone === 'storage' ? 'Storage' : 'Greenhouse'), el('span', '', 'Explore ↗'));
+      foot.append(el('span', '', sensor.zone === 'office' ? 'Office' : sensor.zone === 'storage' ? 'Storage' : 'Greenhouse'), arrowLabel(el('span', '', 'Explore')));
       card.append(top, el('p', 'live-metric', sensor.kind === 'gas' ? 'CO₂ concentration' : kinds.metricLabel(info.metric)), el('p', 'live-value', valueText(sensor)), trend(sensor), foot);
       card.addEventListener('click', () => {
         $('detail-title').textContent = sensor.name;
@@ -140,7 +147,7 @@
       const item = el('div', 'demo-event');
       item.append(el('strong', '', `${event.name} crossed its threshold`), el('p', '', `${event.value} · ${event.description} · ${event.notification === 'call' ? 'Simulated phone alert ready' : 'Demo dashboard alert'}`));
       if (event.notification === 'call') {
-        const button = el('button', 'secondary', 'Preview the call ↗');
+        const button = arrowLabel(el('button', 'secondary', 'Preview the call'));
         button.type = 'button';
         button.addEventListener('click', () => callPreview(event));
         item.append(button);
@@ -200,7 +207,7 @@
     if (/water|basement|leak/.test(text)) return `Basement flow is ${valueText(sensorFor('basement'))} in this sample. The simulated history shows no water flow. You can create an alert above 0 L/min to watch for a change.`;
     if (/air|co2|co₂|office/.test(text)) return `Office Air shows a sample CO₂ concentration of ${valueText(sensorFor('office-air'))}. Open its sensor card to explore the recent simulated history.`;
     if (/warehouse/.test(text)) return `Warehouse temperature is ${valueText(sensorFor('warehouse'))}. Use the Storage filter to compare it with the Cold Room and Basement readings.`;
-    if (/summary|summari[sz]e|sensor|happening|status|overview/.test(text)) return `Here is your sample workspace: Cold Room ${valueText(cold)}, Warehouse ${valueText(sensorFor('warehouse'))}, Greenhouse ${valueText(sensorFor('greenhouse'))}, Grow Room ${valueText(sensorFor('grow-room'))}, Basement ${valueText(sensorFor('basement'))}, and Office Air ${valueText(sensorFor('office-air'))}. ${rules.filter(breached).length ? 'A threshold needs attention — see Alerts & activity.' : 'No enabled threshold is currently crossed.'}`;
+    if (/summary|summari[sz]e|sensor|happening|status|overview/.test(text)) return `Here is your sample workspace: Cold Room ${valueText(cold)}, Warehouse ${valueText(sensorFor('warehouse'))}, Greenhouse ${valueText(sensorFor('greenhouse'))}, Grow Room ${valueText(sensorFor('grow-room'))}, Basement ${valueText(sensorFor('basement'))}, and Office Air ${valueText(sensorFor('office-air'))}. ${rules.filter(breached).length ? 'A threshold needs attention. See Alerts & activity.' : 'No enabled threshold is currently crossed.'}`;
     return 'I can walk you through this sample workspace. Ask about the cold room, greenhouse, water flow, or watch list. Try “Alert me if the cold room goes above 7 °C.” Demo replies use these sample readings.';
   }
 
@@ -253,7 +260,7 @@
     $('pause-demo').textContent = 'Pause readings';
     $('pause-demo').setAttribute('aria-pressed', 'false');
     $('stream-status').textContent = 'Sample stream running';
-    $('simulate-spike').textContent = 'Simulate temperature spike ↗';
+    arrowLabel($('simulate-spike'), 'Simulate temperature spike');
     $('scenario-result').hidden = true;
     document.querySelector('.demo-scenario').classList.remove('incident');
     $('rule-message').textContent = '';
@@ -283,7 +290,7 @@
   });
   $('simulate-spike').addEventListener('click', () => {
     incident = !incident;
-    $('simulate-spike').textContent = incident ? 'Resolve temperature spike ↗' : 'Simulate temperature spike ↗';
+    arrowLabel($('simulate-spike'), incident ? 'Resolve temperature spike' : 'Simulate temperature spike');
     $('scenario-result').hidden = !incident;
     document.querySelector('.demo-scenario').classList.toggle('incident', incident);
     update();

@@ -4,7 +4,7 @@
 .phone-hero .setup-intro { max-width: 30rem; }
 .phone-shell .panel { margin: 1.25rem 0; background: var(--glass); padding: clamp(1.1rem, 4vw, 1.75rem); }
 .phone-shell h2 { margin: 1rem 0 .35rem; font-size: 2.2rem; font-weight: 400; line-height: 1; }
-.phone-shell .panel p { margin: 0; color: #c6dce2; font-size: 1.35rem; line-height: 1.1; }
+.phone-shell .panel p { margin: 0; color: #c6dce2; font-size: 1.35rem; line-height: 1.5; }
 .phone-shell .primary, .phone-shell .secondary { min-height: 48px; }
 #retry { margin-top: 1.2rem; }
 .phone-card { border-color: color-mix(in srgb, var(--sensor-color) 55%, #69bed0); }
@@ -23,12 +23,12 @@
 .voice-preview audio { display: block; width: 100%; min-width: 0; height: 42px; margin-top: .4rem; }
 .transcript-controls { margin-top: 1.2rem; padding-top: 1rem; border-top: 2px solid #31546a; }
 .transcript-controls label { color: #a9eaf7; font-size: 1.35rem; }
-.transcript-controls textarea { display: block; width: 100%; resize: vertical; border: 2px solid #69bed0; border-radius: 0; background: #071b29; color: #fff; font-size: 1.45rem; line-height: 1.1; padding: .55rem .7rem; }
+.transcript-controls textarea { display: block; width: 100%; resize: vertical; border: 2px solid #69bed0; border-radius: 0; background: #071b29; color: #fff; font-size: 1.45rem; line-height: 1.5; padding: .55rem .7rem; }
 .transcript-controls textarea::placeholder { color: #7b9daa; }
 .transcript-controls textarea:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 .transcript-actions { display: flex; gap: .6rem; margin-top: .7rem; }
 .transcript-actions button { flex: 1; min-width: 0; }
-.privacy { margin: 1.5rem .2rem 1rem; color: #9db8c2; font-size: 1.2rem; line-height: 1.15; }
+.privacy { margin: 1.5rem .2rem 1rem; color: #9db8c2; font-size: 1.2rem; line-height: 1.6; }
 .disconnect { border: 0; background: none; color: #a9eaf7; font-size: 1.25rem; text-decoration: underline; padding: .3rem .2rem; }
 .disconnect:hover { color: #fff; }
 @media (max-width: 420px) { .phone-shell h2 { font-size: 1.9rem; } .phone-icon { width: 44px; height: 44px; } .phone-icon svg { width: 27px; height: 27px; } }

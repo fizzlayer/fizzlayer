@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark; font-family: "VT323", monospace; background: #0b1722; color: #f4f9fa;
+  color-scheme: dark; font-family: var(--sans); background: #0b1722; color: #f4f9fa;
   /* Signed-in surfaces are slightly see-through so the pixel sky shows behind them. */
   --glass: rgba(16, 40, 56, .72); --glass-inner: rgba(11, 34, 49, .6); --glass-card: rgba(16, 43, 57, .62);
 }

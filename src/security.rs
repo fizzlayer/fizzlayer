@@ -41,12 +41,51 @@ pub fn site_origin(host: Option<&str>) -> Option<String> {
     Some(origin.origin().ascii_serialization())
 }
 
+/// Vercel's local proxy replaces Host with an internal function port. Use an explicit
+/// browser-facing origin only in development and only for loopback requests.
+pub fn request_origin<B>(request: &http::Request<B>) -> Option<String> {
+    let host = request
+        .headers()
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| request.uri().authority().map(|a| a.as_str()));
+    let origin = site_origin(host)?;
+    development_origin(
+        origin,
+        env::var("VERCEL_DEV").as_deref() == Ok("1"),
+        env::var("FIZZ_DEV_ORIGIN").ok().as_deref(),
+    )
+}
+
+fn development_origin(
+    origin: String,
+    development: bool,
+    configured: Option<&str>,
+) -> Option<String> {
+    if !development || !origin.starts_with("http://") {
+        return Some(origin);
+    }
+    let Some(configured) = configured else {
+        return Some(origin);
+    };
+    let url = Url::parse(configured).ok()?;
+    if url.scheme() != "http"
+        || !matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(url.origin().ascii_serialization())
+}
+
 pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), Response<ResponseBody>> {
     let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok());
     // Never use client-supplied x-forwarded-host to authorize an origin.
-    let Some(expected) =
-        site_origin(header("host").or_else(|| request.uri().authority().map(|a| a.as_str())))
-    else {
+    let Some(expected) = request_origin(request) else {
         return Err(error(
             400,
             "invalid_host",
@@ -123,6 +162,38 @@ mod tests {
             builder = builder.header("sec-fetch-site", site);
         }
         builder.body(()).unwrap()
+    }
+
+    #[test]
+    fn development_origin_override_is_local_only() {
+        let internal = "http://127.0.0.1:45737";
+        let public = "http://localhost:3000";
+        assert_eq!(
+            development_origin(internal.into(), true, Some(public)).as_deref(),
+            Some(public)
+        );
+        assert_eq!(
+            development_origin(internal.into(), false, Some(public)).as_deref(),
+            Some(internal)
+        );
+        assert_eq!(
+            development_origin(internal.into(), true, None).as_deref(),
+            Some(internal)
+        );
+        assert_eq!(
+            development_origin("https://fizzlayer.com".into(), true, Some(public)).as_deref(),
+            Some("https://fizzlayer.com")
+        );
+        for invalid in [
+            "https://evil.com",
+            "http://localhost.evil.com",
+            "http://localhost:3000/path",
+            "http://user@localhost:3000",
+            "http://localhost:3000?x=1",
+            "http://localhost:3000/#fragment",
+        ] {
+            assert!(development_origin(internal.into(), true, Some(invalid)).is_none());
+        }
     }
 
     #[test]

@@ -70,7 +70,7 @@ end;
 $$;
 
 -- Mint invite codes (service role only). Run from the Supabase SQL editor, for example:
---   select * from public.fizz_create_invites(5, 'Hackathon judges', interval '14 days');
+--   select * from public.fizz_create_invites(5, 'Customer onboarding', interval '14 days');
 create function public.fizz_create_invites(p_count integer default 1, p_note text default null,
   p_expires_in interval default null)
 returns table(code text) language plpgsql security definer set search_path = '' as $$
