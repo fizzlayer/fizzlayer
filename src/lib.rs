@@ -2,6 +2,7 @@ pub mod account;
 pub mod agent;
 pub mod agents;
 pub mod auth;
+pub mod billing;
 pub mod customer;
 pub mod devices;
 pub mod mcp;

@@ -228,10 +228,15 @@ fn tool_result(value: Value) -> Value {
         let text = serde_json::to_string(result).unwrap_or_default();
         json!({"content": [{"type": "text", "text": text}], "structuredContent": result, "isError": false})
     } else {
-        let message = value
-            .get("message")
-            .and_then(Value::as_str)
-            .unwrap_or("The tool could not complete that request.");
+        // fizz_agent_call words pairing errors itself and predates plan limits.
+        let message = if value["error"] == "device_limit" {
+            crate::customer::DEVICE_LIMIT_MESSAGE
+        } else {
+            value
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("The tool could not complete that request.")
+        };
         json!({"content": [{"type": "text", "text": message}], "isError": true})
     }
 }
@@ -497,5 +502,15 @@ mod tests {
         let data = tool_result(json!({"result": {"sensors": []}}));
         assert_eq!(data["structuredContent"], json!({"sensors": []}));
         assert_eq!(data["isError"], json!(false));
+    }
+
+    #[test]
+    fn pairing_over_the_device_limit_explains_the_limit() {
+        let error =
+            tool_result(json!({"error": "device_limit", "message": "That code is not valid."}));
+        assert_eq!(
+            error["content"][0]["text"],
+            json!(crate::customer::DEVICE_LIMIT_MESSAGE)
+        );
     }
 }

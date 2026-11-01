@@ -63,6 +63,7 @@ fn outcome(
             ),
             Some("not_claimed") => error(409, "not_claimed", "Nobody has claimed this code yet."),
             Some("not_found") => error(404, "not_found", "This pairing was not found."),
+            Some("device_limit") => crate::customer::device_limit(),
             Some(_) => error(503, "unavailable", "Pairing is temporarily unavailable."),
         },
         Err(_) => error(

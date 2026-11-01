@@ -139,6 +139,7 @@
   function chooseKind(kind) {
     $('new-kind').value = kind;
     renderKindButton();
+    renderSourceHelp();
     closeKindPicker();
   }
   for (const kind of kinds.order) {
@@ -184,16 +185,36 @@
     if (!$('kind-picker').contains(event.relatedTarget)) closeKindPicker(false);
   });
   renderKindButton();
+  function source() { return $('add-sensor-form').elements['new-source'].value; }
+  function renderSourceHelp() {
+    const phone = $('new-kind').value === 'phone';
+    $('source-help').textContent = source() === 'sample'
+      ? 'Sample streams are simulated readings for exploring. They do not count toward your plan\'s device limit.'
+      : phone ? 'You will get a link to open on the phone you want to connect.'
+        : 'You will get an API key for your device to send readings with.';
+  }
+  for (const radio of $('add-sensor-form').elements['new-source']) radio.addEventListener('change', renderSourceHelp);
+  renderSourceHelp();
   $('add-sensor-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const button = $('add-sensor-form').querySelector('button[type=submit]');
+    const button = $('add-sensor-submit');
     button.disabled = true;
     $('add-message').textContent = '';
+    const kind = $('new-kind').value;
+    const mode = source() === 'sample' ? 'simulated' : kind === 'phone' ? 'phone' : 'api';
     try {
-      await api('/api/sensors', 'POST', { kind: $('new-kind').value, name: $('new-name').value.trim() || undefined, mode: 'simulated' });
+      const result = await api('/api/sensors', 'POST', { kind, name: $('new-name').value.trim() || undefined, mode });
+      const id = result.sensor.id;
+      // A phone link is only valid for 15 minutes, so create it once the sensor exists.
+      const link = mode === 'phone' ? await api('/api/phone', 'POST', { action: 'create', sensor_id: id }) : null;
       $('new-name').value = '';
-      $('add-message').textContent = 'Sensor added. Its sample stream is starting.';
       await refresh();
+      const slot = document.querySelector(`[data-sensor-id="${id}"] .sensor-secret`);
+      if (result.api_key) showSecret(slot, 'Sensor API key', result.api_key);
+      if (link) showSecret(slot, 'Send this link to your phone', new URL(link.url, location.origin).href);
+      $('add-message').textContent = mode === 'simulated' ? 'Sensor added. Its sample stream is starting.'
+        : mode === 'phone' ? 'Phone sensor added. Open the link below on your phone to connect it.'
+          : 'Sensor added. Use the API key below to send its first reading.';
     } catch (error) { $('add-message').textContent = error.message; }
     finally { button.disabled = false; }
   });

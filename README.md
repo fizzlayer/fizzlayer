@@ -77,7 +77,7 @@ Deploy Fizzlayer into your own **Vercel and Supabase accounts**. The current API
 
 An invitation creates a customer account; it does not grant a separate administrator role. Keep the service-role key on the server and out of browser assets.
 
-Follow the [complete self-hosting guide](docs/SELF_HOSTING.md) for domain configuration, local development, email and optional Google/passkey setup, environment variables, and production checks. Chat, speech, and outbound calls require their respective provider configuration; the core sensor and dashboard flows work independently.
+Follow the [complete self-hosting guide](docs/SELF_HOSTING.md) for domain configuration, local development, email and optional Google/passkey setup, environment variables, and production checks. Chat, speech, outbound calls, and paid plans (Stripe) require their respective provider configuration; the core sensor and dashboard flows work independently.
 
 ## Connect an AI agent
 

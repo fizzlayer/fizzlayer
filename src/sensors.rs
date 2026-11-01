@@ -67,6 +67,7 @@ fn outcome(value: Value, success: u16) -> Response<ResponseBody> {
             "Reading limit reached. Try again later.",
         ),
         Some("not_found") => error(404, "not_found", "Sensor not found."),
+        Some("device_limit") => crate::customer::device_limit(),
         Some("invalid_request" | "invalid_reading") => {
             error(400, "invalid_request", "Check the sensor details.")
         }

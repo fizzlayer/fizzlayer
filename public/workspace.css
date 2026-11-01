@@ -220,6 +220,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .sensor-add-form input, .agent-form input:not([type="checkbox"]), .kind-button { min-height: 43px; border: 1px solid #d7e2e9; border-radius: 6px; background: white; color: var(--ink); font-size: 15px; padding: 9px 11px; }
 .sensor-add-form label, .agent-form label, .field-label { font-size: 14px; color: #6f8897; }
 .sensor-add-form button[type="submit"], .agent-form button[type="submit"] { min-height: 43px; font-size: 14px; }
+.source-field legend { padding: 0; }
+.source-options { border: 1px solid #d7e2e9; border-radius: 6px; background: white; overflow: hidden; }
+.source-options span { min-height: 41px; color: #6f8897; font-size: 15px; }
+.source-options input:checked + span { background: #eef8fb; color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+.source-options input:focus-visible + span { outline: 3px solid #a9eaf760; outline-offset: -3px; }
+.source-help { color: #6f8897; font-size: 14px; }
 .kind-name { color: #45697b; font-size: 15px; line-height: 1.4; }
 .kind-detail { color: #647c8d; font-size: 12px; line-height: 1.4; }
 .kind-metric { color: #647c8d; font-size: 12px; line-height: 1.4; }

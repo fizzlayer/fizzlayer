@@ -34,9 +34,25 @@
     </dl>
   </section>
 
+  <section class="dash-panel settings-panel" aria-labelledby="plan-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">02 / PLAN</p><h2 id="plan-title">Plan and usage</h2></div></div>
+    <dl class="account-details">
+      <div><dt>Plan</dt><dd id="plan-name">…</dd></div>
+      <div><dt>Connected devices</dt><dd id="plan-devices">…</dd></div>
+      <div><dt>Fizz credits</dt><dd id="plan-credits">…</dd></div>
+    </dl>
+    <p class="settings-intro plan-intro">Sample sensors don't count toward your devices. One credit is one message to Fizz. <a href="/#pricing">Compare plans</a></p>
+    <p class="plan-status" id="plan-status" hidden></p>
+    <div class="plan-actions" id="plan-actions" hidden>
+      <button class="primary" type="button" data-plan="tinkerer" hidden>Upgrade to Tinkerer · $10/month</button>
+      <button class="primary" type="button" data-plan="pro" hidden>Upgrade to Pro · $25/month</button>
+      <button class="secondary" type="button" id="manage-billing" hidden>Manage billing</button>
+    </div>
+    <p class="form-message" id="billing-message" role="status" aria-live="polite"></p>
+  </section>
   <section class="dash-panel settings-panel" aria-labelledby="passkeys-title">
     <div class="section-heading">
-      <div><p class="setup-eyebrow">02 / SIGN-IN</p><h2 id="passkeys-title" class="passkeys-title"><span class="key-badge" data-key-icon></span>Passkeys</h2></div>
+      <div><p class="setup-eyebrow">03 / SIGN-IN</p><h2 id="passkeys-title" class="passkeys-title"><span class="key-badge" data-key-icon></span>Passkeys</h2></div>
       <button class="primary add-passkey" id="add-passkey" type="button" aria-label="Add a passkey" title="Add a passkey">+</button>
     </div>
     <p class="settings-intro">Sign in with Face ID, Touch ID, Windows Hello, or a security key instead of a password.</p>

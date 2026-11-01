@@ -525,6 +525,13 @@ async fn setup_action(
                 None,
             );
         }
+        Some("device_limit") => {
+            return reply(
+                200,
+                json!({"reply":format!("{} You can still add sample sensors.", crate::customer::DEVICE_LIMIT_MESSAGE)}),
+                None,
+            );
+        }
         Some(_) => {
             return error(
                 503,

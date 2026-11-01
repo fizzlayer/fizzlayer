@@ -31,6 +31,14 @@ pub fn reply_with(status: u16, body: Value, cookies: &[&str]) -> Response<Respon
         .expect("valid response")
 }
 
+/// Shown wherever adding an API sensor, phone, or paired device would exceed the plan.
+pub const DEVICE_LIMIT_MESSAGE: &str =
+    "Your plan's device limit is reached. Remove a device or upgrade your plan to add more.";
+
+pub fn device_limit() -> Response<ResponseBody> {
+    error(403, "device_limit", DEVICE_LIMIT_MESSAGE)
+}
+
 pub fn error(status: u16, code: &str, message: &str) -> Response<ResponseBody> {
     reply(
         status,

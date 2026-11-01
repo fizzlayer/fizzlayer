@@ -59,6 +59,7 @@ fn respond(value: Value) -> Response<ResponseBody> {
             "Reading limit reached. Try again later.",
         ),
         Some("sensor_not_found") => error(404, "sensor_not_found", "Phone sensor not found."),
+        Some("device_limit") => crate::customer::device_limit(),
         Some("clip_not_found") => error(404, "clip_not_found", "Voice clip not found."),
         Some("invalid_link") => error(
             410,

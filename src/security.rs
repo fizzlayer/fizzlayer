@@ -138,6 +138,11 @@ pub async fn paid_request_budget(
                 .insert("retry-after", "60".parse().expect("valid header"));
             Err(response)
         }
+        Ok(value) if value["error"] == "credits_exhausted" => Err(error(
+            402,
+            "credits_exhausted",
+            "You've used this month's Fizz credits. Upgrade your plan for more, or wait until they reset next month.",
+        )),
         _ => Err(error(
             503,
             "unavailable",

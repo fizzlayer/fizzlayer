@@ -27,6 +27,14 @@ name = "account"
 path = "api/account.rs"
 
 [[bin]]
+name = "billing"
+path = "api/billing.rs"
+
+[[bin]]
+name = "stripe-webhook"
+path = "api/stripe-webhook.rs"
+
+[[bin]]
 name = "session"
 path = "api/session.rs"
 

@@ -89,6 +89,8 @@ async fn details(
             "created_at": user["created_at"],
             "passkeys": passkey_list(&passkeys),
             "can_add_passkey": can_add,
+            "plan": account["plan"],
+            "billing_available": crate::billing::Stripe::from_env().is_some(),
         }),
         None,
     )

@@ -107,6 +107,21 @@ body { overflow-x: clip; }
 .use-card .ask { margin: auto 0 0; padding-top: 18px; border-top: 1px solid #e8eef2; color: #3d6475; font-size: 14px; }
 .use-card .ask::before { content: ''; display: inline-block; width: 1em; height: 1em; margin-right: 7px; vertical-align: -.125em; background: #71b6c5; mask: url('/icons/fontawesome/arrow-right.svg') center / contain no-repeat; }
 .uses-more { margin: 25px 0 0; font-size: 15px; color: #81919d; text-align: center; }
+.pricing-table-wrap { border: 1px solid var(--line); border-radius: 10px; background: white; overflow: hidden; }
+.pricing-table { width: 100%; border-collapse: collapse; text-align: left; }
+.pricing-table th, .pricing-table td { padding: 22px 27px; border-top: 1px solid #e8eef2; vertical-align: middle; }
+.pricing-table thead th { border-top: 0; padding-block: 16px; color: var(--muted); font: 13px var(--mono); letter-spacing: .5px; text-transform: uppercase; background: var(--canvas); }
+.pricing-table tbody th { font-weight: 400; }
+.pricing-table td { font-size: 17px; font-variant-numeric: tabular-nums; }
+.plan-name { display: block; font-family: var(--display); font-size: 21px; font-weight: 500; letter-spacing: -.5px; }
+.plan-tag { display: block; margin-top: 3px; color: var(--muted); font-size: 14px; }
+.plan-price { font-family: var(--display); font-size: 27px; font-weight: 500; letter-spacing: -1px; }
+.plan-period { margin-left: 5px; color: var(--muted); font-size: 14px; }
+.plan-featured th, .plan-featured td { background: #f2fafc; }
+.plan-featured th { box-shadow: inset 3px 0 0 var(--accent); }
+.plan-action { text-align: right; }
+.plan-action .button { justify-content: space-between; min-width: 195px; gap: 12px; white-space: nowrap; }
+.pricing-note { max-width: 760px; margin: 22px 0 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
 .enterprise { background: var(--navy); color: white; }
 .enterprise .eyebrow-label { color: var(--cyan); }
 .enterprise .lede { color: #9bb2c1; }
@@ -193,6 +208,20 @@ body { overflow-x: clip; }
   .demo-layout .lede { max-width: 550px; }
   .demo-features { grid-template-columns: 1fr 1fr; }
   .use-grid { grid-template-columns: repeat(2, 1fr); }
+  .pricing-table-wrap { border: 0; background: none; overflow: visible; }
+  .pricing-table, .pricing-table tbody, .pricing-table tr, .pricing-table th, .pricing-table td { display: block; }
+  .pricing-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .pricing-table tbody { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .pricing-table tr { display: flex; flex-direction: column; padding: 24px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+  .pricing-table th, .pricing-table td { padding: 0; border: 0; }
+  .pricing-table tbody th { margin-bottom: 14px; }
+  .pricing-table td { display: flex; justify-content: space-between; gap: 12px; padding-block: 9px; border-top: 1px solid #e8eef2; }
+  .pricing-table td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 15px; }
+  .pricing-table td:first-of-type { align-items: baseline; }
+  .pricing-table .plan-featured { border-color: var(--accent); background: #f2fafc; }
+  .plan-featured th, .plan-featured td { background: none; box-shadow: none; }
+  .plan-action { margin-top: auto; padding-top: 16px !important; border-top: 0 !important; }
+  .plan-action .button { justify-content: center; width: 100%; }
   .enterprise-layout { grid-template-columns: 1fr; }
   .ent-points { grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .footer-brand { gap: 10px; flex-direction: column; align-items: start; }
@@ -226,6 +255,7 @@ body { overflow-x: clip; }
   .section { padding-block: 60px; }
   .section h2, .demo-layout h2, .enterprise h2 { font-size: 34px; letter-spacing: -1.5px; }
   .connect-steps { grid-template-columns: 1fr; gap: 27px; }
+  .pricing-table tbody { grid-template-columns: 1fr; }
   .connect-steps li { padding-top: 24px; }
   .connect-steps h3 { display: inline; margin-left: 12px; font-size: 21px; }
   .connect-steps p { margin-top: 15px; }

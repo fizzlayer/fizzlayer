@@ -79,6 +79,7 @@ Add these server-side environment variables to each environment you use:
 | `ELEVENLABS_VOICE_ID` | No | Voice ID; defaults to George (`JBFqnCBsd6RMkjVDRZzb`) |
 | `AGENTPHONE_API_KEY` | For alert calls | AgentPhone credential |
 | `AGENTPHONE_AGENT_ID` | Sometimes | Required when the AgentPhone account has multiple agents; a sole agent is selected automatically |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
 
 Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls.
 
@@ -162,7 +163,17 @@ The database regression suites use transactions and roll back their fixtures. Ru
 ```sh
 supabase db query --linked --file supabase/tests/authenticated_owner_rls.sql
 supabase db query --linked --file supabase/tests/security_hardening.sql
+supabase db query --linked --file supabase/tests/plan_limits.sql
+supabase db query --linked --file supabase/tests/billing.sql
 ```
+
+New accounts start on the Hobbyist plan: 3 connected devices and 100 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
+
+```sql
+update public.fizz_plans set device_limit = null, monthly_credits = null where id = 'hobbyist';
+```
+
+The [plans reference](REFERENCE.md#plans-and-limits) covers how limits are enforced and how to move one account to another plan.
 
 Use a recent Supabase CLI with `db query` support; the repository's security audit records version 2.120.0. See the [security audit](SECURITY_AUDIT.md) for test coverage and remaining limitations. Its recorded results describe the original instance at the time of that audit, not your new deployment.
 

@@ -1,6 +1,6 @@
 # Fizzlayer technical reference
 
-Account flows, sensor APIs, alerts, voice, and agent connections. For setup, start with [self-hosting](SELF_HOSTING.md); for devices, see the [CLI guide](CLI.md).
+Account flows, plans, sensor APIs, alerts, voice, and agent connections. For setup, start with [self-hosting](SELF_HOSTING.md); for devices, see the [CLI guide](CLI.md).
 
 ## Customer onboarding
 
@@ -56,9 +56,53 @@ Table grants and server-only RPC permissions remain unchanged: clients still can
 
 The [security audit](SECURITY_AUDIT.md) records deployed database/Auth protections, source changes, test results, and remaining operations. Password/email changes invalidate Fizz sessions; banning or deleting an Auth user also revokes their agents and devices. New and reset passwords require at least 12 characters (72-byte maximum); existing passwords still work at sign-in. Session and device credentials stay hashed in the database.
 
-Run `supabase db query --linked --file supabase/tests/security_hardening.sql` to verify session revocation, credential checks, budgets, and default grants. Both SQL test files roll back their fixtures; run linked CLI commands sequentially because they refresh a shared temporary login credential. Production Auth and database SSL settings are recorded separately in `supabase/config.production-security.toml`; keep the local-development configuration separate from production.
+Run `supabase db query --linked --file supabase/tests/security_hardening.sql` to verify session revocation, credential checks, budgets, and default grants. All SQL test files roll back their fixtures; run linked CLI commands sequentially because they refresh a shared temporary login credential. Production Auth and database SSL settings are recorded separately in `supabase/config.production-security.toml`; keep the local-development configuration separate from production.
 
 After sign-in, new accounts choose sensor types and press **Start with sample data**. Fizz creates simulated sensors and opens the dashboard. Existing choices migrate into sensor instances. Simulated values advance when an authenticated dashboard or Sensors page requests data, at most once per 15 seconds per sensor; the browser polls while open.
+
+## Plans and limits
+
+Each account has a plan that caps its connected devices and its monthly Fizz credits:
+
+| Plan | Price | Connected devices | Fizz credits per month |
+| --- | --- | --- | --- |
+| Hobbyist | Free | 3 | 100 |
+| Tinkerer | $10/month | 10 | 1,000 |
+| Pro | $25/month | 50 | 5,000 |
+| Enterprise | Custom | Unlimited | Unlimited |
+
+- **Connected devices** are API sensors (including CLI-paired devices) and phone sensors that have not been deleted. Sample sensors are free and unlimited. The limit is checked when a sensor is created as, or switched to, API or phone mode; when a phone link is created for a sample Phone sensor; when a pairing code is claimed from the dashboard, chat, or MCP; and again when the device approves. Over the limit, the API returns `403` with code `device_limit`. Existing devices keep working after a downgrade, but no more can be added until the count is below the limit.
+- **Fizz credits** pay for the workspace chat. Each `POST /api/chat` spends one credit after the rate limits pass, so a spoken turn costs one credit too. Speech requests (`/api/voice`) don't spend credits but stop when none remain. Credits reset at the start of each UTC calendar month. When they run out, chat returns `402` with code `credits_exhausted`.
+
+Limits live in `fizz_plans`, which is the single source for enforcement; the landing page's pricing table repeats the numbers. Accounts without a `fizz_subscriptions` row are on Hobbyist. Usage is stored in `fizz_credit_usage`, and `GET /api/account` returns the plan and current usage, which Settings displays.
+
+Run `supabase db query --linked --file supabase/tests/plan_limits.sql` to verify device limits, credit spending, monthly resets, and client grants.
+
+### Billing with Stripe
+
+When the Stripe variables are set, Settings offers **Upgrade** buttons for Tinkerer and Pro, and **Manage billing** once an account has a Stripe customer. Without them, billing is hidden and plans change only in the database.
+
+| Variable | Value |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | Secret key (`sk_...`), or a restricted key with write access to Customers, Checkout Sessions, Customer portal, and read access to Subscriptions |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret (`whsec_...`) of the webhook endpoint below |
+| `STRIPE_PRICE_TINKERER` | Price ID (`price_...`) of the monthly Tinkerer price |
+| `STRIPE_PRICE_PRO` | Price ID of the monthly Pro price |
+
+- `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates a Stripe Checkout session; `{"action":"portal"}` opens the Stripe customer portal. Both return `{"url": ...}` for the browser to open and allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal.
+- `POST /api/stripe-webhook` receives Stripe events. Subscribe the endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`. Each event's signature and timestamp (5-minute tolerance) are verified; the handler then fetches the subscription from Stripe and stores its current state, so retried and out-of-order events are harmless. A failure answers `500` so Stripe retries.
+- `active`, `trialing`, and `past_due` subscriptions keep their plan; `past_due` keeps it while Stripe retries the payment. Any other status, or a price that matches neither variable, returns the account to Hobbyist. Enterprise accounts are never changed by webhooks.
+- In the Stripe customer portal settings, allow switching between the Tinkerer and Pro prices and cancelling. For local testing, run `stripe listen --forward-to localhost:3000/api/stripe-webhook` and use the signing secret it prints.
+
+To set a plan by hand, such as Enterprise, use the SQL editor:
+
+```sql
+insert into public.fizz_subscriptions(customer_id, plan)
+select id, 'enterprise' from public.fizz_customers where username = 'USERNAME'
+on conflict (customer_id) do update set plan = excluded.plan, updated_at = now();
+```
+
+Run `supabase db query --linked --file supabase/tests/billing.sql` to verify how subscription states map to plans.
 
 ## Sensor API
 
