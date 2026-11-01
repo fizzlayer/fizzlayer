@@ -116,6 +116,18 @@ scripts/dev.sh --local-db  # or runs Supabase locally in Docker instead
 
 The script checks that the API compiles, starts `vercel dev` at `http://localhost:3000`, and reports when `/api/status` shows a connected database. Run `scripts/dev.sh --help` for options.
 
+To test paid plans locally, use Stripe test-mode keys and prices with the local database, and forward webhooks with the [Stripe CLI](https://docs.stripe.com/stripe-cli):
+
+```sh
+stripe listen --forward-to localhost:3000/api/stripe-webhook   # in one terminal
+
+STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... \
+STRIPE_PRICE_TINKERER=price_... STRIPE_PRICE_PRO=price_... \
+scripts/dev.sh --local-db                                      # in another
+```
+
+`stripe listen --print-secret` prints the webhook secret. Create an invite in local Studio (`http://127.0.0.1:54323`), sign up at `http://localhost:3000`, confirm the email in the local inbox (`http://127.0.0.1:54324`), then upgrade in **Settings** with the test card `4242 4242 4242 4242`. The script refuses live Stripe keys. See [billing with Stripe](docs/REFERENCE.md#billing-with-stripe) for details.
+
 Run the Rust test suites:
 
 ```sh
