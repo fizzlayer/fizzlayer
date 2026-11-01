@@ -116,6 +116,13 @@
     button.addEventListener('click', () => openBilling(button, { action: 'checkout', plan: button.dataset.plan }));
   }
   $('manage-billing').addEventListener('click', () => openBilling($('manage-billing'), { action: 'portal' }));
+  // Going Back from Stripe can restore this page exactly as it was left, mid-redirect with
+  // its button disabled. Re-enable the buttons and reload the plan, which may have changed.
+  addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    for (const button of $('plan-actions').querySelectorAll('button')) button.disabled = false;
+    refresh().catch(() => {});
+  });
 
   // Stripe confirms a checkout through a webhook, which can land a moment after the redirect.
   async function afterCheckout(account) {
