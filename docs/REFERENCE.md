@@ -92,7 +92,16 @@ When the Stripe variables are set, Settings offers **Upgrade** buttons for Tinke
 - `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates a Stripe Checkout session; `{"action":"portal"}` opens the Stripe customer portal. Both return `{"url": ...}` for the browser to open and allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal.
 - `POST /api/stripe-webhook` receives Stripe events. Subscribe the endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`. Each event's signature and timestamp (5-minute tolerance) are verified; the handler then fetches the subscription from Stripe and stores its current state, so retried and out-of-order events are harmless. A failure answers `500` so Stripe retries.
 - `active`, `trialing`, and `past_due` subscriptions keep their plan; `past_due` keeps it while Stripe retries the payment. Any other status, or a price that matches neither variable, returns the account to Hobbyist. Enterprise accounts are never changed by webhooks.
-- In the Stripe customer portal settings, allow switching between the Tinkerer and Pro prices and cancelling. For local testing, run `stripe listen --forward-to localhost:3000/api/stripe-webhook` and use the signing secret it prints.
+- In the Stripe customer portal settings, allow switching between the Tinkerer and Pro prices and cancelling. For local testing, use test-mode keys and prices with a local database so no real account or card is involved:
+
+  ```sh
+  stripe listen --forward-to localhost:3000/api/stripe-webhook   # in one terminal
+  STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... \
+  STRIPE_PRICE_TINKERER=price_... STRIPE_PRICE_PRO=price_... \
+  scripts/dev.sh --local-db                                      # in another
+  ```
+
+  `stripe listen --print-secret` prints the forwarding secret, which stays the same between runs. The script passes `STRIPE_*` variables to the app and refuses live keys. Pay with the test card `4242 4242 4242 4242`; the `stripe listen` terminal shows each event and the app's response.
 
 To set a plan by hand, such as Enterprise, use the SQL editor:
 

@@ -3,7 +3,8 @@
 #
 #   scripts/dev.sh               Use your linked Vercel project's Development environment
 #                                (a hosted development Supabase project).
-#   scripts/dev.sh --local-db    Run Supabase in Docker and point the API at it.
+#   scripts/dev.sh --local-db    Run Supabase in Docker and point the API at it. STRIPE_*
+#                                variables set in this shell (test-mode keys) are passed on.
 #
 # Options:
 #   --port N       Port for the app (default 3000; Supabase Auth redirects expect 3000)
@@ -87,10 +88,21 @@ if [[ $local_db -eq 1 ]]; then
   service_key="$(read_status SERVICE_ROLE_KEY)"
   [[ -n "$supabase_url" && -n "$service_key" ]] || die "could not read the local Supabase URL and service-role key"
 
+  # The .env replaces the project's cloud variables, so pass Stripe settings from this shell.
+  stripe_env="$(env | grep -E '^STRIPE_[A-Z_]+=' | sort || true)"
+  case "$stripe_env" in
+    *"STRIPE_SECRET_KEY="[rs]k_live_*) die "use a test-mode Stripe key with --local-db, not a live one" ;;
+  esac
+  stripe_count="$(grep -cE '^STRIPE_(SECRET_KEY|WEBHOOK_SECRET|PRICE_TINKERER|PRICE_PRO)=.' <<<"$stripe_env" || true)"
+  if [[ $stripe_count -gt 0 && $stripe_count -lt 4 ]]; then
+    warn "billing needs STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_TINKERER and STRIPE_PRICE_PRO; $stripe_count of 4 are set"
+  fi
+
   (
     umask 077
     printf '%s\nSUPABASE_URL=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\nFIZZ_DEV_ORIGIN=%s\n' \
       "$env_marker" "$supabase_url" "$service_key" "$origin" >.env
+    if [[ -n "$stripe_env" ]]; then printf '%s\n' "$stripe_env" >>.env; fi
   )
 elif [[ -f .env ]]; then
   warn ".env exists, so vercel dev uses it instead of your project's Development variables"
