@@ -110,9 +110,11 @@ Use a new `event_id` for each sample; retrying the same ID is idempotent. Keys a
 After configuring your development Supabase project and local environment as described in the [self-hosting guide](docs/SELF_HOSTING.md):
 
 ```sh
-cargo check --locked
-FIZZ_DEV_ORIGIN=http://localhost:3000 vercel dev
+scripts/dev.sh             # uses your linked Vercel project's Development variables
+scripts/dev.sh --local-db  # or runs Supabase locally in Docker instead
 ```
+
+The script checks that the API compiles, starts `vercel dev` at `http://localhost:3000`, and reports when `/api/status` shows a connected database. Run `scripts/dev.sh --help` for options.
 
 Run the Rust test suites:
 

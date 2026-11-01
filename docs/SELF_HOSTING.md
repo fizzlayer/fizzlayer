@@ -138,20 +138,20 @@ For MCP clients, use `https://sensors.example.com/api/mcp` and a token created o
 The simplest development setup uses a separate hosted Supabase project with the same migrations. Link your development Vercel project, configure its Development environment, then run:
 
 ```sh
-vercel env pull .env.local
-cargo check --locked
-FIZZ_DEV_ORIGIN=http://localhost:3000 vercel dev
+scripts/dev.sh
 ```
 
-Alternatively, create `.env.local` yourself with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for your development database. This file is ignored by Git. Add optional provider credentials only when testing those features. Open `http://localhost:3000` and check `/api/status`. Use this hostname consistently. `FIZZ_DEV_ORIGIN` sets the browser-facing loopback origin during `vercel dev`, whose proxy can otherwise expose an internal function port in OAuth callbacks. It is ignored outside Vercel development and accepts only HTTP loopback origins.
+The script links the directory to a Vercel project if needed, runs `cargo check --locked`, then starts `FIZZ_DEV_ORIGIN=http://localhost:3000 vercel dev`. `vercel dev` reads the linked project's Development variables. Alternatively, create `.env.local` yourself with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for your development database. This file is ignored by Git. Add optional provider credentials only when testing those features. Open `http://localhost:3000` and check `/api/status`. Use this hostname consistently. `FIZZ_DEV_ORIGIN` sets the browser-facing loopback origin during `vercel dev`, whose proxy can otherwise expose an internal function port in OAuth callbacks. It is ignored outside Vercel development and accepts only HTTP loopback origins.
 
-For a local Supabase database, install Docker. Before running `supabase start`, update your local `supabase/config.toml`:
+For a local Supabase database, install Docker and run:
 
-- Disable `[auth.external.google]` unless you have configured its referenced Google credentials.
-- Set `[db.seed]` → `enabled = false`; the configured `supabase/seed.sql` file is not provided.
-- Align Auth's site URL and redirect URLs with `http://localhost:3000`.
+```sh
+scripts/dev.sh --local-db
+```
 
-Run `supabase start`, then obtain the local URL and service-role key with `supabase status`. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an invite in local Studio. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
+This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an invite in local Studio at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
+
+The local `supabase/config.toml` disables Google sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
 
 ## Verify and operate
 
