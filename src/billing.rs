@@ -316,6 +316,19 @@ fn period_end(subscription: &Value) -> Option<i64> {
         .or_else(|| subscription["current_period_end"].as_i64())
 }
 
+/// When the plan renews or, if a cancellation is scheduled, ends; and whether it ends.
+/// Recent API versions schedule cancellations with `cancel_at` (the customer portal sets it
+/// to the period end) rather than `cancel_at_period_end`.
+fn period_close(subscription: &Value) -> (Option<i64>, bool) {
+    match subscription["cancel_at"].as_i64() {
+        Some(cancel_at) => (Some(cancel_at), true),
+        None => (
+            period_end(subscription),
+            subscription["cancel_at_period_end"] == true,
+        ),
+    }
+}
+
 /// `POST /api/stripe-webhook`. Answers 500 when Stripe or the database fails so Stripe retries.
 pub async fn webhook(request: Request) -> Response<ResponseBody> {
     let Some(stripe) = Stripe::from_env() else {
@@ -380,6 +393,7 @@ async fn sync(stripe: &Stripe, subscription_id: &str, customer: Option<&str>) ->
     let plan = subscription["items"]["data"][0]["price"]["id"]
         .as_str()
         .and_then(|price| stripe.plan_for(price));
+    let (period_close, cancelling) = period_close(&subscription);
     let store = Supabase::from_env().ok()?;
     store
         .rpc(
@@ -390,8 +404,8 @@ async fn sync(stripe: &Stripe, subscription_id: &str, customer: Option<&str>) ->
                 "p_subscription_id": subscription_id,
                 "p_status": subscription["status"].as_str(),
                 "p_plan": plan,
-                "p_current_period_end": period_end(&subscription),
-                "p_cancel_at_period_end": subscription["cancel_at_period_end"].as_bool(),
+                "p_current_period_end": period_close,
+                "p_cancel_at_period_end": cancelling,
             }),
         )
         .await
@@ -461,5 +475,19 @@ mod tests {
         assert_eq!(period_end(&item), Some(20));
         assert_eq!(period_end(&json!({"current_period_end": 10})), Some(10));
         assert_eq!(period_end(&json!({})), None);
+    }
+
+    #[test]
+    fn scheduled_cancellations_use_either_field() {
+        let renewing =
+            json!({"current_period_end": 10, "cancel_at": null, "cancel_at_period_end": false});
+        assert_eq!(period_close(&renewing), (Some(10), false));
+        let portal =
+            json!({"current_period_end": 10, "cancel_at": 10, "cancel_at_period_end": false});
+        assert_eq!(period_close(&portal), (Some(10), true));
+        let custom_date = json!({"current_period_end": 10, "cancel_at": 7});
+        assert_eq!(period_close(&custom_date), (Some(7), true));
+        let legacy = json!({"current_period_end": 10, "cancel_at_period_end": true});
+        assert_eq!(period_close(&legacy), (Some(10), true));
     }
 }
