@@ -11,6 +11,11 @@
       ],
       "destination": "https://fizzlayer.com/:path",
       "permanent": true
+    },
+    {
+      "source": "/docs",
+      "destination": "/docs.html",
+      "permanent": true
     }
   ],
   "rewrites": [

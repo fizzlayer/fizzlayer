@@ -6,7 +6,7 @@ body { overflow-x: clip; }
 .site-nav .wordmark .brand-dot { color: var(--cyan); }
 .site-nav nav { min-height: 79px; display: flex; align-items: center; justify-content: space-between; gap: 36px; }
 .nav-links { display: flex; align-items: center; gap: 29px; margin: 0; padding: 0; list-style: none; }
-.nav-links a { color: white; font-size: 16px; font-weight: 500; text-decoration: none; }
+.nav-links a { color: white; font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap; }
 .nav-links a:hover, .nav-links a[aria-current="true"] { color: var(--cyan); }
 .nav-links .nav-sign-in { margin-left: 20px; }
 .nav-links .nav-cta { background: var(--accent); color: white; font-size: 15px; padding: 10px 15px; min-height: 38px; gap: 20px; }
@@ -157,10 +157,14 @@ body { overflow-x: clip; }
 .site-footer nav a { color: #536775; font-size: 13px; text-decoration: none; }
 @keyframes float { 50% { transform: translateY(-5px); } }
 @media (min-width: 1500px) { .hero { padding-block: 100px 90px; } }
+@media (max-width: 1240px) {
+  .nav-links { gap: 22px; }
+  .nav-links .nav-sign-in { margin-left: 8px; }
+}
 @media (max-width: 1100px) {
   .container { width: calc(100% - 56px); }
-  .nav-links { gap: 21px; }
-  .nav-links .nav-sign-in { margin-left: 10px; }
+  .nav-links { gap: 16px; }
+  .nav-links .nav-sign-in { margin-left: 4px; }
   .hero { gap: 35px; padding-block: 65px; min-height: 600px; }
   .hero h1 { font-size: 61px; letter-spacing: -3.5px; }
   .hero-description { font-size: 16px; }

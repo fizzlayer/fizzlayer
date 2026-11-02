@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Generate the agent discovery cards from their sources so they never drift:
+// Generate the agent discovery cards and docs from their sources so they never drift:
 //   public/.well-known/webmcp.json              WebMCP card (served at /.well-known/webmcp), from public/webmcp.js
 //   public/.well-known/mcp/server-card.json     MCP Server Card (SEP-1649 draft), from src/mcp.rs
-// Usage: node scripts/agent-cards.mjs           write both files
-//        node scripts/agent-cards.mjs --check   fail if either file is out of date (CI)
+//   public/docs.html                            WebMCP tool reference, between the webmcp-tools markers
+// Usage: node scripts/agent-cards.mjs           write all three
+//        node scripts/agent-cards.mjs --check   fail if any is out of date (CI)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,8 +32,60 @@ function webmcpTools() {
 
 // The pages that load webmcp.js, read from the HTML so new pages are picked up.
 function webmcpPages() {
-  const pages = ['index.html', 'app.html', 'sensors.html', 'agents.html', 'settings.html', 'privacy.html', 'terms.html', 'demo.html', 'phone.html'];
+  const pages = ['index.html', 'docs.html', 'app.html', 'sensors.html', 'agents.html', 'settings.html', 'privacy.html', 'terms.html', 'demo.html', 'phone.html'];
   return pages.filter((page) => read(`public/${page}`).includes('src="/webmcp.js"')).map((page) => (page === 'index.html' ? '/' : `/${page}`));
+}
+
+// The WebMCP tool reference in docs.html, grouped by area. Tools missing from a group land in "More".
+const TOOL_GROUPS = [
+  ['Getting started', ['get_started', 'list_plans', 'join_waitlist', 'contact_sales']],
+  ['Account and sign-in', ['create_account', 'resend_confirmation', 'send_password_reset', 'sign_in', 'sign_out', 'get_account']],
+  ['Sensors and devices', ['start_with_sample_data', 'list_sensor_types', 'list_sensors', 'get_readings', 'add_sensor', 'update_sensor', 'remove_sensor', 'create_phone_link', 'disconnect_phones', 'get_device_setup', 'pair_device']],
+  ['Alerts and Fizz', ['list_alerts', 'create_alert', 'set_alert_enabled', 'delete_alert', 'ask_fizz']],
+  ['Agent tokens (MCP)', ['list_agent_connections', 'create_agent_connection', 'revoke_agent_connection']],
+  ['Billing and navigation', ['start_checkout', 'open_billing_portal', 'open_page']],
+];
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const inlineCode = (s) => escapeHtml(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+
+function toolRow(tool) {
+  const props = Object.keys(tool.inputSchema?.properties || {});
+  const required = new Set(tool.inputSchema?.required || []);
+  const args = props.length
+    ? `<p class="docs-args">Input: ${props.map((p) => `<code>${escapeHtml(p)}</code>${required.has(p) ? '' : ' (optional)'}`).join(', ')}</p>`
+    : '<p class="docs-args">No input.</p>';
+  const hints = tool.annotations || {};
+  const badge = hints.readOnlyHint ? '<br><span class="docs-badge docs-badge-read">read-only</span>'
+    : hints.consequentialHint ? '<br><span class="docs-badge docs-badge-confirm">confirm first</span>' : '';
+  return `<tr><td><code>${escapeHtml(tool.name)}</code>${badge}</td><td><p>${inlineCode(tool.description)}</p>${args}</td></tr>`;
+}
+
+function docsToolTable(tools) {
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  const groups = TOOL_GROUPS.map(([title, names]) => [title, names.filter((name) => byName.has(name))]);
+  const grouped = new Set(groups.flatMap(([, names]) => names));
+  const rest = tools.map((tool) => tool.name).filter((name) => !grouped.has(name));
+  if (rest.length) groups.push(['More', rest]);
+  const lines = ['<div class="docs-tools">',
+    '<p class="docs-legend"><span><span class="docs-badge docs-badge-read">read-only</span>Only reads; safe to call any time.</span><span><span class="docs-badge docs-badge-confirm">confirm first</span>Changes your account, data, or money; agents should check with you.</span></p>'];
+  for (const [title, names] of groups) {
+    if (!names.length) continue;
+    lines.push(`<h4>${escapeHtml(title)}</h4>`, '<div class="docs-table-wrap"><table>', '<thead><tr><th scope="col">Tool</th><th scope="col">What it does</th></tr></thead>', '<tbody>');
+    for (const name of names) lines.push(toolRow(byName.get(name)));
+    lines.push('</tbody></table></div>');
+  }
+  lines.push('</div>');
+  return lines.map((line) => `        ${line}`).join('\n');
+}
+
+function docsPage(tools) {
+  const page = read('public/docs.html');
+  const start = '<!-- webmcp-tools:start -->';
+  const end = '<!-- webmcp-tools:end -->';
+  const a = page.indexOf(start);
+  const b = page.indexOf(end);
+  if (a < 0 || b < a) throw new Error('public/docs.html is missing the webmcp-tools markers');
+  return `${page.slice(0, a + start.length)}\n${docsToolTable(tools)}\n        ${page.slice(b)}`;
 }
 
 function rustString(source, name) {
@@ -75,14 +128,15 @@ function serverCard() {
   };
 }
 
+const webmcp = webmcpCard();
 const outputs = {
-  'public/.well-known/webmcp.json': webmcpCard(),
-  'public/.well-known/mcp/server-card.json': serverCard(),
+  'public/.well-known/webmcp.json': `${JSON.stringify(webmcp, null, 2)}\n`,
+  'public/.well-known/mcp/server-card.json': `${JSON.stringify(serverCard(), null, 2)}\n`,
+  'public/docs.html': docsPage(webmcp.tools),
 };
 const check = process.argv.includes('--check');
 let stale = false;
-for (const [path, card] of Object.entries(outputs)) {
-  const text = `${JSON.stringify(card, null, 2)}\n`;
+for (const [path, text] of Object.entries(outputs)) {
   if (check) {
     let current = '';
     try { current = read(path); } catch {}

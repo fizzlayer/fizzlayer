@@ -50,6 +50,9 @@ code, pre, kbd, samp { font-family: var(--mono); }
 .fa-key { --fa: url('/icons/fontawesome/key.svg'); }
 .fa-user { --fa: url('/icons/fontawesome/user.svg'); }
 .fa-robot { --fa: url('/icons/fontawesome/robot.svg'); }
+.fa-code { --fa: url('/icons/fontawesome/code.svg'); }
+.fa-plug { --fa: url('/icons/fontawesome/plug.svg'); }
+.fa-arrow-right-to-bracket { --fa: url('/icons/fontawesome/arrow-right-to-bracket.svg'); }
 .fa-mobile-screen-button { --fa: url('/icons/fontawesome/mobile-screen-button.svg'); }
 .fa-tower-broadcast { --fa: url('/icons/fontawesome/tower-broadcast.svg'); }
 .fa-triangle-exclamation { --fa: url('/icons/fontawesome/triangle-exclamation.svg'); }

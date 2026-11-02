@@ -25,7 +25,7 @@
     custom: { label: 'Custom', metric: 'value', unit: '' },
   };
   const KIND_IDS = Object.keys(KINDS);
-  const PAGES = { home: '/', overview: '/app.html', sensors: '/sensors.html', agents: '/agents.html', settings: '/settings.html', pricing: '/#pricing', demo: '/demo.html', privacy: '/privacy.html', terms: '/terms.html' };
+  const PAGES = { home: '/', overview: '/app.html', sensors: '/sensors.html', agents: '/agents.html', settings: '/settings.html', pricing: '/#pricing', demo: '/demo.html', docs: '/docs.html', privacy: '/privacy.html', terms: '/terms.html' };
 
   class ToolError extends Error {}
 
@@ -546,7 +546,7 @@
     // ---------- Navigation ----------
     {
       name: 'open_page',
-      description: 'Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, privacy, or terms.',
+      description: 'Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, docs (documentation), privacy, or terms.',
       inputSchema: { type: 'object', properties: { page: { type: 'string', enum: Object.keys(PAGES) } }, required: ['page'] },
       annotations: { readOnlyHint: true },
       async execute({ page }) {

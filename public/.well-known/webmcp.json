@@ -7,6 +7,7 @@
   "api": "document.modelContext",
   "pages": [
     "/",
+    "/docs.html",
     "/app.html",
     "/sensors.html",
     "/agents.html",
@@ -633,7 +634,7 @@
     },
     {
       "name": "open_page",
-      "description": "Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, privacy, or terms.",
+      "description": "Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, docs (documentation), privacy, or terms.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -647,6 +648,7 @@
               "settings",
               "pricing",
               "demo",
+              "docs",
               "privacy",
               "terms"
             ]

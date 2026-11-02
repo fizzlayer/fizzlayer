@@ -46,6 +46,7 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 
 ## Docs
 
+- [Documentation](https://fizzlayer.com/docs.html): setup, the HTTP API, the MCP server, and every WebMCP tool
 - [Website](https://fizzlayer.com)
 - [Interactive demo](https://fizzlayer.com/demo.html) (no sign-in)
 - [Technical reference](https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md)
