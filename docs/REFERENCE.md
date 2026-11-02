@@ -223,4 +223,4 @@ const tools = await document.modelContext.getTools();
 await document.modelContext.executeTool(tools.find((t) => t.name === 'get_started'), '{}');
 ```
 
-For visitors on stable Chrome, register `https://fizzlayer.com` for the [WebMCP origin trial](https://developer.chrome.com/origintrials/#/register_trial/4163014905550602241) and add the token to each page as `<meta http-equiv="origin-trial" content="TOKEN">`. The `Permissions-Policy` header allows `tools=(self)`.
+Visitors on stable Chrome get WebMCP through the [origin trial](https://developer.chrome.com/origintrials/#/register_trial/4163014905550602241): each of those pages carries a `<meta http-equiv="origin-trial">` token for `https://fizzlayer.com` that expires on March 30, 2027. Renew it in the origin trial console before then and replace the token on every page. Self-hosted deployments need their own token for their origin. The `Permissions-Policy` header allows `tools=(self)`.
