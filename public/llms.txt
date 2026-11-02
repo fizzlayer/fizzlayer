@@ -43,7 +43,7 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 - Accounts are invite-only, and a person must confirm their email; an agent cannot skip either step.
 - Passkeys, Google sign-in, voice chat, and phone sensor permissions need the person at the device.
 - Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`.
-- `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must be a US number the person gave you.
+- `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must already be saved on an alert in this workspace; the owner adds it from the dashboard or by asking Fizz. Asking again for the same alert returns the existing one.
 
 ## Machine-readable descriptions
 

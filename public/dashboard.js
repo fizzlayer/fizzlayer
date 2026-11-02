@@ -249,7 +249,7 @@
       sending: `Calling ${phone}…`,
       sent: `Called ${phone}`,
       failed: `${noun} to ${phone} failed${event.notify_error ? `: ${event.notify_error}` : ''}`,
-      skipped: `${noun} skipped: sent one recently`,
+      skipped: event.notify_error || `${noun} skipped: sent one recently`,
     }[event.notify_status];
     if (!text) return null;
     const note = node('span', `notify${event.notify_status === 'failed' ? ' failed' : ''}`, text);
@@ -327,8 +327,8 @@
     if (silenceRule(rule) && rule.notify_recovery) meta.append(node('span', '', 'Notifies when readings resume'));
     const latest = sensor?.latest_reading;
     if (silenceRule(rule)) {
-      const heard = latest?.received_at || latest?.observed_at;
-      meta.append(node('span', '', heard ? `Last reading ${kinds.timeAgo(heard)}` : 'No reading yet'));
+      const heard = sensor?.last_received_at;
+      meta.append(node('span', '', heard ? `Last reading ${kinds.timeAgo(heard)}` : 'No reading yet. This alert calls only after a reading arrives and then stops.'));
     } else if (latest?.metric === rule.metric && typeof latest.numeric_value === 'number' && (latest.unit || '') === (rule.unit || '')) {
       const now = node('span', '', 'Now ');
       now.append(node('span', 'alert-value', kinds.formatValue(latest.numeric_value, latest.unit)));

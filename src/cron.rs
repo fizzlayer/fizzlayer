@@ -15,6 +15,11 @@ use crate::{
     store::Supabase,
 };
 
+/// A missing or blank secret means the scheduler is not configured.
+pub fn configured_cron_secret(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|secret| !secret.is_empty())
+}
+
 pub fn cron_authorized(header: Option<&str>, secret: &str) -> bool {
     let Some(header) = header else {
         return false;
@@ -32,11 +37,12 @@ pub fn cron_authorized(header: Option<&str>, secret: &str) -> bool {
     // Hash both sides so a different length does not short-circuit the compare.
     let presented = digest::digest(&digest::SHA256, presented.as_bytes());
     let secret = digest::digest(&digest::SHA256, secret.as_bytes());
-    let mut diff = 0u8;
-    for (left, right) in presented.as_ref().iter().zip(secret.as_ref()) {
-        diff |= left ^ right;
+    // ring's compare is deprecated as a public API, but it is still the
+    // constant-time check. Hashing first keeps both slices the same length.
+    #[allow(deprecated)]
+    {
+        ring::constant_time::verify_slices_are_equal(presented.as_ref(), secret.as_ref()).is_ok()
     }
-    diff == 0
 }
 
 fn notifications(report: DispatchReport) -> Value {
@@ -53,23 +59,21 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     if !matches!(request.method().as_str(), "GET" | "POST") {
         return error(405, "method_not_allowed", "Use GET or POST.");
     }
-    let Ok(secret) = env::var("CRON_SECRET") else {
+    let secret_var = env::var("CRON_SECRET").ok();
+    let Some(secret) = configured_cron_secret(secret_var.as_deref()) else {
         return error(
             503,
             "cron_unconfigured",
             "Set CRON_SECRET before scheduling alerts.",
         );
     };
-    let secret = secret.trim();
-    if secret.is_empty()
-        || !cron_authorized(
-            request
-                .headers()
-                .get("authorization")
-                .and_then(|value| value.to_str().ok()),
-            secret,
-        )
-    {
+    if !cron_authorized(
+        request
+            .headers()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok()),
+        secret,
+    ) {
         return error(401, "unauthorized", "Unauthorized.");
     }
     let Ok(store) = Supabase::from_env() else {
@@ -90,7 +94,8 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         }
     };
     // Dispatch even when the scan failed, so retries do not wait on it.
-    let report = notify::dispatch(&store).await;
+    // One call per run: an agent lookup and a single 8s dial fit in a 60s budget.
+    let report = notify::dispatch_limited(&store, 1).await;
     let failed = silence.get("error").is_some();
     reply(
         if failed { 503 } else { 200 },
@@ -134,5 +139,12 @@ mod tests {
         assert!(!cron_authorized(None, "closet-secret"));
         assert!(!cron_authorized(Some("Bearer "), "closet-secret"));
         assert!(!cron_authorized(Some("Bearer closet-secret"), ""));
+        assert_eq!(configured_cron_secret(None), None);
+        assert_eq!(configured_cron_secret(Some("")), None);
+        assert_eq!(configured_cron_secret(Some("   ")), None);
+        assert_eq!(
+            configured_cron_secret(Some("  closet-secret  ")),
+            Some("closet-secret")
+        );
     }
 }

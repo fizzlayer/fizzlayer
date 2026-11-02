@@ -404,7 +404,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). Optionally call a US phone number when it triggers; only use a number the person gave you.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number when it triggers; only use a number the person gave you. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -426,8 +426,15 @@
         const sensor = sensors.find((item) => item.id === id);
         if (!sensor) throw new ToolError('No sensor with that sensor_id. Call list_sensors.');
         const info = KINDS[sensor.kind] || KINDS.custom;
-        const rule = kind === 'silence'
-          ? { kind: 'silence', sensor_id: id, silence_minutes: minutes == null ? 10 : Number(minutes), notify_recovery: Boolean(recovery) }
+        const silence = kind === 'silence';
+        if (!silence && (comparator == null || threshold == null || Number.isNaN(Number(threshold)))) {
+          throw new ToolError('Threshold alerts need comparator and threshold.');
+        }
+        if (recovery != null && typeof recovery !== 'boolean') {
+          throw new ToolError('notify_recovery must be true or false.');
+        }
+        const rule = silence
+          ? { kind: 'silence', sensor_id: id, silence_minutes: minutes == null ? 10 : Number(minutes), notify_recovery: recovery === true }
           : { sensor_id: id, metric: (metric || info.metric).trim(), comparator, threshold: Number(threshold), unit: unit ?? (metric && metric !== info.metric ? '' : info.unit) };
         if (phone) Object.assign(rule, { notify_channel: 'call', notify_phone: phone });
         const result = await api('/api/alerts', 'POST', rule);

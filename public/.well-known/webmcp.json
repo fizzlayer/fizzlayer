@@ -434,7 +434,7 @@
     },
     {
       "name": "create_alert",
-      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). Optionally call a US phone number when it triggers; only use a number the person gave you.",
+      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number when it triggers; only use a number the person gave you. Asking again for the same alert returns the existing one.",
       "inputSchema": {
         "type": "object",
         "properties": {

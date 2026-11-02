@@ -39,7 +39,7 @@ Typed chat uses Vercel AI Gateway with customer-scoped readings and consented ph
 
 ElevenLabs supplies speech transcription and synthesized replies for the dashboard's voice chat. AgentPhone supplies optional outbound alert calls. These integrations are configured with server-side credentials and are independent of basic sensor ingestion.
 
-The notification queue is drained during reading-related requests and by `GET /api/cron`, which Vercel Cron calls every minute. The cron path is what delivers silence alerts and retries when no later reading arrives. Dispatch is bounded, a call is claimed once, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets. Provider acceptance does not confirm that someone answered a call.
+The notification queue is drained during reading-related requests and by `GET /api/cron`. The cron path is what delivers silence alerts and retries when no later reading arrives. It is invoked by Vercel Cron on Pro, or by an external scheduler, once a minute. Each cron run places at most one call. Dispatch is bounded, a call is claimed once, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets. Provider acceptance does not confirm that someone answered a call.
 
 ## Deployment boundaries
 

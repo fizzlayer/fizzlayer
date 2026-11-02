@@ -134,16 +134,18 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, Response<Res
             json!({"p_token":token,"p_sensor_id":sensor_id,"p_kind":"silence","p_silence_minutes":minutes,"p_notify_recovery":recovery})
         }
         "threshold" => {
-            if data.get("notify_recovery").and_then(Value::as_bool) == Some(true)
-                || data
-                    .get("silence_minutes")
-                    .is_some_and(|value| !value.is_null())
-            {
-                return Err(error(
-                    400,
-                    "invalid_rule",
-                    "A recovery notice is only available on a silence alert.",
-                ));
+            let recovery = data.get("notify_recovery").and_then(Value::as_bool) == Some(true);
+            let minutes = data
+                .get("silence_minutes")
+                .is_some_and(|value| !value.is_null());
+            if recovery || minutes {
+                let message = match (recovery, minutes) {
+                    (true, true) => "Minutes and a recovery notice belong on a silence alert.",
+                    (true, false) => "A recovery notice is only available on a silence alert.",
+                    (false, true) => "silence_minutes belongs on a silence alert.",
+                    (false, false) => "Choose a threshold or silence alert.",
+                };
+                return Err(error(400, "invalid_rule", message));
             }
             let Some(metric) = data.get("metric").and_then(Value::as_str) else {
                 return Err(error(400, "invalid_rule", "Choose a metric."));

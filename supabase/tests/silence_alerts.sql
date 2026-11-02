@@ -54,6 +54,12 @@ begin
   perform pg_temp.silence_assert(created->'rule'->>'kind' = 'silence', 'creates a silence rule');
   perform pg_temp.silence_assert((created->'rule'->>'silence_minutes')::int = 10, 'defaults to 10 minutes');
   perform pg_temp.silence_assert(created->'rule'->>'notify_channel' = 'call', 'stores the call number');
+  perform pg_temp.silence_assert(created->>'created' = 'true', 'the first save is new');
+  perform pg_temp.silence_assert(
+    public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14155550100')->'rule'->>'id' = created->'rule'->>'id'
+    and public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14155550100')->>'created' = 'false',
+    'posting the same silence alert again returns it');
+  perform pg_temp.silence_assert((select count(*) from public.fizz_alert_rules where customer_id = a.customer_id and kind = 'silence') = 1, 'a repeated save does not add a second rule');
   perform pg_temp.silence_assert(public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_silence_minutes => 0)->>'error' = 'invalid_rule', 'rejects a window under a minute');
   perform pg_temp.silence_assert(public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_silence_minutes => 10081)->>'error' = 'invalid_rule', 'rejects a window over 7 days');
   perform pg_temp.silence_assert(public.fizz_create_alert(a.session_token, b.sensor_id, p_kind => 'silence')->>'error' = 'sensor_not_found', 'cannot watch another account');
@@ -73,6 +79,7 @@ begin
   perform pg_temp.silence_assert(listed->'result'->'rules'->0->>'kind' = 'silence', 'MCP list_alerts shows silence');
   perform pg_temp.silence_assert((listed->'result'->'rules'->0->>'silence_minutes')::int = 10, 'MCP list_alerts shows the window');
   perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'silence_minutes', 0))->>'error' = 'invalid_arguments', 'MCP rejects a window under a minute');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0198'))->>'error' = 'invalid_arguments', 'MCP cannot introduce a new phone number');
 
   -- Not quiet long enough, never reported, paused, and removed sensors stay armed.
   perform pg_temp.silence_assert(public.fizz_create_alert(b.session_token, b.sensor_id, p_kind => 'silence', p_silence_minutes => 10) ? 'rule', 'second account can create a silence rule');
@@ -103,7 +110,7 @@ begin
   claimed := public.fizz_claim_alert_notifications(3);
   perform pg_temp.silence_assert(jsonb_array_length(claimed) = 0, 'a second claim takes nothing');
   perform pg_temp.silence_assert((select notify_attempts from public.fizz_alert_events where id = v_event) = 1, 'attempts do not increase');
-  perform pg_temp.silence_assert(pg_get_functiondef('public.fizz_claim_alert_notifications(integer)'::regprocedure) ilike '%for update skip locked%', 'claim skips rows another worker holds');
+  perform pg_temp.silence_assert(pg_get_functiondef('public.fizz_claim_alert_notifications(integer)'::regprocedure) ilike '%skip locked%', 'claim skips rows another worker holds');
   perform pg_temp.silence_assert(pg_get_functiondef('public.fizz_scan_silence_alerts(integer)'::regprocedure) ilike '%for update of r skip locked%', 'scan skips rules another worker holds');
 
   -- A new reading re-arms and drops a call that has not been placed.
@@ -127,6 +134,27 @@ begin
   perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'recovery') = 1, 'records that the sensor is back');
   perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'recovery') = 'skipped', 'the return call waits out the rule limit');
 
+  -- The recovery row and the next silence share that reading. A second and third
+  -- quiet period must still be recorded.
+  update public.fizz_sensor_readings set received_at = now() - interval '20 minutes'
+  where sensor_id = a.sensor_id and event_id = 'back-again';
+  update public.fizz_alert_rules set silence_due_at = now() - interval '1 minute'
+  where customer_id = a.customer_id and kind = 'silence';
+  scan := public.fizz_scan_silence_alerts(50);
+  perform pg_temp.silence_assert((scan->>'fired')::int = 1, 'the quiet period after recovery fires');
+  perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'silence') = 2, 'the second silence is stored beside the recovery');
+  perform pg_temp.silence_assert((select not armed from public.fizz_alert_rules where customer_id = a.customer_id and kind = 'silence'), 'the second quiet period disarms the rule');
+  insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, metric, numeric_value, unit, source)
+  values (a.sensor_id, 'back-third', now(), 'temperature_c', 25, 'C', 'api');
+  update public.fizz_sensor_readings set received_at = now() - interval '15 minutes'
+  where sensor_id = a.sensor_id and event_id = 'back-third';
+  update public.fizz_alert_rules set silence_due_at = now() - interval '1 minute'
+  where customer_id = a.customer_id and kind = 'silence';
+  scan := public.fizz_scan_silence_alerts(50);
+  perform pg_temp.silence_assert((scan->>'fired')::int = 1, 'a third quiet period fires');
+  perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'silence') = 3, 'three quiet periods are stored');
+  perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'recovery') = 2, 'each resume can record its own recovery');
+
   -- Per-rule cooldown and the account cap both skip the call but still record the event.
   insert into public.fizz_sensors(id, customer_id, kind, name, mode)
   values ('00000000-0000-4000-8000-0000000000c1', a.customer_id, 'temperature', 'Cap closet', 'api');
@@ -141,8 +169,8 @@ begin
   select '00000000-0000-4000-8000-0000000000d1', r.id, a.customer_id, r.sensor_id, 'temperature_c', 1, 100, 'gt', 'C', r.observed_at, 'call', 'sent'
   from public.fizz_sensor_readings r
   where r.sensor_id = '00000000-0000-4000-8000-0000000000c1' and r.event_id like 'cap-%' and r.event_id <> 'cap-latest';
-  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, notify_channel, notify_phone)
-  values (a.customer_id, '00000000-0000-4000-8000-0000000000c1', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14155550100')
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, notify_channel, notify_phone, silence_due_at)
+  values (a.customer_id, '00000000-0000-4000-8000-0000000000c1', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14155550100', now() - interval '1 minute')
   returning id into v_rule;
   scan := public.fizz_scan_silence_alerts(50);
   perform pg_temp.silence_assert((scan->>'skipped')::int = 1 and (scan->>'queued')::int = 0, 'the account cap skips the call');
@@ -153,14 +181,14 @@ begin
   values ('00000000-0000-4000-8000-0000000000c2', a.customer_id, 'temperature', 'Paused closet', 'api', 'paused');
   insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, received_at, metric, numeric_value, unit, source)
   values ('00000000-0000-4000-8000-0000000000c2', 'paused', now() - interval '1 day', now() - interval '1 day', 'temperature_c', 1, 'C', 'api');
-  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes)
-  values (a.customer_id, '00000000-0000-4000-8000-0000000000c2', 'silence', 'gte', 10, 'min', 'silence', 10);
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, silence_due_at)
+  values (a.customer_id, '00000000-0000-4000-8000-0000000000c2', 'silence', 'gte', 10, 'min', 'silence', 10, now() - interval '1 day');
   insert into public.fizz_sensors(id, customer_id, kind, name, mode, deleted_at)
   values ('00000000-0000-4000-8000-0000000000c3', a.customer_id, 'temperature', 'Removed closet', 'api', now());
   insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, received_at, metric, numeric_value, unit, source)
   values ('00000000-0000-4000-8000-0000000000c3', 'removed', now() - interval '1 day', now() - interval '1 day', 'temperature_c', 1, 'C', 'api');
-  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes)
-  values (a.customer_id, '00000000-0000-4000-8000-0000000000c3', 'silence', 'gte', 10, 'min', 'silence', 10);
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, silence_due_at)
+  values (a.customer_id, '00000000-0000-4000-8000-0000000000c3', 'silence', 'gte', 10, 'min', 'silence', 10, now() - interval '1 day');
   insert into public.fizz_sensors(id, customer_id, kind, name, mode)
   values ('00000000-0000-4000-8000-0000000000c4', a.customer_id, 'temperature', 'New closet', 'api');
   insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes)
@@ -176,6 +204,25 @@ begin
   returning id into v_reading;
   perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events e where e.reading_id = v_reading and e.event_kind = 'threshold') = 1, 'threshold alerts still fire');
   perform pg_temp.silence_assert((select armed from public.fizz_alert_rules where customer_id = b.customer_id and kind = 'silence'), 'the fresh reading keeps the silence rule armed');
+
+  select id into v_rule from public.fizz_alert_rules where customer_id = b.customer_id and kind = 'threshold';
+  perform public.fizz_update_alert(b.session_token, v_rule, false, false);
+  perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events e where e.reading_id = v_reading) = 'skipped', 'pausing the rule cancels a pending call');
+  perform pg_temp.silence_assert((select notify_error from public.fizz_alert_events e where e.reading_id = v_reading) = 'Alert was paused.', 'the cancel says the alert was paused');
+
+  insert into public.fizz_sensors(id, customer_id, kind, name, mode)
+  values ('00000000-0000-4000-8000-0000000000c5', b.customer_id, 'temperature', 'Dial closet', 'api');
+  insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, received_at, metric, numeric_value, unit, source)
+  values ('00000000-0000-4000-8000-0000000000c5', 'dial', now() - interval '30 minutes', now() - interval '30 minutes', 'temperature_c', 21, 'C', 'api');
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, notify_channel, notify_phone, silence_due_at)
+  values (b.customer_id, '00000000-0000-4000-8000-0000000000c5', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14155550199', now() - interval '1 minute');
+  scan := public.fizz_scan_silence_alerts(50);
+  perform pg_temp.silence_assert((scan->>'queued')::int = 1, 'a due silence rule queues a call');
+  claimed := public.fizz_claim_alert_notifications(1);
+  perform pg_temp.silence_assert(jsonb_array_length(claimed) = 1, 'the queued call is claimed');
+  update public.fizz_sensors set status = 'paused' where id = '00000000-0000-4000-8000-0000000000c5';
+  perform pg_temp.silence_assert(public.fizz_alert_call_still_due((claimed->0->>'id')::uuid)->>'send' = 'false', 'a claimed call is not dialed after the sensor is paused');
+  perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where id = (claimed->0->>'id')::uuid) = 'skipped', 'the claimed call is marked skipped');
 end $$;
 
 -- Clients cannot run the scanner or read another account's silence rule.

@@ -158,7 +158,7 @@ fn tools(can_create_alerts: bool) -> Vec<Value> {
                     "threshold": {"type": "number", "description": "Threshold alerts only."},
                     "unit": {"type": "string", "description": "Threshold alerts only. Optional; must match the metric's reported unit."},
                     "silence_minutes": {"type": "integer", "minimum": 1, "maximum": 10080, "default": 10, "description": "Silence alerts only. Minutes without a reading before the alert fires. The minimum is 1 minute, above the 15-second ingest floor."},
-                    "call_phone": {"type": "string", "description": "Optional US number to call. Only use a number the person gave you."},
+                    "call_phone": {"type": "string", "description": "Optional US number to call. It must already be saved on an alert in this workspace. The owner adds a number from the dashboard or by asking Fizz."},
                     "notify_recovery": {"type": "boolean", "default": false, "description": "Silence alerts only. Also note, and call if call_phone is set, when readings resume."}
                 },
                 "required": ["sensor_id"],

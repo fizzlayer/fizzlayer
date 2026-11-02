@@ -81,11 +81,11 @@ fn comparison(comparator: &str) -> &'static str {
 }
 
 fn minutes_phrase(value: f64) -> String {
-    let text = number(value);
-    if text == "1" {
+    let minutes = value.round().max(0.0) as i64;
+    if minutes == 1 {
         "1 minute".into()
     } else {
-        format!("{text} minutes")
+        format!("{minutes} minutes")
     }
 }
 
@@ -349,6 +349,12 @@ pub struct DispatchReport {
 /// and retries when no further readings arrive. A call is claimed once, so the
 /// two paths cannot both place it. Failures never affect ingestion.
 pub async fn dispatch(store: &Supabase) -> DispatchReport {
+    dispatch_limited(store, 3).await
+}
+
+/// `limit` is how many calls this pass may claim. The cron path uses 1 so one
+/// provider lookup plus one call fits in a one-minute function budget.
+pub async fn dispatch_limited(store: &Supabase, limit: i64) -> DispatchReport {
     let mut report = DispatchReport {
         configured: false,
         claimed: 0,
@@ -374,7 +380,10 @@ pub async fn dispatch(store: &Supabase) -> DispatchReport {
     }
     report.configured = true;
     let batch = match store
-        .rpc("fizz_claim_alert_notifications", json!({"p_limit":3}))
+        .rpc(
+            "fizz_claim_alert_notifications",
+            json!({"p_limit": limit.clamp(1, 10)}),
+        )
         .await
     {
         Ok(batch) => batch,
@@ -388,6 +397,26 @@ pub async fn dispatch(store: &Supabase) -> DispatchReport {
             continue;
         };
         report.claimed += 1;
+        match store
+            .rpc("fizz_alert_call_still_due", json!({"p_event_id": id}))
+            .await
+        {
+            Ok(value) if value["send"] == true => {}
+            Ok(_) => continue,
+            Err(problem) => {
+                eprintln!(
+                    "Fizz alert notification {id} was not dialed; the pre-dial check failed: {problem:?}"
+                );
+                let _ = store
+                    .rpc(
+                        "fizz_finish_alert_notification",
+                        json!({"p_event_id":id,"p_sent":false,"p_retry":true,"p_error":"Could not confirm the alert was still active."}),
+                    )
+                    .await;
+                report.retry += 1;
+                continue;
+            }
+        }
         let channel = alert.get("channel").and_then(Value::as_str).unwrap_or("");
         let phone = alert.get("phone").and_then(Value::as_str).unwrap_or("");
         let (sent, retry, problem) = match agentphone.send(channel, phone, alert).await {
@@ -619,6 +648,12 @@ mod tests {
                 &json!({"sensor_name":"Closet","event_kind":"silence","numeric_value":1.0,"threshold":1.0})
             ),
             "Fizz alert. Closet has not reported for 1 minute. Your limit is 1 minute."
+        );
+        assert_eq!(
+            alert_script(
+                &json!({"sensor_name":"Closet","event_kind":"silence","numeric_value":10.02,"threshold":10.0})
+            ),
+            "Fizz alert. Closet has not reported for 10 minutes. Your limit is 10 minutes."
         );
     }
 }
