@@ -280,7 +280,13 @@ document.querySelectorAll('.sensor-card').forEach((card) => {
   detail.className = 'sensor-detail';
   detail.textContent = info.detail;
   card.style.setProperty('--sensor-color', info.color);
-  card.replaceChildren(window.fizzKinds.badge(card.dataset.kind, 'sensor-icon'), name, detail);
+  const selected = document.createElement('span');
+  selected.className = 'sensor-selected';
+  selected.setAttribute('aria-hidden', 'true');
+  const check = document.createElement('span');
+  check.className = 'fa fa-check';
+  selected.append(check, 'Selected');
+  card.replaceChildren(window.fizzKinds.badge(card.dataset.kind, 'sensor-icon'), name, detail, selected);
 });
 document.querySelectorAll('.sensor-card').forEach((card) => card.addEventListener('click', async () => {
   const cards = document.querySelectorAll('.sensor-card');

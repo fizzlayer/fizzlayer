@@ -38,7 +38,7 @@ body { grid-template-columns: minmax(0, 1fr); }
 .kind-options:focus { outline: none; }
 .kind-option { display: flex; align-items: center; gap: .7rem; padding: .4rem .5rem; border: 2px solid transparent; cursor: pointer; }
 .kind-option.active { border-color: var(--sensor-color); background: #173747; }
-.kind-option[aria-selected="true"] .kind-name::after { content: " ✓"; color: #f4f9fa; }
+.kind-option[aria-selected="true"] .kind-name::after { content: ""; display: inline-block; width: .8em; height: .8em; margin-left: .4em; vertical-align: -.05em; color: #f4f9fa; background-color: currentColor; mask: url('/icons/fontawesome/check.svg') center / contain no-repeat; }
 .sensor-add-form button[type="submit"] { min-height: 52px; white-space: nowrap; font-size: 1.3rem; }
 .sensor-collection { margin: 1.6rem 0; }
 .sensor-collection .section-heading { align-items: end; }

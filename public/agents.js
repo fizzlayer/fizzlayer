@@ -14,6 +14,11 @@
     if (content !== undefined) el.textContent = content;
     return el;
   }
+  function icon(name) {
+    const element = node('span', `fa fa-${name}`);
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  }
   function when(value) {
     return value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
   }
@@ -22,7 +27,7 @@
     button.type = 'button';
     button.addEventListener('click', async () => {
       await navigator.clipboard.writeText(text).catch(() => {});
-      button.textContent = 'Copied ✓';
+      button.replaceChildren('Copied ', icon('check'));
       setTimeout(() => { button.textContent = 'Copy'; }, 1500);
     });
     return button;

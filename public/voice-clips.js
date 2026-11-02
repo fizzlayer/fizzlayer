@@ -14,6 +14,11 @@
     if (text !== undefined) element.textContent = text;
     return element;
   }
+  function icon(name) {
+    const element = node('span', `fa fa-${name}`);
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  }
 
   async function api(path) {
     const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store' });
@@ -28,7 +33,8 @@
     const heading = node('div', 'voice-clip-heading');
     const name = node('h3');
     const time = node('time');
-    const play = node('button', 'secondary voice-clip-play', '▶ Play clip');
+    const play = node('button', 'secondary voice-clip-play');
+    play.append(icon('play'), ' Play clip');
     play.type = 'button';
     const audio = node('audio');
     players.add(audio);

@@ -33,6 +33,11 @@
     if (content !== undefined) element.textContent = content;
     return element;
   }
+  function icon(name) {
+    const element = node('span', `fa fa-${name}`);
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  }
 
   function sensorName(sensor) {
     return sensor ? sensor.name || kinds.get(sensor.kind).label : 'Removed sensor';
@@ -212,11 +217,14 @@
     const text = {
       pending: `${noun} to ${phone} queued`,
       sending: `Calling ${phone}…`,
-      sent: `Called ${phone} ✓`,
+      sent: `Called ${phone}`,
       failed: `${noun} to ${phone} failed${event.notify_error ? `: ${event.notify_error}` : ''}`,
       skipped: `${noun} skipped: sent one recently`,
     }[event.notify_status];
-    return text ? node('span', `notify${event.notify_status === 'failed' ? ' failed' : ''}`, text) : null;
+    if (!text) return null;
+    const note = node('span', `notify${event.notify_status === 'failed' ? ' failed' : ''}`, text);
+    if (event.notify_status === 'sent') note.append(' ', icon('check'));
+    return note;
   }
 
   function ruleStatus(rule) {

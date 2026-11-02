@@ -15,6 +15,11 @@
     if (content !== undefined) el.textContent = content;
     return el;
   }
+  function icon(name) {
+    const element = node('span', `fa fa-${name}`);
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  }
   function button(label, className, handler) {
     const el = node('button', className, label);
     el.type = 'button';
@@ -86,7 +91,7 @@
       const idRow = node('div', 'sensor-id-row');
       const copyId = button('Copy ID', 'secondary', async () => {
         await navigator.clipboard.writeText(sensor.id);
-        copyId.textContent = 'Copied ✓';
+        copyId.replaceChildren('Copied ', icon('check'));
         setTimeout(() => { copyId.textContent = 'Copy ID'; }, 1500);
       });
       copyId.setAttribute('aria-label', `Copy sensor ID for ${sensor.name || info.label}`);
@@ -111,8 +116,8 @@
     const kind = $('new-kind').value;
     const info = kinds.get(kind);
     $('kind-button').style.setProperty('--sensor-color', info.color);
-    const caret = node('span', 'kind-caret', '▾');
-    caret.setAttribute('aria-hidden', 'true');
+    const caret = icon('chevron-down');
+    caret.classList.add('kind-caret');
     $('kind-button').replaceChildren(kinds.badge(kind), kindText(kind), caret);
     $('new-name').placeholder = `e.g. ${info.example}`;
   }

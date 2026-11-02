@@ -19,7 +19,7 @@
         <p class="sidebar-label">WORKSPACE</p>
         <nav aria-label="Workspace"><a href="/app.html"><span class="fa-nav-icon fa-nav-table-cells-large" aria-hidden="true"></span><span>Overview</span></a><a href="/sensors.html"><span class="fa-nav-icon fa-nav-tower-broadcast" aria-hidden="true"></span><span>Sensors</span></a><a href="/agents.html"><span class="fa-nav-icon fa-nav-robot" aria-hidden="true"></span><span>Agents</span></a><a class="active" href="/settings.html" aria-current="page"><span class="fa-nav-icon fa-nav-gear" aria-hidden="true"></span><span>Settings</span></a></nav>
         <div class="sidebar-guide"><img src="/fizz-agent.svg" alt="" width="39" height="39"><strong>Your world has a sidekick.</strong><p>Connect your first device and let Fizz make sense of the signals.</p><a href="/#connect">Explore the platform <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></a></div>
-        <div class="dashboard-account"><span class="account-avatar" aria-hidden="true">◈</span><span id="settings-username"></span><button type="button" id="settings-sign-out">Sign out</button></div>
+        <div class="dashboard-account"><span class="account-avatar" aria-hidden="true"><span class="fa fa-user"></span></span><span id="settings-username"></span><button type="button" id="settings-sign-out">Sign out</button></div>
       </header>
       <div class="workspace-content" id="workspace-content" tabindex="-1"><div class="workspace-topbar"><div class="workspace-breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Settings</strong></div><span><span class="status-dot" aria-hidden="true"></span> Personal workspace</span></div>
   <div class="sensors-heading"><div><p class="setup-eyebrow">YOUR ACCOUNT</p><h1 id="settings-title">Settings</h1><p>Your account details and the ways you sign in.</p></div><img src="/fizz-agent.svg" alt="" aria-hidden="true"></div>
@@ -53,7 +53,7 @@
   <section class="dash-panel settings-panel" aria-labelledby="passkeys-title">
     <div class="section-heading">
       <div><p class="setup-eyebrow">03 / SIGN-IN</p><h2 id="passkeys-title" class="passkeys-title"><span class="key-badge" data-key-icon></span>Passkeys</h2></div>
-      <button class="primary add-passkey" id="add-passkey" type="button" aria-label="Add a passkey" title="Add a passkey">+</button>
+      <button class="primary add-passkey" id="add-passkey" type="button" aria-label="Add a passkey" title="Add a passkey"><span class="fa fa-plus" aria-hidden="true"></span></button>
     </div>
     <p class="settings-intro">Sign in with Face ID, Touch ID, Windows Hello, or a security key instead of a password.</p>
     <ul id="passkey-list" class="passkey-list"></ul>
@@ -63,5 +63,5 @@
   </section>
   <p class="form-message" id="page-error" role="alert"></p>
 </div></section></main>
-<template id="key-icon"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path fill-rule="evenodd" d="M3 4h4v1h1v1h1v4h-1v1h-1v1H3v-1H2v-1H1V6h1V5h1zM4 7v2h2V7zM9 7h6v2H9zM12 9h1v2h-1zM14 9h1v3h-1z"/></svg></template>
+<template id="key-icon"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M336 352c97.2 0 176-78.8 176-176S433.2 0 336 0S160 78.8 160 176c0 18.7 2.9 36.8 8.3 53.7L7 391c-4.5 4.5-7 10.6-7 17l0 80c0 13.3 10.7 24 24 24l80 0c13.3 0 24-10.7 24-24l0-40 40 0c13.3 0 24-10.7 24-24l0-40 40 0c6.4 0 12.5-2.5 17-7l33.3-33.3c16.9 5.4 35 8.3 53.7 8.3zM376 96a40 40 0 1 1 0 80 40 40 0 1 1 0-80z"/></svg></template>
 </body></html>

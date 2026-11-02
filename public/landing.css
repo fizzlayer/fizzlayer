@@ -54,6 +54,7 @@ body { overflow-x: clip; }
 .signal-water { top: 26%; right: 5%; }
 .signal-humidity { bottom: 14%; left: 4%; }
 .signal-agent { bottom: 14%; right: 4%; }
+.signal-agent .agent-symbol .fa { width: 15px; height: 15px; }
 .signal-agent .agent-symbol { display: grid; place-items: center; color: #c9c5ef; background: #b4adfc12; border-radius: 5px; width: 28px; height: 30px; font: 17px var(--mono); }
 .visual-bottom { position: absolute; bottom: 17px; left: 22px; right: 22px; display: flex; justify-content: space-between; font: 12px var(--mono); color: #7796a7; }
 .visual-bottom span:first-child { color: #abd9df; }
@@ -90,7 +91,7 @@ body { overflow-x: clip; }
 .demo-layout h2 { font-size: 40px; }
 .demo-features { display: grid; gap: 16px; margin: 27px 0; padding: 0; list-style: none; color: #47616f; font-size: 15px; }
 .demo-features li { display: flex; align-items: center; gap: 10px; }
-.demo-features li::before { content: '✓'; color: var(--accent); }
+.demo-features li::before { content: ''; flex: none; width: 14px; height: 14px; color: var(--accent); background-color: currentColor; mask: url('/icons/fontawesome/check.svg') center / contain no-repeat; }
 .video-frame { position: relative; background: #102838; border: 1px solid #b7d4df; border-radius: 12px; padding: 6px; box-shadow: 0 20px 35px -15px #315a6c40; }
 .video-frame video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 7px; }
 .video-caption { margin: 14px 0 0; font: 12px var(--mono); color: #76919f; text-align: center; letter-spacing: .5px; }
@@ -100,7 +101,6 @@ body { overflow-x: clip; }
 .use-head { display: flex; align-items: center; gap: 11px; margin-bottom: 21px; }
 .kind-badge { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1px solid color-mix(in srgb, var(--sensor-color) 20%, #dfebef); border-radius: 8px; background: color-mix(in srgb, var(--sensor-color) 9%, white); color: color-mix(in srgb, var(--sensor-color) 65%, #163a4b); }
 .kind-badge svg { width: 21px; height: 21px; fill: currentColor; }
-.kind-badge .icon-cutout { fill: #f3f8fa; }
 .use-kind { font: 12px var(--mono); color: #748b99; letter-spacing: .3px; }
 .use-card h3 { margin: 0 0 11px; font-family: var(--display); font-size: 19px; font-weight: 500; letter-spacing: -.4px; }
 .use-card > p { margin: 0 0 22px; color: var(--muted); font-size: 15px; line-height: 1.8; }

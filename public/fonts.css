@@ -23,3 +23,35 @@ code, pre, kbd, samp { font-family: var(--mono); }
 .fa-arrow-diagonal { transform: rotate(-45deg); }
 .fa-arrow-down { mask-image: url('/icons/fontawesome/arrow-down.svg'); }
 .fa-arrow-both { mask-image: url('/icons/fontawesome/arrows-left-right.svg'); width: 1.25em; }
+
+/* Any other Font Awesome Free 6.7.2 icon: <span class="fa fa-NAME" aria-hidden="true"></span>.
+   The SVGs live in /icons/fontawesome and are painted in the current text colour. */
+.fa {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: -.125em;
+  background-color: currentColor;
+  mask: var(--fa) center / contain no-repeat;
+}
+.fa-arrows-rotate { --fa: url('/icons/fontawesome/arrows-rotate.svg'); }
+.fa-plus { --fa: url('/icons/fontawesome/plus.svg'); }
+.fa-minus { --fa: url('/icons/fontawesome/minus.svg'); }
+.fa-microchip { --fa: url('/icons/fontawesome/microchip.svg'); }
+.fa-flask { --fa: url('/icons/fontawesome/flask.svg'); }
+.fa-circle-info { --fa: url('/icons/fontawesome/circle-info.svg'); }
+.fa-lock { --fa: url('/icons/fontawesome/lock.svg'); }
+.fa-bars { --fa: url('/icons/fontawesome/bars.svg'); }
+.fa-check { --fa: url('/icons/fontawesome/check.svg'); }
+.fa-xmark { --fa: url('/icons/fontawesome/xmark.svg'); }
+.fa-play { --fa: url('/icons/fontawesome/play.svg'); }
+.fa-chevron-down { --fa: url('/icons/fontawesome/chevron-down.svg'); }
+.fa-key { --fa: url('/icons/fontawesome/key.svg'); }
+.fa-user { --fa: url('/icons/fontawesome/user.svg'); }
+.fa-robot { --fa: url('/icons/fontawesome/robot.svg'); }
+.fa-mobile-screen-button { --fa: url('/icons/fontawesome/mobile-screen-button.svg'); }
+.fa-tower-broadcast { --fa: url('/icons/fontawesome/tower-broadcast.svg'); }
+.fa-triangle-exclamation { --fa: url('/icons/fontawesome/triangle-exclamation.svg'); }
+.fa-house { --fa: url('/icons/fontawesome/house.svg'); }
+.fa-raspberry-pi { --fa: url('/icons/fontawesome/raspberry-pi.svg'); }
