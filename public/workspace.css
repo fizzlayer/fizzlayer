@@ -418,4 +418,4 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .chat-setup > code { display: block; overflow-wrap: anywhere; padding: 10px; margin: 8px 0 12px; background: #edf6f9; border: 1px solid #d7e7ee; border-radius: 5px; font-size: 14px; user-select: all; }
 .chat-setup > a { display: block; margin-top: 12px; }
 .chat-setup .chat-setup-status { font-size: 14px; }
-.chat-setup pre { max-width: 100%; overflow-x: auto; padding: 12px; background: #edf6f9; border: 1px solid #d7e7ee; border-radius: 5px; font-size: 14px; line-height: 1.7; }
+.chat-setup pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #edf6f9; border: 1px solid #d7e7ee; border-radius: 5px; font-size: 14px; line-height: 1.7; }

@@ -70,7 +70,7 @@ body { grid-template-columns: minmax(0, 1fr); }
 .api-guide h2 { font-size: 2.2rem; font-weight: 400; margin: 0; }
 .api-guide p:not(.setup-eyebrow) { color: #bdd5dc; font-size: 1.25rem; }
 .api-guide p code { color: #a9eaf7; font-family: var(--mono); font-size: .9rem; }
-.api-guide pre { overflow-x: auto; padding: 1rem; background: rgba(7, 23, 36, .85); border: 1px solid #31546a; color: #a9eaf7; font-size: .95rem; }
+.api-guide pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: rgba(7, 23, 36, .85); border: 1px solid #31546a; color: #a9eaf7; font-size: .95rem; }
 @media (max-width: 1000px) { .sensor-add-form { grid-template-columns: 1fr 1fr; } .sensor-add-form button[type="submit"] { grid-column: auto; } }
 @media (max-width: 800px) { .sensor-list { grid-template-columns: 1fr; } }
 @media (max-width: 500px) { .sensors-heading img { width: 70px; height: 70px; } .sensor-add-form { grid-template-columns: 1fr; } .sensor-add-form button[type="submit"] { grid-column: auto; } .sensor-manage-head { flex-wrap: wrap; } .sensor-live-value { flex-basis: 100%; text-align: left; } }

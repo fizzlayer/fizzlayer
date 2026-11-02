@@ -95,7 +95,7 @@
 @keyframes tentacle-kick { from { transform: translateY(-1px); } to { transform: translateY(5px); } }
 @keyframes fizz-squint { 0%, 100% { transform: none; } 62.5% { transform: scaleY(.35); } 75% { transform: none; } }
 .chat-messages { min-height: 300px; flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 1rem; padding: .5rem 0 1rem; }
-.chat-message { max-width: 92%; border: 2px solid #31546a; background: var(--glass-card); padding: .75rem; }
+.chat-message { max-width: 92%; min-width: 0; overflow-wrap: anywhere; border: 2px solid #31546a; background: var(--glass-card); padding: .75rem; }
 .chat-message.user { align-self: flex-end; border-color: #69bed0; }
 .chat-message span { color: #a9eaf7; font-size: 1rem; letter-spacing: .08em; }
 .chat-message p { font-size: 1.3rem; line-height: 1.1; margin: .3rem 0 0; white-space: pre-wrap; }

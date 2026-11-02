@@ -192,7 +192,7 @@ body { overflow-x: clip; }
   .world-topline { inset-inline: 15px; font-size: 12px; }
   .world-topline span:last-child { font-size: 12px; }
   .visual-bottom { inset-inline: 15px; font-size: 12px; }
-  .visual-notification { left: 5%; right: -5px; padding: 11px; gap: 8px; }
+  .visual-notification { margin-left: 5%; padding: 11px; gap: 8px; }
   .notification-copy strong { font-size: 12px; }
   .notification-copy p { font-size: 12px; }
   .visual-notification > span:last-child { display: none; }
@@ -247,7 +247,7 @@ body { overflow-x: clip; }
   .world-topline { font-size: 12px; top: 18px; }
   .visual-bottom span:last-child { display: none; }
   .world-topline span:last-child { font-size: 12px; }
-  .visual-notification { left: 8%; right: -4px; bottom: 0; padding: 13px; }
+  .visual-notification { margin-left: 8%; bottom: 0; padding: 13px; }
   .notification-copy strong { font-size: 13px; }
   .notification-copy p { font-size: 12px; }
   .capability-list { justify-content: flex-start; gap: 16px 24px; }

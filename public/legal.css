@@ -26,6 +26,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid #f4f9fa; outline-offs
 /* Body copy: about 65 characters per line at this size. */
 .legal p, .legal li { max-width: 40rem; font-size: 1.6rem; line-height: 1.65; color: #dbe9ed; }
 .legal p { margin: 0 0 1rem; }
+.legal a { overflow-wrap: anywhere; }
 .legal code { font-family: inherit; color: #a9eaf7; }
 .legal strong { color: #f4f9fa; font-weight: 400; background: #18394a; padding: 0 .2rem; }
 
@@ -59,6 +60,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid #f4f9fa; outline-offs
 .legal-footer nav { display: flex; gap: 1.5rem; }
 
 @media (max-width: 520px) {
+  .site-nav nav { flex-wrap: wrap; row-gap: 0; padding-block: .6rem; }
   .nav-links { gap: 1rem; }
   .nav-links a { font-size: 1.3rem; }
   .legal p, .legal li { font-size: 1.5rem; }
