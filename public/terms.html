@@ -9,28 +9,51 @@
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="/fonts.css">
-  <link rel="stylesheet" href="/sky.css">
+  <link rel="stylesheet" href="/design.css">
   <link rel="stylesheet" href="/legal.css">
 </head>
 <body>
-  <div class="pixel-sky" aria-hidden="true"></div>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="site-nav">
-    <nav aria-label="Main">
-      <a class="nav-logo" href="/">Fizzlayer<span>.</span></a>
+    <nav class="container" aria-label="Main">
+      <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
       <ul class="nav-links">
         <li><a href="/privacy.html">Privacy</a></li>
         <li><a href="/terms.html" aria-current="page">Terms</a></li>
-        <li><a href="/app.html">Sign in</a></li>
+        <li><a class="button nav-cta" href="/app.html#sign-in">Sign in</a></li>
       </ul>
     </nav>
   </header>
 
-  <main class="legal">
-    <article class="legal-panel" aria-labelledby="title">
-      <div class="panel-top"><span>FIZZLAYER // TERMS OF SERVICE</span><span>V1</span></div>
-      <h1 id="title">Terms of Service</h1>
-      <p class="updated">Effective October 7, 2026</p>
+  <main class="legal" id="main-content">
+    <header class="legal-hero">
+      <div class="container">
+        <p class="eyebrow-label">Legal · Version 1</p>
+        <h1 id="title">Terms of Service</h1>
+        <p class="updated">Effective October 7, 2026</p>
+      </div>
+    </header>
+    <div class="container legal-layout">
+      <nav class="toc" aria-label="Contents">
+        <p class="toc-label">On this page</p>
+        <ol>
+          <li><a href="#agreement"><span>01</span> Agreeing to these terms</a></li>
+          <li><a href="#accounts"><span>02</span> Your account</a></li>
+          <li><a href="#data"><span>03</span> Your data</a></li>
+          <li><a href="#use"><span>04</span> Acceptable use</a></li>
+          <li><a href="#consent"><span>05</span> Recording, location, and calls</a></li>
+          <li><a href="#ai"><span>06</span> AI features</a></li>
+          <li><a href="#agents"><span>07</span> Agents and devices</a></li>
+          <li><a href="#service"><span>08</span> Changes to Fizzlayer</a></li>
+          <li><a href="#ending"><span>09</span> Ending your use</a></li>
+          <li><a href="#disclaimers"><span>10</span> Disclaimers</a></li>
+          <li><a href="#liability"><span>11</span> Limits on liability</a></li>
+          <li><a href="#law"><span>12</span> Governing law</a></li>
+          <li><a href="#updates"><span>13</span> Updates to these terms</a></li>
+          <li><a href="#contact"><span>14</span> Contact</a></li>
+        </ol>
+      </nav>
+      <article class="legal-body" aria-labelledby="title">
 
       <section class="summary" aria-labelledby="short-version">
         <h2 id="short-version">The short version</h2>
@@ -48,24 +71,6 @@
         <p>Use certified alarms and detectors for safety. In an emergency, call your local emergency number.</p>
       </section>
 
-      <nav class="toc" aria-label="Contents">
-        <ol>
-          <li><a href="#agreement">01 Agreeing to these terms</a></li>
-          <li><a href="#accounts">02 Your account</a></li>
-          <li><a href="#data">03 Your data</a></li>
-          <li><a href="#use">04 Acceptable use</a></li>
-          <li><a href="#consent">05 Recording, location, and calls</a></li>
-          <li><a href="#ai">06 AI features</a></li>
-          <li><a href="#agents">07 Agents and devices</a></li>
-          <li><a href="#service">08 Changes to Fizzlayer</a></li>
-          <li><a href="#ending">09 Ending your use</a></li>
-          <li><a href="#disclaimers">10 Disclaimers</a></li>
-          <li><a href="#liability">11 Limits on liability</a></li>
-          <li><a href="#law">12 Governing law</a></li>
-          <li><a href="#updates">13 Updates to these terms</a></li>
-          <li><a href="#contact">14 Contact</a></li>
-        </ol>
-      </nav>
 
       <h2 id="agreement"><span class="num">01</span>Agreeing to these terms</h2>
       <p>Fizzlayer (<a href="https://fizzlayer.com">fizzlayer.com</a>) is run by Nisarga P, an individual developer, referred to here as “we” or “us”. These terms cover the Fizzlayer website, app, API, MCP server, and the <code>fizz</code> command-line tool. Fizz is the name of the AI agent and mascot inside Fizzlayer.</p>
@@ -136,12 +141,10 @@
 
       <h2 id="contact"><span class="num">14</span>Contact</h2>
       <p>Questions about these terms: <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a></p>
-    </article>
+      </article>
+    </div>
   </main>
 
-  <footer class="legal-footer">
-    <span>Fizzlayer. The physical layer for AI agents.</span>
-    <nav aria-label="Legal"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></nav>
-  </footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html" aria-current="page">Terms of Service</a></nav></div></footer>
 </body>
 </html>
