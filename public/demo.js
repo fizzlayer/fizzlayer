@@ -5,13 +5,13 @@
   const kinds = window.fizzKinds;
   const seeds = [
     { id: 'cold-room', name: 'Cold Room', kind: 'temperature', zone: 'storage', base: 4.8, amplitude: .3, description: 'A temperature probe in cold storage. The sample watch list alerts when this room rises above 8 °C.' },
-    { id: 'greenhouse', name: 'Greenhouse', kind: 'humidity', zone: 'greenhouse', base: 64, amplitude: 1.6, description: 'Humidity around the plants. A sample alert watches for readings below 45%.' },
+    { id: 'greenhouse', name: 'Greenhouse', kind: 'humidity', zone: 'greenhouse', base: 48.2, amplitude: .8, description: 'Humidity around the plants. A sample alert watches for readings below 45%.' },
     { id: 'warehouse', name: 'Warehouse', kind: 'temperature', zone: 'storage', base: 21.6, amplitude: .5, description: 'Ambient temperature on the warehouse floor, shown alongside the cold room in the Storage filter.' },
     { id: 'basement', name: 'Basement', kind: 'water', zone: 'storage', base: 0, amplitude: 0, description: 'A water flow sensor below the storage area. Zero flow means no water is moving in this sample.' },
     { id: 'office-air', name: 'Office Air', kind: 'gas', zone: 'office', base: 418, amplitude: 9, description: 'Sample carbon dioxide concentration from the office, in parts per million. Compare it with storage and greenhouse readings in one workspace.' },
-    { id: 'grow-room', name: 'Grow Room', kind: 'temperature', zone: 'greenhouse', base: 23.4, amplitude: .4, description: 'A second greenhouse reading to show temperature and humidity together.' },
+    { id: 'grow-room', name: 'Grow Room', kind: 'temperature', zone: 'greenhouse', base: 22.4, amplitude: .3, description: 'A second greenhouse reading to show temperature and humidity together.' },
   ];
-  let sensors, rules, events, tick, incident, paused, filter, busy, generation = 0;
+  let sensors, rules, events, tick, incident, paused, filter, busy, generation = 0, eventSeq = 0;
   let responseTimer;
   const valueText = (sensor) => kinds.formatValue(sensor.value, kinds.get(sensor.kind).unit);
   const sensorFor = (id) => sensors.find((sensor) => sensor.id === id);
@@ -24,11 +24,27 @@
     return element;
   }
 
+  function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
+  }
+
   function arrowLabel(element, text) {
     if (text !== undefined) element.textContent = text;
     element.append(' ', el('span', 'fa-arrow fa-arrow-diagonal'));
     element.lastElementChild.setAttribute('aria-hidden', 'true');
     return element;
+  }
+
+  function trendGeometry(sensor) {
+    const values = sensor.history;
+    const min = Math.min(...values) - .2;
+    const range = Math.max(...values) - min + .2;
+    return values.map((value, index) => `${index ? 'L' : 'M'}${(3 + index * 314 / (values.length - 1)).toFixed(1)},${(64 - (value - min) / range * 58).toFixed(1)}`).join(' ');
+  }
+
+  function paintTrend(svg, sensor) {
+    svg.setAttribute('aria-label', `${sensor.name}: ${sensor.history.length} simulated readings, now ${valueText(sensor)}.`);
+    svg.querySelector('path').setAttribute('d', trendGeometry(sensor));
   }
 
   function trend(sensor, detail = false) {
@@ -38,14 +54,12 @@
     svg.setAttribute('class', 'sensor-trend');
     svg.style.setProperty('--sensor-color', kinds.get(sensor.kind).color);
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', `${sensor.name}: ${sensor.history.length} simulated readings, now ${valueText(sensor)}.`);
-    const values = sensor.history;
-    const min = Math.min(...values) - .2;
-    const range = Math.max(...values) - min + .2;
+    // The line is redrawn every tick. Let the stable card button receive the click.
+    svg.style.pointerEvents = 'none';
     const path = document.createElementNS(svg.namespaceURI, 'path');
-    path.setAttribute('d', values.map((value, index) => `${index ? 'L' : 'M'}${(3 + index * 314 / (values.length - 1)).toFixed(1)},${(64 - (value - min) / range * 58).toFixed(1)}`).join(' '));
     for (const [key, value] of Object.entries({ fill: 'none', stroke: 'currentColor', 'stroke-width': detail ? '2.5' : '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' })) path.setAttribute(key, value);
     svg.append(path);
+    paintTrend(svg, sensor);
     return svg;
   }
 
@@ -56,7 +70,8 @@
       card.hidden = filter !== 'all' && sensor.zone !== filter;
       card.classList.toggle('incident', rules.some((rule) => rule.sensorId === sensor.id && breached(rule)));
       card.querySelector('.live-value').textContent = valueText(sensor);
-      card.querySelector('.sensor-trend').replaceWith(trend(sensor));
+      // Update the chart in place. Replacing the SVG drops a click that starts on it.
+      paintTrend(card.querySelector('.sensor-trend'), sensor);
     }
     $('demo-updated').textContent = paused ? 'SAMPLE STREAM PAUSED' : `SAMPLE STREAM · UPDATED ${new Date().toLocaleTimeString()}`;
   }
@@ -102,10 +117,86 @@
     $('call-dialog').showModal();
   }
 
+  function ruleStatus(rule) {
+    return !rule.enabled ? 'paused' : breached(rule) ? 'triggered' : 'watching';
+  }
+
+  function paintRuleItem(item, rule) {
+    const status = ruleStatus(rule);
+    const description = ruleDescription(rule);
+    item.className = `alert-item demo-rule ${status}`;
+    setText(item.querySelector('strong'), sensorFor(rule.sensorId).name);
+    const badge = item.querySelector('.alert-status');
+    badge.className = `alert-status ${status}`;
+    setText(badge, status.toUpperCase());
+    setText(item.querySelector('.alert-line'), `Alert when ${description}.`);
+    setText(item.querySelector('.alert-actions > span'), rule.notification === 'call' ? 'Phone call preview · shift lead' : 'Dashboard notification');
+    const toggle = item.querySelector('[data-rule-action="toggle"]');
+    setText(toggle, rule.enabled ? 'Pause' : 'Resume');
+    toggle.setAttribute('aria-label', `${rule.enabled ? 'Pause' : 'Resume'} alert: ${description}`);
+    item.querySelector('[data-rule-action="delete"]').setAttribute('aria-label', `Delete alert: ${description}`);
+  }
+
+  function buildRuleItem(rule) {
+    const item = el('li', 'alert-item demo-rule');
+    item.dataset.ruleId = rule.id;
+    const head = el('div', 'alert-item-head');
+    head.append(el('strong'), el('span', 'alert-status'));
+    const actions = el('div', 'alert-actions');
+    const buttons = el('div');
+    for (const action of ['toggle', 'delete']) {
+      const button = el('button', action === 'delete' ? 'alert-delete' : 'secondary', action === 'delete' ? 'Delete' : '');
+      button.type = 'button';
+      button.dataset.ruleAction = action;
+      button.addEventListener('click', () => {
+        const current = rules.find((entry) => entry.id === rule.id);
+        if (!current) return;
+        if (action === 'delete') rules = rules.filter((entry) => entry.id !== current.id);
+        else current.enabled = !current.enabled;
+        evaluateRules();
+        renderAlerts();
+        renderSensors();
+        if (action === 'delete') $('alert-builder').querySelector('summary').focus();
+      });
+      buttons.append(button);
+    }
+    actions.append(el('span'), buttons);
+    item.append(head, el('p', 'alert-line'), actions);
+    paintRuleItem(item, rule);
+    return item;
+  }
+
+  function buildEventItem(event) {
+    const item = el('div', 'demo-event');
+    item.dataset.eventId = event.id;
+    item.append(el('strong', '', `${event.name} crossed its threshold`), el('p', '', `${event.value} · ${event.description} · ${event.notification === 'call' ? 'Simulated phone alert ready' : 'Demo dashboard alert'}`));
+    if (event.notification === 'call') {
+      const button = arrowLabel(el('button', 'secondary', 'Preview the call'));
+      button.type = 'button';
+      button.addEventListener('click', () => callPreview(event));
+      item.append(button);
+    }
+    return item;
+  }
+
+  // Keep rule and event nodes stable across the sample-stream tick. Replacing them
+  // drops a click whose press and release land on different nodes.
+  function placeItems(parent, items, key, build) {
+    const keys = items.map(key);
+    for (const child of [...parent.children]) {
+      if (!keys.includes(child.dataset.key)) child.remove();
+    }
+    items.forEach((item, index) => {
+      let node = [...parent.children].find((child) => child.dataset.key === keys[index]);
+      if (!node) {
+        node = build(item);
+        node.dataset.key = keys[index];
+      }
+      if (parent.children[index] !== node) parent.insertBefore(node, parent.children[index] || null);
+    });
+  }
+
   function renderAlerts() {
-    const focused = document.activeElement;
-    const focusKey = focused?.dataset.ruleAction ? [focused.dataset.ruleAction, focused.dataset.ruleId] : null;
-    $('demo-rules').replaceChildren();
     const active = rules.filter((rule) => rule.enabled);
     const triggered = rules.filter(breached);
     $('enabled-count').textContent = active.length;
@@ -114,47 +205,14 @@
     $('health-detail').textContent = triggered.length ? `${triggered.length} threshold alert${triggered.length === 1 ? '' : 's'} triggered` : 'Readings within their limits';
     $('alert-summary').textContent = triggered.length ? `${triggered.length} triggered` : `${active.length} watching`;
     $('alert-summary').className = `alert-chip ${triggered.length ? 'triggered' : 'watching'}`;
-    for (const rule of rules) {
-      const status = !rule.enabled ? 'paused' : breached(rule) ? 'triggered' : 'watching';
-      const item = el('li', `alert-item demo-rule ${status}`);
-      const head = el('div', 'alert-item-head');
-      head.append(el('strong', '', sensorFor(rule.sensorId).name), el('span', `alert-status ${status}`, status.toUpperCase()));
-      const actions = el('div', 'alert-actions');
-      const buttons = el('div');
-      for (const action of ['toggle', 'delete']) {
-        const button = el('button', action === 'delete' ? 'alert-delete' : 'secondary', action === 'delete' ? 'Delete' : rule.enabled ? 'Pause' : 'Resume');
-        button.type = 'button';
-        button.dataset.ruleAction = action;
-        button.dataset.ruleId = rule.id;
-        button.setAttribute('aria-label', `${action === 'toggle' ? (rule.enabled ? 'Pause' : 'Resume') : 'Delete'} alert: ${ruleDescription(rule)}`);
-        button.addEventListener('click', () => {
-          if (action === 'delete') rules = rules.filter((item) => item.id !== rule.id);
-          else rule.enabled = !rule.enabled;
-          evaluateRules();
-          renderAlerts();
-          renderSensors();
-          if (action === 'delete') $('alert-builder').querySelector('summary').focus();
-        });
-        buttons.append(button);
-      }
-      actions.append(el('span', '', rule.notification === 'call' ? 'Phone call preview · shift lead' : 'Dashboard notification'), buttons);
-      item.append(head, el('p', 'alert-line', `Alert when ${ruleDescription(rule)}.`), actions);
-      $('demo-rules').append(item);
+    const list = $('demo-rules');
+    if (!rules.length) {
+      list.replaceChildren(el('li', 'dashboard-empty', 'No demo alerts. Create one below.'));
+    } else {
+      placeItems(list, rules, (rule) => rule.id, buildRuleItem);
+      for (const rule of rules) paintRuleItem(list.querySelector(`[data-key="${CSS.escape(rule.id)}"]`), rule);
     }
-    if (!rules.length) $('demo-rules').append(el('li', 'dashboard-empty', 'No demo alerts. Create one below.'));
-    $('demo-events').replaceChildren();
-    for (const event of events.slice(0, 3)) {
-      const item = el('div', 'demo-event');
-      item.append(el('strong', '', `${event.name} crossed its threshold`), el('p', '', `${event.value} · ${event.description} · ${event.notification === 'call' ? 'Simulated phone alert ready' : 'Demo dashboard alert'}`));
-      if (event.notification === 'call') {
-        const button = arrowLabel(el('button', 'secondary', 'Preview the call'));
-        button.type = 'button';
-        button.addEventListener('click', () => callPreview(event));
-        item.append(button);
-      }
-      $('demo-events').append(item);
-    }
-    if (focusKey) $('demo-rules').querySelector(`[data-rule-action="${focusKey[0]}"][data-rule-id="${focusKey[1]}"]`)?.focus({ preventScroll: true });
+    placeItems($('demo-events'), events.slice(0, 3), (event) => event.id, buildEventItem);
   }
 
   function evaluateRules() {
@@ -162,7 +220,7 @@
       const met = breached(rule);
       if (met && !rule.triggered) {
         const sensor = sensorFor(rule.sensorId);
-        events.unshift({ name: sensor.name, value: valueText(sensor), description: ruleDescription(rule), notification: rule.notification });
+        events.unshift({ id: `event-${generation}-${++eventSeq}`, name: sensor.name, value: valueText(sensor), description: ruleDescription(rule), notification: rule.notification });
         events = events.slice(0, 12);
       }
       rule.triggered = met;
@@ -188,13 +246,65 @@
     return item;
   }
 
+  const sensorAliases = [
+    [/grow/, 'grow-room'],
+    [/cold/, 'cold-room'],
+    [/greenhouse|humid|plant/, 'greenhouse'],
+    [/warehouse/, 'warehouse'],
+    [/basement|water|leak/, 'basement'],
+    [/office|\bair\b|co2|co₂/, 'office-air'],
+  ];
+
+  function namedSensor(phrase) {
+    const text = phrase.toLowerCase();
+    for (const [pattern, id] of sensorAliases) if (pattern.test(text)) return sensorFor(id);
+    return null;
+  }
+
+  function alertSubject(question) {
+    const text = question.toLowerCase();
+    const patterns = [
+      /\b(?:if|when|watch)\s+(?:the\s+)?([a-z0-9][a-z0-9'’ \-]{0,48}?)\s+(?:goes|is|gets|rises|drops|exceeds|falls|hits|reads|climbs|reaches|passes)\b/,
+      /\b(?:for|on|about|watch)\s+(?:the\s+)?([a-z0-9][a-z0-9'’ \-]{0,48}?)\s+(?:above|below|over|under)\b/,
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+      const start = match.index + match[0].indexOf(match[1]);
+      return question.slice(start, start + match[1].length).replace(/^(?:my|the|a|an|our)\s+/i, '').replace(/\s+(?:temperature|temp|humidity|water|reading|sensor)$/i, '').trim();
+    }
+    return '';
+  }
+
+  function sensorNames() {
+    return sensors.map((sensor) => sensor.name).join(', ');
+  }
+
+  function missingSensorReply(name) {
+    const lead = name ? `“${name}” isn’t in this workspace.` : 'Which sensor should I watch?';
+    return `${lead} This sample workspace has ${sensorNames()}. I can set that alert on one of them — say which — or you can add a sensor in the app from the Sensors page: sample data, an API device, a phone, or a paired Linux device.`;
+  }
+
+  function mentionsAgentConnection(text) {
+    return /\bmcp\b|webmcp|agent token|llms\.txt|\bclaude\b|\bcursor\b|connect(?:ing)?(?:\s+\w+){0,4}\s+agent/.test(text);
+  }
+
+  function mcpAnswer(text) {
+    const intro = /\bclaude\b/.test(text) ? 'Yes. Claude can read your sensors once it is connected over MCP. ' : '';
+    return `${intro}Fizzlayer exposes an MCP server at /api/mcp (Streamable HTTP; https://fizzlayer.com/api/mcp on the hosted site). Create an agent token on the Agents page — tokens start with fizz_agent_ — and send Authorization: Bearer. The tools are list_sensors, get_readings, list_alerts, create_alert (when the token is allowed to create alerts), and pair_device. Setup is in /docs.html#mcp, with a shorter guide at /llms.txt. This demo does not connect a live agent.`;
+  }
+
   function answer(question) {
     const text = question.toLowerCase();
     const cold = sensorFor('cold-room');
+    if (mentionsAgentConnection(text)) return mcpAnswer(text);
     if (/(set|create|add|alert me|watch.*above)/.test(text) && /(alert|watch)/.test(text)) {
       const match = text.match(/(above|below|over|under)\s*(-?\d+(?:\.\d+)?)/);
       if (!match) return 'Try “Alert me if the cold room goes above 7 °C”, or use the threshold form below. Any phone notification here is a preview.';
-      const sensor = /humid/.test(text) ? sensorFor('greenhouse') : /grow/.test(text) ? sensorFor('grow-room') : /warehouse/.test(text) ? sensorFor('warehouse') : /water|basement/.test(text) ? sensorFor('basement') : /air|co2|co₂/.test(text) ? sensorFor('office-air') : cold;
+      const subject = alertSubject(question);
+      const vague = /^(it|this|that|something|reading|value|sensor|temperature|temp)$/i.test(subject);
+      const sensor = subject && !vague ? namedSensor(subject) : namedSensor(text);
+      if (!sensor) return missingSensorReply(subject && !vague ? subject : '');
       const comparator = /below|under/.test(match[1]) ? 'lt' : 'gt';
       const threshold = Number(match[2]);
       const notification = /call|phone/.test(text) ? 'call' : 'dashboard';
@@ -203,7 +313,11 @@
     }
     if (/alert|watch list|watching|threshold/.test(text)) return rules.length ? `Your sample watch list: ${rules.map((rule) => `${ruleDescription(rule)} (${rule.enabled ? breached(rule) ? 'triggered' : 'watching' : 'paused'})`).join('; ')}. Use “Simulate temperature spike” to try the cold room alert.` : 'Your sample watch list is empty. Create a threshold alert below to try it.';
     if (/cold|spike|warm/.test(text)) return `Cold Room is ${valueText(cold)} in the sample workspace. ${incident ? 'The temperature spike is active. Check Alerts & activity for any thresholds crossed; you can also preview the sample phone call.' : 'It is below the default 8 °C alert threshold. Its recent sample readings are steady. Try simulating a spike to see what happens.'}`;
-    if (/greenhouse|plant|humid|grow/.test(text)) return `In the sample greenhouse, humidity is ${valueText(sensorFor('greenhouse'))} and the grow room is ${valueText(sensorFor('grow-room'))}. The sample humidity alert watches for a drop below 45%.`;
+    if (/greenhouse|plant|humid|grow/.test(text)) {
+      const temperature = valueText(sensorFor('grow-room'));
+      const humidity = valueText(sensorFor('greenhouse'));
+      return `Grow Room is ${temperature} and Greenhouse humidity is ${humidity}. Here's what your sensors are seeing. The sample humidity alert watches for a drop below 45%.`;
+    }
     if (/water|basement|leak/.test(text)) return `Basement flow is ${valueText(sensorFor('basement'))} in this sample. The simulated history shows no water flow. You can create an alert above 0 L/min to watch for a change.`;
     if (/air|co2|co₂|office/.test(text)) return `Office Air shows a sample CO₂ concentration of ${valueText(sensorFor('office-air'))}. Open its sensor card to explore the recent simulated history.`;
     if (/warehouse/.test(text)) return `Warehouse temperature is ${valueText(sensorFor('warehouse'))}. Use the Storage filter to compare it with the Cold Room and Basement readings.`;
