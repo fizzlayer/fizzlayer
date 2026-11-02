@@ -11,6 +11,7 @@ Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings t
 - **See your devices in one place.** Stream real readings or explore the dashboard with sample sensors.
 - **Connect the hardware you have.** Pair a Linux device with the CLI, share phone sensors from a browser, or send readings over HTTP.
 - **Give agents access through MCP.** Issue revocable tokens to read sensor data and optionally create dashboard alerts.
+- **Let a browser agent do it for you.** Every page exposes [WebMCP](docs/REFERENCE.md#webmcp-browser-agents) tools, so an agent pointed at the site can onboard, manage sensors and alerts, and start a plan checkout. Agents that read first can start at [`/llms.txt`](https://fizzlayer.com/llms.txt).
 - **Ask Fizz about your readings.** Use typed chat or optional voice conversations to understand measurements and create threshold alerts.
 - **Act on changes.** Track alerts in the dashboard and optionally receive voice calls to US phone numbers.
 
@@ -89,6 +90,8 @@ For Claude Code:
 claude mcp add --transport http fizz https://fizzlayer.com/api/mcp \
   --header "Authorization: Bearer YOUR_AGENT_TOKEN"
 ```
+
+A browser agent can also create the token itself with the `create_agent_connection` WebMCP tool; see [WebMCP](docs/REFERENCE.md#webmcp-browser-agents).
 
 Replace the origin for a self-hosted instance. Supported tools include `list_sensors`, `get_readings`, `list_alerts`, `create_alert`, and `pair_device`. See the [agent connection reference](docs/REFERENCE.md#agent-connections-mcp) for protocol details and additional client configuration.
 

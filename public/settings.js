@@ -99,6 +99,8 @@
     $('passkey-empty').hidden = account.passkeys.length > 0;
   }
 
+  // Browser agents change data through WebMCP tools (webmcp.js); redraw when they do.
+  addEventListener('fizz:changed', () => { refresh().catch(() => {}); });
   async function refresh() {
     const account = await api('/api/account');
     render(account);

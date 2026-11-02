@@ -194,3 +194,33 @@ mcp_servers:
 
 Claude Code: `claude mcp add --transport http fizz https://fizzlayer.com/api/mcp --header "Authorization: Bearer fizz_agent_..."`
 
+
+## WebMCP (browser agents)
+
+Every main page (`/`, `/app.html`, `/sensors.html`, `/agents.html`, `/settings.html`, `/privacy.html`, `/terms.html`) loads `public/webmcp.js`, which registers [WebMCP](https://developer.chrome.com/docs/ai/webmcp) tools with `document.modelContext.registerTool()`. Browsers without WebMCP skip the script. A browser agent pointed at `https://fizzlayer.com` and asked to onboard can call `get_started`, which reports the sign-in state and the next calls, then complete onboarding and use the whole site without touching the UI. `/llms.txt` describes the same flow for agents that read the site first, and the landing and legal page footers link to it.
+
+The tools call the same same-origin JSON endpoints as the pages, with the browser's `fizz_session` cookie, so they have exactly the signed-in person's access and nothing more. When a tool changes data it dispatches a `fizz:changed` event; the dashboard, Sensors, Agents, and Settings pages redraw, and tools that change the session reload session-dependent pages. Failures are returned as `{"ok": false, "error": "..."}` results rather than thrown, because browsers hide thrown messages from the agent.
+
+| Area | Tools |
+| --- | --- |
+| Onboarding | `get_started`, `list_plans`, `join_waitlist`, `contact_sales`, `create_account`, `resend_confirmation`, `send_password_reset`, `sign_in`, `sign_out`, `start_with_sample_data` |
+| Sensors and devices | `list_sensor_types`, `list_sensors`, `get_readings`, `add_sensor`, `update_sensor`, `remove_sensor`, `create_phone_link`, `disconnect_phones`, `get_device_setup`, `pair_device` |
+| Alerts and Fizz | `list_alerts`, `create_alert`, `set_alert_enabled`, `delete_alert`, `ask_fizz` |
+| Agent connections | `list_agent_connections`, `create_agent_connection` (returns an MCP token and client configuration once), `revoke_agent_connection` |
+| Account and billing | `get_account`, `start_checkout`, `open_billing_portal` |
+| Navigation | `open_page` |
+
+Tools that change accounts, credentials, money, or data that can't be recovered carry `consequentialHint`, so browsers and agents can ask the person to confirm; read-only tools carry `readOnlyHint`; tools that return text written by people or devices carry `untrustedContentHint`. Some steps stay with the person by design:
+
+- **Accounts:** an invite code and email confirmation are still required. `create_account` asks the agent to use a password the person chose.
+- **Payments:** `start_checkout` creates a Stripe Checkout session for Tinkerer or Pro and opens it in the same tab. The person enters payment details on Stripe's page; the webhook updates the plan as usual. `open_billing_portal` opens the Stripe portal the same way.
+- **Device presence:** passkeys, Google sign-in, voice, and phone sensor permissions need the person at the device.
+
+WebMCP is in a Chrome origin trial. To test locally, enable `chrome://flags/#enable-webmcp-testing`, or launch Chromium with `--enable-features=WebMCP`, then list and run the tools from DevTools:
+
+```js
+const tools = await document.modelContext.getTools();
+await document.modelContext.executeTool(tools.find((t) => t.name === 'get_started'), '{}');
+```
+
+For visitors on stable Chrome, register `https://fizzlayer.com` for the [WebMCP origin trial](https://developer.chrome.com/origintrials/#/register_trial/4163014905550602241) and add the token to each page as `<meta http-equiv="origin-trial" content="TOKEN">`. The `Permissions-Policy` header allows `tools=(self)`.

@@ -531,6 +531,8 @@
     await sendMessage(message);
   });
 
+  // Browser agents change data through WebMCP tools (webmcp.js); redraw when they do.
+  addEventListener('fizz:changed', () => { void refresh(); });
   window.fizzDashboard = {
     start(username, initialSensors) {
       sessionGeneration++;

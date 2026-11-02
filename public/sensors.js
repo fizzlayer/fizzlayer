@@ -100,6 +100,8 @@
       list.append(card);
     }
   }
+  // Browser agents change data through WebMCP tools (webmcp.js); redraw when they do.
+  addEventListener('fizz:changed', () => { refresh().catch(() => {}); });
   async function refresh() {
     const result = await api('/api/sensors');
     sensors = result.sensors || [];
