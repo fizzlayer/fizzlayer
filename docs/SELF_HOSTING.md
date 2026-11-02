@@ -79,6 +79,7 @@ Add these server-side environment variables to each environment you use:
 | `ELEVENLABS_VOICE_ID` | No | Voice ID; defaults to George (`JBFqnCBsd6RMkjVDRZzb`) |
 | `AGENTPHONE_API_KEY` | For alert calls | AgentPhone credential |
 | `AGENTPHONE_AGENT_ID` | Sometimes | Required when the AgentPhone account has multiple agents; a sole agent is selected automatically |
+| `CRON_SECRET` | For silence alerts and call retries | Long random secret. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` on `GET /api/cron`. Use the same value if an external scheduler calls that path |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
 
 Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls.
@@ -169,6 +170,7 @@ supabase db query --linked --file supabase/tests/authenticated_owner_rls.sql
 supabase db query --linked --file supabase/tests/security_hardening.sql
 supabase db query --linked --file supabase/tests/plan_limits.sql
 supabase db query --linked --file supabase/tests/billing.sql
+supabase db query --linked --file supabase/tests/silence_alerts.sql
 ```
 
 New accounts start on the Hobbyist plan: 3 connected devices and 100 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
@@ -183,7 +185,8 @@ Use a recent Supabase CLI with `db query` support; the repository's security aud
 
 - Monitor Vercel function errors, the status response, Supabase storage/database growth, and provider usage. Configure backups and test restoration for your own instance.
 - Sample sensors advance on authenticated dashboard/Sensors reads, at most once every 15 seconds per sensor. They are not a scheduled background stream.
-- Numeric readings evaluate dashboard alerts in the database. Reading-writing API requests dispatch queued calls; there is no independent notification worker. Retries depend on subsequent requests, and ambiguous provider outcomes stop for review.
+- Numeric readings evaluate threshold alerts in the database. A silence alert fires when a sensor has sent no reading for the rule's window (default 10 minutes, minimum 1). `vercel.json` schedules `GET /api/cron` every minute. That route, authorized with `CRON_SECRET`, scans for silence and sends queued calls, including retries. The request that stored a reading still sends up to three queued calls, and the claim is locked so the two paths cannot double-call. Ambiguous provider outcomes stop for review.
+- Vercel Cron every minute requires a Pro plan (Hobby allows a daily cron only). On Hobby, or on any host without Vercel Cron, run the same request yourself once a minute: `curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://sensors.example.com/api/cron`. Apply `supabase/migrations/20261104000000_silence_alerts.sql` before relying on the route.
 - Phone notifications currently support US voice calls. SMS and physical actuator control are not implemented.
 - Phone sensor collection requires an open browser page and device permissions. HTTPS is required for production browser sensor and microphone features.
 - Fizz sessions last 12 hours. Device, agent, and session credentials are stored as hashes; protect the CLI's local credential file and rotate/revoke credentials from the app when needed.

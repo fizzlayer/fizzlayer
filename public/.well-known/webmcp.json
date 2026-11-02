@@ -422,7 +422,7 @@
     },
     {
       "name": "list_alerts",
-      "description": "Threshold alert rules and recent triggers.",
+      "description": "Threshold and silence alert rules, and recent triggers.",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -434,16 +434,25 @@
     },
     {
       "name": "create_alert",
-      "description": "Create a threshold alert on a sensor metric. Optionally call a US phone number when it triggers; only use a number the person gave you.",
+      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). Optionally call a US phone number when it triggers; only use a number the person gave you.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "sensor_id": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "threshold",
+              "silence"
+            ],
+            "default": "threshold",
+            "description": "silence fires when the sensor stops reporting. Omit or use threshold to watch a metric."
+          },
           "metric": {
             "type": "string",
-            "description": "Metric name, e.g. temperature_c. Defaults to the sensor type's main metric."
+            "description": "Threshold alerts. Metric name, e.g. temperature_c. Defaults to the sensor type's main metric."
           },
           "comparator": {
             "type": "string",
@@ -453,14 +462,27 @@
               "lt",
               "lte"
             ],
-            "description": "above, at or above, below, at or below."
+            "description": "Threshold alerts. above, at or above, below, at or below."
           },
           "threshold": {
-            "type": "number"
+            "type": "number",
+            "description": "Threshold alerts."
           },
           "unit": {
             "type": "string",
-            "description": "Defaults to the metric's unit."
+            "description": "Threshold alerts. Defaults to the metric's unit."
+          },
+          "silence_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10080,
+            "default": 10,
+            "description": "Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor."
+          },
+          "notify_recovery": {
+            "type": "boolean",
+            "default": false,
+            "description": "Silence alerts. Also notify when readings resume."
           },
           "call_phone": {
             "type": "string",
@@ -468,9 +490,7 @@
           }
         },
         "required": [
-          "sensor_id",
-          "comparator",
-          "threshold"
+          "sensor_id"
         ]
       },
       "annotations": {

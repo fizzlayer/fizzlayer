@@ -123,7 +123,8 @@ The Sensors page can create additional sensors, switch a sensor to API mode, rot
 | `GET /api/readings?sensor_id=<uuid>&limit=100` | Recent readings for an owned sensor |
 | `POST /api/ingest` | Send readings using a sensor API key |
 | `GET`, `POST`, `DELETE /api/phone` | Pair and revoke phone devices; phone posts motion, voice, and location data |
-| `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold rules |
+| `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold and silence rules |
+| `GET`, `POST /api/cron` | Scan silence alerts and send queued calls. Requires `Authorization: Bearer $CRON_SECRET`. Vercel Cron calls it every minute |
 | `POST /api/chat` | Ask Fizz about readings, add sensors, claim device pairing codes, and create alerts |
 | `GET`, `POST /api/voice` | Check voice availability, transcribe microphone audio, and speak agent replies (session cookie) |
 
@@ -138,16 +139,19 @@ curl -X POST https://fizzlayer.com/api/ingest \
 
 Phone pairing links expire after 15 minutes and can be claimed once. A claimed phone can share motion and orientation while its page is open, and can optionally share location, a short audio clip, or a transcript after separate consent. Browser support and permissions vary by phone. Owners can revoke paired phones from the Sensors page.
 
-Alerts are evaluated in Supabase whenever a numeric reading is inserted. An alert can also call a US phone number when it triggers. Voice calls are the only enabled phone notification. The database queues the notification on the alert event, and the next Fizz request that stores readings (API ingest, phone readings, or a sample-stream tick) sends it through [AgentPhone](https://docs.agentphone.ai/). Each rule notifies at most once per 5 minutes, each account at most 20 times per hour, and transient connection or rate-limit rejections are retried up to three times within an hour. Sends with an uncertain outcome (timeouts or provider server errors) stop for review because AgentPhone does not support idempotency keys.
+Threshold alerts are evaluated in Supabase whenever a numeric reading is inserted. A silence alert fires when a sensor sends no reading for a number of minutes (default 10, minimum 1, maximum 10080). One minute is the minimum because devices can report every 15 seconds, and the scheduler runs about once a minute. Silence is measured from `received_at`, the time the server stored the newest reading, so a backdated timestamp cannot hide a quiet sensor. The rule fires once for that quiet period, then arms again when a reading arrives. A paused, removed, or never-reported sensor does not fire. Optional recovery records that readings resumed; a recovery call uses the same rate limits, so it is skipped when the silence call was placed in the last 5 minutes, and the event is still saved.
+
+An alert can also call a US phone number when it triggers. Voice calls are the only enabled phone notification. The database queues the notification on the alert event. The request that stored a reading still sends up to three queued calls, so a threshold crossing can ring during that request. [Vercel Cron](https://vercel.com/docs/cron-jobs) calls `GET /api/cron` every minute, which scans for silence and sends the queue, including retries, when no further readings arrive. Claiming a call sets it to `sending` with `for update skip locked`, so an ingest request and the cron job cannot place the same call. Each rule notifies at most once per 5 minutes, each account at most 20 times per hour, and transient connection or rate-limit rejections are retried up to three times within an hour. Sends with an uncertain outcome (timeouts or provider server errors) stop for review because AgentPhone does not support idempotency keys. Each cron run sends at most three calls.
 
 | Variable | Value |
 | --- | --- |
 | `AGENTPHONE_API_KEY` | AgentPhone API key, stored as a Vercel Production Secret |
 | `AGENTPHONE_AGENT_ID` | Optional agent ID; required when the AgentPhone account has multiple agents. With exactly one agent, Fizz selects it automatically. |
+| `CRON_SECRET` | Shared secret for `/api/cron`. Vercel sends it as `Authorization: Bearer <CRON_SECRET>` when the variable is set. Required for silence alerts and for retries that have no later reading to ride on. |
 
 Create an AgentPhone agent and attach a voice-enabled phone number to it. Calls use the agent's first attached number. Existing SMS rules are kept as dashboard alerts, and queued texts are skipped. Calls speak the alert as their greeting and use a short hosted conversation to repeat it if needed; Fizz disables audio recording for these calls. The delivery status means the provider accepted the send, rather than confirming receipt on the recipient's device.
 
-Notifications are only sent where the AgentPhone key is set, so preview deployments sharing the database leave queued alerts for production. Chat uses Vercel AI Gateway to answer from stored customer readings and creates alerts directly when the customer clearly asks. It asks for missing details, validates the owned sensor and reported numeric metric/unit, and reports success only after the database saves the rule. Identical active alerts are reused. Phone calls are enabled only when requested with a US number supplied in the conversation. The browser includes up to 12 recent messages so follow-up instructions work; history is cleared at sign-out. An AI outage does not stop ingestion or alert evaluation.
+Notifications are only sent where the AgentPhone key is set, so preview deployments sharing the database leave queued alerts for production. Chat uses Vercel AI Gateway to answer from stored customer readings and creates alerts directly when the customer clearly asks. It asks for missing details, validates the owned sensor and, for a threshold, the reported numeric metric and unit, and reports success only after the database saves the rule. A silence alert needs only the sensor and a whole number of minutes. Identical active alerts are reused. Phone calls are enabled only when requested with a US number supplied in the conversation. The browser includes up to 12 recent messages so follow-up instructions work; history is cleared at sign-out. An AI outage does not stop ingestion or alert evaluation.
 
 ## Add sensors and pair devices in chat
 
@@ -178,8 +182,8 @@ The server is stateless and speaks both MCP eras on the same endpoint. Clients o
 | --- | --- |
 | `list_sensors` | Sensors and paired devices with their latest reading |
 | `get_readings` | Recent readings for one sensor, optionally one metric (up to 100) |
-| `list_alerts` | Alert rules and the 20 most recent triggers |
-| `create_alert` | Dashboard-only threshold alert; repeats return the existing rule (only for tokens allowed to create alerts) |
+| `list_alerts` | Threshold and silence rules (kind, window, whether each is triggered) and the 20 most recent triggers |
+| `create_alert` | Threshold or silence alert. A silence alert takes `kind: "silence"` and optional `silence_minutes` (default 10). Optional `call_phone` is a US number the person supplied. Repeats return the existing rule (only for tokens allowed to create alerts) |
 | `pair_device` | Claim a pairing code shown by `fizz pair` |
 
 Hermes Agent (`config.yaml`):
