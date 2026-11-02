@@ -13,6 +13,12 @@
       "permanent": true
     }
   ],
+  "rewrites": [
+    {
+      "source": "/.well-known/webmcp",
+      "destination": "/.well-known/webmcp.json"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -40,6 +46,23 @@
         {
           "key": "Strict-Transport-Security",
           "value": "max-age=63072000; includeSubDomains"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/(webmcp|webmcp.json|mcp/server-card.json)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
         }
       ]
     },

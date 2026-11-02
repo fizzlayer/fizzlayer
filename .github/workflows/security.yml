@@ -22,3 +22,5 @@ jobs:
       - run: cargo audit --deny warnings --file cli/Cargo.lock
       - name: Check browser scripts
         run: for script in public/*.js; do node --check "$script"; done
+      - name: Check agent discovery cards are up to date
+        run: node scripts/agent-cards.mjs --check
