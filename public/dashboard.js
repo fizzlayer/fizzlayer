@@ -1,6 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const kinds = window.fizzKinds;
+  const detail = window.fizzSensorDetail;
   const comparatorText = { gt: 'above', gte: 'at or above', lt: 'below', lte: 'at or below' };
   const statusText = { watching: 'WATCHING', triggered: 'TRIGGERED', paused: 'PAUSED' };
   const notifyNoun = { call: 'Call' };
@@ -118,18 +119,35 @@
       if (!visibleSensors.includes(sensor)) continue;
       const info = kinds.get(sensor.kind);
       const card = node('article', 'live-card');
+      card.dataset.sensorId = sensor.id;
       card.style.setProperty('--sensor-color', info.color);
       const top = node('div', 'live-card-top');
       const title = node('div', 'live-card-title');
+      // The whole card opens the detail view; this button is the accessible target and covers the card.
+      const open = node('button', 'live-card-open');
+      open.type = 'button';
+      open.setAttribute('aria-label', `Open details for ${sensorName(sensor)}`);
+      open.addEventListener('click', () => detail.open(sensor, open));
       title.append(node('h3', '', sensorName(sensor)), node('span', '', info.label.toUpperCase()));
       const mode = node('span', `mode-pill ${sensor.mode}`, sensor.mode === 'simulated' ? 'SAMPLE' : sensor.mode === 'phone' ? 'PHONE' : 'API');
       mode.title = sensor.mode === 'simulated' ? 'Simulated sample data' : sensor.mode === 'phone' ? 'Paired phone sensor' : 'API sensor';
       top.append(kinds.badge(sensor.kind), title, mode);
       const latest = sensor.latest_reading;
-      const metric = node('p', 'live-metric', latest?.metric ? kinds.metricLabel(latest.metric) : 'Awaiting first reading');
-      const value = node('p', 'live-value', kinds.formatReading(latest));
-      const foot = node('p', 'live-foot', latest ? `Updated ${new Date(latest.observed_at || latest.received_at).toLocaleTimeString()}` : sensor.mode === 'simulated' ? 'A sample will appear shortly' : 'Connect your sensor to send its first reading');
-      card.append(top, metric, value, sensorTrend(sensor), foot);
+      const foot = node('p', 'live-foot');
+      foot.append(node('span', '', latest ? `Updated ${new Date(latest.observed_at || latest.received_at).toLocaleTimeString()}` : sensor.mode === 'simulated' ? 'A sample will appear shortly' : 'Connect your sensor to send its first reading'));
+      const more = node('span', 'live-card-more', 'Details');
+      more.setAttribute('aria-hidden', 'true');
+      more.append(node('span', 'fa-arrow fa-arrow-right'));
+      foot.append(more);
+      if (detail.metricCount(sensor) > 1) {
+        // Devices that report several metrics (a laptop's CPU, memory, and disk) show each one.
+        card.classList.add('multi-metric');
+        card.append(open, top, detail.tiles(sensor), foot);
+      } else {
+        const metric = node('p', 'live-metric', latest?.metric ? kinds.metricLabel(latest.metric) : 'Awaiting first reading');
+        const value = node('p', 'live-value', kinds.formatReading(latest));
+        card.append(open, top, metric, value, sensorTrend(sensor), foot);
+      }
       list.append(card);
     }
     const picker = $('alert-sensor');
@@ -170,6 +188,7 @@
       alertData = { rules: alerts.rules || [], events: alerts.events || [] };
       renderSensors();
       renderAlerts();
+      detail.update(sensors);
       $('dashboard-subtitle').textContent = 'A clear view of your sensors, signals, and alerts.';
       $('dashboard-subtitle').classList.remove('refresh-error');
       $('dashboard-updated').textContent = `LAST SYNCED ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
@@ -531,6 +550,23 @@
     await sendMessage(message);
   });
 
+  // "Set alert" in the sensor detail view fills the alert form with that sensor and metric.
+  detail.configure({
+    onAlert(sensor, reading) {
+      const builder = document.querySelector('.alert-builder');
+      if (builder) builder.open = true;
+      $('alert-sensor').value = sensor.id;
+      $('alert-metric').value = reading.metric;
+      $('alert-metric').dataset.autofill = 'false';
+      $('alert-unit').value = reading.unit || '';
+      $('alert-unit').dataset.autofill = 'false';
+      $('alert-threshold').value = '';
+      $('alert-threshold').placeholder = `Now ${kinds.formatValue(reading.numeric_value, reading.unit)}`;
+      $('quick-alert').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      $('alert-threshold').focus({ preventScroll: true });
+    },
+  });
+
   // Browser agents change data through WebMCP tools (webmcp.js); redraw when they do.
   addEventListener('fizz:changed', () => { void refresh(); });
   window.fizzDashboard = {
@@ -548,6 +584,7 @@
     },
     stop() {
       sessionGeneration++;
+      detail.close();
       chatController?.abort();
       chatController = null;
       chatHistory = [];

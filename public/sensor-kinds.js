@@ -33,7 +33,36 @@
     rotation_alpha: 'Compass heading', rotation_beta: 'Front/back tilt', rotation_gamma: 'Left/right tilt', orientation_deg: 'Orientation',
     latitude: 'Latitude', longitude: 'Longitude', location_accuracy: 'Location accuracy',
     voice_clip: 'Voice clip', voice_level: 'Voice level', voice_transcript: 'Transcript', value: 'Value',
+    leak: 'Leak', alarm: 'Alarm', battery_pct: 'Battery',
+    cpu_temperature_c: 'CPU temperature', cpu_used_pct: 'CPU used', load_1m: 'Load (1 min)', memory_used_pct: 'Memory used', disk_used_pct: 'Disk used',
   };
+  // Gauge scales for known metrics: the range a gauge spans, and optional warning levels where higher is worse.
+  // Readings outside the scale are still shown; the gauge just pins to its end.
+  const scales = {
+    temperature_c: { min: -20, max: 50 },
+    cpu_temperature_c: { min: 20, max: 100, warn: 70, danger: 85 },
+    cpu_used_pct: { min: 0, max: 100, warn: 80, danger: 95 },
+    memory_used_pct: { min: 0, max: 100, warn: 80, danger: 92 },
+    disk_used_pct: { min: 0, max: 100, warn: 85, danger: 95 },
+    battery_pct: { min: 0, max: 100 },
+    humidity_pct: { min: 0, max: 100 },
+    flow_l_min: { min: 0, max: 30 },
+    concentration_ppm: { min: 0, max: 2000 },
+    rssi_dbm: { min: -110, max: -30 },
+    pressure_kpa: { min: 0, max: 200 },
+    sound_db: { min: 0, max: 120, warn: 85, danger: 100 },
+    acceleration_ms2: { min: 0, max: 30 },
+    orientation_deg: { min: 0, max: 360 },
+    rotation_alpha: { min: 0, max: 360 },
+    rotation_beta: { min: -180, max: 180 },
+    rotation_gamma: { min: -90, max: 90 },
+  };
+  // Boolean metrics where true means something is wrong.
+  const alarms = new Set(['leak', 'alarm']);
+  // Display order for metrics that devices commonly send together.
+  const metricOrder = ['cpu_temperature_c', 'cpu_used_pct', 'memory_used_pct', 'disk_used_pct', 'load_1m', 'battery_pct',
+    'acceleration_ms2', 'acceleration_x', 'acceleration_y', 'acceleration_z', 'orientation_deg', 'rotation_alpha', 'rotation_beta', 'rotation_gamma',
+    'latitude', 'longitude', 'location_accuracy', 'voice_level', 'voice_transcript', 'voice_clip'];
   const numbers = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
   const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
@@ -73,6 +102,7 @@
   function formatReading(reading) {
     if (!reading) return 'Waiting for data';
     if (reading.metric === 'voice_clip') return 'Clip received';
+    if (typeof reading.boolean_value === 'boolean') return formatBoolean(reading);
     return formatValue(reading.numeric_value ?? reading.boolean_value ?? reading.text_value, reading.unit);
   }
 
@@ -85,5 +115,42 @@
     return relative.format(Math.round(seconds / 86400), 'day');
   }
 
-  window.fizzKinds = { order, get, icon, badge, metricLabel, formatValue, formatReading, timeAgo };
+  function metricScale(metric, unit) {
+    return scales[metric] || (unit === '%' || /_pct$/.test(metric || '') ? { min: 0, max: 100 } : null);
+  }
+
+  // How a value compares with its metric's warning levels: 'danger', 'warn', or ''.
+  function metricLevel(reading) {
+    if (!reading) return '';
+    if (typeof reading.boolean_value === 'boolean') return alarms.has(reading.metric) && reading.boolean_value ? 'danger' : '';
+    const scale = metricScale(reading.metric, reading.unit);
+    const value = reading.numeric_value;
+    if (!scale || !Number.isFinite(value)) return '';
+    if (scale.danger != null && value >= scale.danger) return 'danger';
+    if (scale.warn != null && value >= scale.warn) return 'warn';
+    return '';
+  }
+
+  // Readings ordered for display: the sensor type's main metric, then numbers, flags, and text.
+  function sortMetrics(readings, kind) {
+    const primary = get(kind).metric;
+    const rank = (reading) => {
+      const type = reading.numeric_value != null ? 0 : reading.boolean_value != null ? 1 : 2;
+      const known = metricOrder.indexOf(reading.metric);
+      return [reading.metric === primary ? 0 : 1, type, known < 0 ? metricOrder.length : known];
+    };
+    return [...readings].sort((a, b) => {
+      const [x, y] = [rank(a), rank(b)];
+      for (let i = 0; i < x.length; i += 1) if (x[i] !== y[i]) return x[i] - y[i];
+      return a.metric.localeCompare(b.metric);
+    });
+  }
+
+  function formatBoolean(reading) {
+    if (reading.metric === 'leak') return reading.boolean_value ? 'Leak detected' : 'No leak';
+    if (reading.metric === 'alarm') return reading.boolean_value ? 'Alarm' : 'Clear';
+    return reading.boolean_value ? 'Yes' : 'No';
+  }
+
+  window.fizzKinds = { order, get, icon, badge, metricLabel, formatValue, formatReading, timeAgo, metricScale, metricLevel, sortMetrics, formatBoolean };
 })();
