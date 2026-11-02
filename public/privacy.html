@@ -14,6 +14,7 @@
   <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
   <meta http-equiv="origin-trial" content="AxF27oYssyj8cvJlJbnS48Y6Bj5Z1+hBUowrfkKCmhgiBfYx7KCn/0+kiAsKPfmxho2LSMztNGgIIHF+pAbBuggAAABheyJvcmlnaW4iOiJodHRwczovL2ZpenpsYXllci5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
   <script src="/webmcp.js" defer></script>
+  <script src="/analytics.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -32,9 +33,9 @@
   <main class="legal" id="main-content">
     <header class="legal-hero">
       <div class="container">
-        <p class="eyebrow-label">Legal · Version 1</p>
+        <p class="eyebrow-label">Legal · Version 2</p>
         <h1 id="title">Privacy Policy</h1>
-        <p class="updated">Effective October 7, 2026</p>
+        <p class="updated">Effective November 1, 2026</p>
       </div>
     </header>
     <div class="container legal-layout">
@@ -115,8 +116,9 @@
       <ul>
         <li><strong>IP address:</strong> used to stop abuse with rate limits. We store it only as a one-way hash, and delete it within about two days.</li>
         <li><strong>Server logs:</strong> our hosting provider keeps standard request logs, such as IP address, browser type, and pages requested, for a short time.</li>
+        <li><strong>Page views:</strong> we count visits with Vercel Web Analytics, which records the page address (without anything after a <code>?</code> or <code>#</code>), the referring site, your country and region, and your browser, operating system, and device type. It uses no cookies. Visitors are told apart by a hash of the request that is discarded after 24 hours.</li>
       </ul>
-      <p>We do not use analytics or advertising trackers.</p>
+      <p>We do not use advertising trackers.</p>
 
       <h2 id="use"><span class="num">03</span>How we use it</h2>
       <ul>
@@ -131,7 +133,7 @@
       <p>These services process data for us, only to provide their part of Fizzlayer:</p>
       <ul>
         <li><strong>Supabase:</strong> database and sign-in. Stores your account and sensor data.</li>
-        <li><strong>Vercel:</strong> hosts the website and API, and routes chat requests to AI model providers through Vercel AI Gateway.</li>
+        <li><strong>Vercel:</strong> hosts the website and API, counts page views with Vercel Web Analytics, and routes chat requests to AI model providers through Vercel AI Gateway.</li>
         <li><strong>AI model providers</strong> (such as OpenAI), through Vercel AI Gateway: receive your chat messages and the readings needed to answer.</li>
         <li><strong>ElevenLabs:</strong> turns voice recordings into text and Fizzlayer’s replies into speech.</li>
         <li><strong>AgentPhone:</strong> places alert calls to the phone number you choose.</li>
@@ -146,7 +148,7 @@
       <p>Fizzlayer’s use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
       <h2 id="cookies"><span class="num">06</span>Cookies</h2>
-      <p>Fizzlayer uses only the cookies it needs to work:</p>
+      <p>Fizzlayer uses only the cookies it needs to work, and none for analytics:</p>
       <ul>
         <li><strong>fizz_session</strong> keeps you signed in for up to 12 hours.</li>
         <li><strong>fizz_oauth</strong> protects Google sign-in and lasts at most 10 minutes.</li>

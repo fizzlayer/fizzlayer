@@ -93,6 +93,10 @@ Make your intended domain the project's production domain and confirm it is the 
 
 Remove or replace the original `fizz-zeta.vercel.app` → `fizzlayer.com` redirect in [`vercel.json`](../vercel.json). Keep the security headers. Review hosted-service URLs in landing-page metadata, installer examples, and support links before publishing your fork; those are not rewritten by an environment variable.
 
+### Page analytics (optional)
+
+Every page loads [`public/analytics.js`](../public/analytics.js), which sends cookieless page views to Vercel Web Analytics with query strings and fragments removed. To collect them, open **Analytics** for the project in the Vercel dashboard, choose **Enable**, and redeploy; until then the script's request returns 404 and nothing is recorded. It never loads on localhost. If you don't want analytics, remove the script tag from the pages and the page-view item from the privacy policy.
+
 ## 4. Deploy and create your first account
 
 Run the source checks, then deploy to your linked project:
