@@ -25,6 +25,100 @@
     <script src="/sensor-kinds.js" defer></script>
     <script src="/landing.js" defer></script>
     <link rel="canonical" href="https://fizzlayer.com/">
+    <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
+    <link rel="service-doc" type="text/html" href="/docs.html">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://fizzlayer.com/#organization",
+            "name": "Fizzlayer",
+            "url": "https://fizzlayer.com/",
+            "logo": "https://fizzlayer.com/fizz-logo-480.png",
+            "email": "support@fizzlayer.com",
+            "sameAs": [
+              "https://github.com/fizzlayer/fizzlayer"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://fizzlayer.com/#website",
+            "name": "Fizzlayer",
+            "url": "https://fizzlayer.com/",
+            "description": "The physical layer for AI agents.",
+            "publisher": {
+              "@id": "https://fizzlayer.com/#organization"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://fizzlayer.com/#app",
+            "name": "Fizzlayer",
+            "url": "https://fizzlayer.com/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Web, Linux",
+            "description": "Connect sensors, phones, and Linux devices to AI agents. See readings in a live dashboard, ask Fizz about them in plain English, and get alerts and phone calls when something goes wrong. Agents connect through MCP and WebMCP.",
+            "image": "https://fizzlayer.com/og.png",
+            "publisher": {
+              "@id": "https://fizzlayer.com/#organization"
+            },
+            "featureList": [
+              "Sensor readings over HTTPS",
+              "Phone sensors without an app",
+              "Raspberry Pi and Linux CLI",
+              "Threshold alerts and phone calls",
+              "Ask Fizz in plain English",
+              "Remote MCP server",
+              "WebMCP tools in the browser"
+            ],
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Hobbyist",
+                "price": "0",
+                "priceCurrency": "USD",
+                "description": "3 devices and 100 Fizz credits a month.",
+                "url": "https://fizzlayer.com/#pricing"
+              },
+              {
+                "@type": "Offer",
+                "name": "Tinkerer",
+                "price": "10",
+                "priceCurrency": "USD",
+                "description": "10 devices and 1,000 Fizz credits a month.",
+                "url": "https://fizzlayer.com/#pricing",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "10",
+                  "priceCurrency": "USD",
+                  "unitText": "MONTH"
+                }
+              },
+              {
+                "@type": "Offer",
+                "name": "Pro",
+                "price": "25",
+                "priceCurrency": "USD",
+                "description": "50 devices and 5,000 Fizz credits a month.",
+                "url": "https://fizzlayer.com/#pricing",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "25",
+                  "priceCurrency": "USD",
+                  "unitText": "MONTH"
+                }
+              }
+            ],
+            "softwareHelp": {
+              "@type": "CreativeWork",
+              "url": "https://fizzlayer.com/docs.html"
+            }
+          }
+        ]
+      }
+    </script>
 
     <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
 

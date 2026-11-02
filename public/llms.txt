@@ -34,7 +34,7 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 
 - URL: https://fizzlayer.com/api/mcp (Streamable HTTP)
 - Header: `Authorization: Bearer fizz_agent_...`
-- Server card: https://fizzlayer.com/.well-known/mcp/server-card.json
+- Server card: https://fizzlayer.com/.well-known/mcp/server-card.json (compact manifest: https://fizzlayer.com/.well-known/mcp.json)
 - Tools: `list_sensors`, `get_readings`, `list_alerts`, `create_alert` (if allowed), `pair_device`
 - Claude Code: `claude mcp add --transport http fizz https://fizzlayer.com/api/mcp --header "Authorization: Bearer fizz_agent_..."`
 
@@ -43,6 +43,13 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 - Accounts are invite-only, and a person must confirm their email; an agent cannot skip either step.
 - Passkeys, Google sign-in, voice chat, and phone sensor permissions need the person at the device.
 - Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`.
+
+## Machine-readable descriptions
+
+- OpenAPI 3.1: https://fizzlayer.com/openapi.json (readings ingest, MCP endpoint, status, waitlist)
+- Plugin manifest: https://fizzlayer.com/.well-known/ai-plugin.json
+- WebMCP card: https://fizzlayer.com/.well-known/webmcp
+- MCP server card: https://fizzlayer.com/.well-known/mcp/server-card.json
 
 ## Docs
 

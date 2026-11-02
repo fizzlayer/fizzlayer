@@ -147,7 +147,7 @@
         required: ['email', 'company'],
       },
       async execute({ email, company, note }) {
-        await api('/api/waitlist', 'POST', { kind: 'business', email: required(email, 'Provide a work email.'), company: required(company, 'Provide the company name.'), note: note || undefined });
+        await api('/api/waitlist', 'POST', { kind: 'business', email: required(email, 'Provide a work email.'), company: required(company, 'Provide the company name.'), interest: note || undefined });
         return text({ ok: true, message: 'Sent. The Fizzlayer team will reply by email.' });
       },
     },

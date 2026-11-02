@@ -1,0 +1,23 @@
+{
+  "name": "fizz",
+  "title": "Fizzlayer",
+  "version": "0.1.0",
+  "description": "Read a Fizzlayer customer's sensors, readings, and alerts, create alerts, and claim device pairing codes.",
+  "url": "https://fizzlayer.com/api/mcp",
+  "transport": "streamable-http",
+  "protocolVersion": "2026-07-28",
+  "authentication": {
+    "type": "bearer",
+    "instructions": "Create an agent token (fizz_agent_...) at https://fizzlayer.com/agents.html and send Authorization: Bearer <token>."
+  },
+  "tools": [
+    "list_sensors",
+    "get_readings",
+    "list_alerts",
+    "create_alert",
+    "pair_device"
+  ],
+  "serverCard": "https://fizzlayer.com/.well-known/mcp/server-card.json",
+  "documentation": "https://fizzlayer.com/docs.html#mcp",
+  "icon": "https://fizzlayer.com/fizz-logo-480.png"
+}

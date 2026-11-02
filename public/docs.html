@@ -7,6 +7,28 @@
   <title>Documentation | Fizzlayer</title>
   <meta name="description" content="How to use Fizzlayer: connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP.">
   <link rel="canonical" href="https://fizzlayer.com/docs.html">
+  <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Build with Fizzlayer",
+      "description": "How to connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP.",
+      "url": "https://fizzlayer.com/docs.html",
+      "inLanguage": "en",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "Fizzlayer",
+        "url": "https://fizzlayer.com/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Fizzlayer",
+        "url": "https://fizzlayer.com/",
+        "logo": "https://fizzlayer.com/fizz-logo-480.png"
+      }
+    }
+  </script>
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -164,7 +186,7 @@
           <li><strong>400</strong>: a field is missing, or a metric or value doesn't fit the sensor type. Check the <a href="#sensor-types">sensor types</a> table.</li>
           <li><strong>429</strong>: too many readings. Each sensor accepts up to 1,200 readings a minute and each account up to 5,000. Wait and retry.</li>
         </ul>
-        <p>Keep each API key on the device that uses it. Keys are stored only as hashes, so we can never show one again; rotating a key stops the old one immediately.</p>
+        <p>The full request and response formats are in the <a href="/openapi.json">OpenAPI description</a>. Keep each API key on the device that uses it. Keys are stored only as hashes, so we can never show one again; rotating a key stops the old one immediately.</p>
 
         <h2 id="phones">Phones</h2>
         <p>Turn any phone into a sensor without installing an app.</p>
@@ -406,6 +428,10 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
               <tr><td><a href="/llms.txt"><code>/llms.txt</code></a></td><td>A plain-text guide for AI agents: how to onboard, payments, and the MCP server.</td></tr>
               <tr><td><a href="/.well-known/webmcp"><code>/.well-known/webmcp</code></a></td><td>The WebMCP card: every tool with its description, input schema, and hints, and the pages that offer them.</td></tr>
               <tr><td><a href="/.well-known/mcp/server-card.json"><code>/.well-known/mcp/server-card.json</code></a></td><td>The MCP server card: endpoint, transport, protocol version, and authentication for <code>/api/mcp</code>.</td></tr>
+              <tr><td><a href="/.well-known/mcp.json"><code>/.well-known/mcp.json</code></a></td><td>A compact MCP manifest: server name, endpoint, authentication, and tool names.</td></tr>
+              <tr><td><a href="/openapi.json"><code>/openapi.json</code></a></td><td>An OpenAPI 3.1 description of the HTTP API: sending readings, the MCP endpoint, service status, and the waitlist.</td></tr>
+              <tr><td><a href="/.well-known/ai-plugin.json"><code>/.well-known/ai-plugin.json</code></a></td><td>A plugin manifest that points agents to the OpenAPI description, the logo, and support contacts.</td></tr>
+              <tr><td><a href="/robots.txt"><code>/robots.txt</code></a></td><td>Welcomes AI crawlers such as GPTBot, ClaudeBot, and PerplexityBot, and links the sitemap.</td></tr>
             </tbody>
           </table>
         </div>

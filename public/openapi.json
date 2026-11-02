@@ -1,0 +1,260 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fizzlayer API",
+    "version": "1.0.0",
+    "summary": "Send sensor readings to Fizzlayer and connect AI agents to them.",
+    "description": "Fizzlayer is the physical layer for AI agents. Devices post readings to sensors with a per-sensor API key; AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. Account management (sign-in, sensors, alerts, billing) uses the website or its WebMCP tools rather than this API. Guide: https://fizzlayer.com/docs.html",
+    "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/docs.html" },
+    "termsOfService": "https://fizzlayer.com/terms.html"
+  },
+  "externalDocs": { "description": "Fizzlayer documentation", "url": "https://fizzlayer.com/docs.html" },
+  "servers": [{ "url": "https://fizzlayer.com" }],
+  "tags": [
+    { "name": "Readings", "description": "Send readings from devices, scripts, and microcontrollers." },
+    { "name": "Agents", "description": "The remote MCP server for AI agents." },
+    { "name": "Service", "description": "Service status and the waitlist." }
+  ],
+  "paths": {
+    "/api/ingest": {
+      "post": {
+        "tags": ["Readings"],
+        "operationId": "sendReadings",
+        "summary": "Send readings for one sensor",
+        "description": "Stores 1 to 16 metrics observed at one moment. Metrics are validated against the sensor's type (for example, a Temperature sensor accepts temperature_c from -100 to 200); Custom sensors accept any metric name. Sending the same event_id again is idempotent, so retries are safe. Limits: 1,200 readings a minute per sensor and 5,000 per account.",
+        "security": [{ "sensorKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/IngestRequest" },
+              "example": { "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13", "event_id": "reading-001", "metrics": { "temperature_c": 22.4 } }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Readings stored (or already stored under this event_id).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IngestResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "413": { "$ref": "#/components/responses/TooLarge" },
+          "415": { "description": "The body is not sent as application/json.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/api/mcp": {
+      "post": {
+        "tags": ["Agents"],
+        "operationId": "mcp",
+        "summary": "Model Context Protocol endpoint (Streamable HTTP)",
+        "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (tokens allowed to create alerts), and pair_device. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
+        "security": [{ "agentToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonRpcRequest" },
+              "examples": {
+                "listTools": { "value": { "jsonrpc": "2.0", "id": 1, "method": "tools/list" } },
+                "listSensors": { "value": { "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": "list_sensors", "arguments": {} } } },
+                "getReadings": { "value": { "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "get_readings", "arguments": { "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13", "limit": 20 } } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A JSON-RPC response with a result or a JSON-RPC error.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } }
+          },
+          "202": { "description": "A notification was accepted. No body." },
+          "400": { "description": "Malformed JSON-RPC.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
+          "401": { "description": "Missing, revoked, or invalid agent token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
+          "403": { "description": "The request came from another website's page.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
+          "429": { "description": "More than 120 requests a minute for this token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "tags": ["Service"],
+        "operationId": "getStatus",
+        "summary": "Service status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Whether the service and its database are working.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service": { "type": "string", "const": "fizz" },
+                    "status": { "type": "string", "enum": ["ok", "degraded"] },
+                    "database": { "type": "string", "enum": ["connected", "unavailable", "unconfigured"] },
+                    "description": { "type": "string" }
+                  },
+                  "required": ["service", "status", "database"]
+                },
+                "example": { "service": "fizz", "status": "ok", "database": "connected", "description": "The physical layer for AI agents" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/waitlist": {
+      "post": {
+        "tags": ["Service"],
+        "operationId": "joinWaitlist",
+        "summary": "Join the waitlist or contact sales",
+        "description": "Fizzlayer accounts are invite-only. Send an email address to join the waitlist, or kind \"business\" with a company name to contact the team about Enterprise. Limited per network to stop abuse.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "title": "Waitlist",
+                    "type": "object",
+                    "properties": { "email": { "type": "string", "format": "email" } },
+                    "required": ["email"]
+                  },
+                  {
+                    "title": "Business interest",
+                    "type": "object",
+                    "properties": {
+                      "kind": { "type": "string", "const": "business" },
+                      "email": { "type": "string", "format": "email" },
+                      "company": { "type": "string", "minLength": 1, "maxLength": 120 },
+                      "interest": { "type": "string", "maxLength": 500, "description": "What they want to monitor." }
+                    },
+                    "required": ["kind", "email", "company"]
+                  }
+                ]
+              },
+              "example": { "email": "ada@example.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Added.", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "const": true } }, "required": ["ok"] } } } },
+          "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sensorKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A sensor API key (fizz_ followed by 64 hex characters), shown once when a real API sensor is created or its key is rotated on https://fizzlayer.com/sensors.html. Each key works for one sensor."
+      },
+      "agentToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An agent token (fizz_agent_...), created on https://fizzlayer.com/agents.html or with the create_agent_connection WebMCP tool. Revocable at any time."
+      }
+    },
+    "schemas": {
+      "IngestRequest": {
+        "type": "object",
+        "properties": {
+          "sensor_id": { "type": "string", "format": "uuid", "description": "The sensor this key belongs to." },
+          "event_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Your unique ID for this sample. Resending it is ignored." },
+          "observed_at": { "type": "string", "format": "date-time", "description": "When the reading was taken. Defaults to the time it is received." },
+          "metrics": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 16,
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+            "additionalProperties": {
+              "oneOf": [{ "type": "number" }, { "type": "boolean" }, { "type": "string", "maxLength": 512 }]
+            },
+            "description": "Metric names and values. Built-in types: water flow_l_min (0-200) and leak; gas concentration_ppm (0-10000) and alarm; radio rssi_dbm (-150-0); temperature temperature_c (-100-200); pressure pressure_kpa (0-1000); humidity humidity_pct (0-100); sound sound_db (0-160); phone acceleration_ms2 (0-300) and orientation_deg (-360-360). Custom sensors accept any metric."
+          }
+        },
+        "required": ["sensor_id", "event_id", "metrics"]
+      },
+      "IngestResponse": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A stored reading.",
+              "properties": {
+                "id": { "type": "string" },
+                "sensor_id": { "type": "string", "format": "uuid" },
+                "event_id": { "type": "string" },
+                "observed_at": { "type": "string", "format": "date-time" },
+                "metric": { "type": "string" },
+                "numeric_value": { "type": ["number", "null"] },
+                "boolean_value": { "type": ["boolean", "null"] },
+                "text_value": { "type": ["string", "null"] },
+                "unit": { "type": ["string", "null"] },
+                "source": { "type": "string" }
+              }
+            }
+          }
+        },
+        "required": ["accepted"]
+      },
+      "JsonRpcRequest": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "type": "string", "const": "2.0" },
+          "id": { "type": ["string", "integer"] },
+          "method": { "type": "string", "examples": ["tools/list", "tools/call", "initialize", "server/discover"] },
+          "params": { "type": "object" }
+        },
+        "required": ["jsonrpc", "method"]
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "type": "string", "const": "2.0" },
+          "id": { "type": ["string", "integer", "null"] },
+          "result": { "type": "object" },
+          "error": {
+            "type": "object",
+            "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": {} },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["jsonrpc"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "examples": ["invalid_request", "unauthorized", "rate_limited"] },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      }
+    },
+    "responses": {
+      "InvalidRequest": { "description": "A field is missing or a value doesn't fit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "The key is missing, wrong, rotated, or revoked.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "TooLarge": { "description": "The body is larger than 16 KB.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "RateLimited": { "description": "Too many requests. Wait and retry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unavailable": { "description": "Temporarily unavailable. Retry later.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}
