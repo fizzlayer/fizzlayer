@@ -10,8 +10,10 @@ body { grid-template-columns: minmax(0, 1fr); }
 .sensor-add-form { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.1fr) auto auto; gap: .7rem; align-items: end; }
 .source-field { min-width: 0; margin: 0; padding: 0; border: 0; }
 .source-options { display: flex; margin-top: .3rem; border: 2px solid #47778a; background: #071b29; }
-.sensor-add-form .source-options label { display: flex; flex: 1; margin: 0; cursor: pointer; }
-.source-options input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sensor-add-form .source-options label { position: relative; display: flex; flex: 1; margin: 0; cursor: pointer; }
+/* Visually hidden, and specific enough to beat the form's text-input sizing, which would
+   otherwise stretch these invisible radios over the submit button. */
+.sensor-add-form .source-options input { position: absolute; inset: 0; opacity: 0; width: 1px; height: 1px; min-height: 0; margin: 0; padding: 0; border: 0; pointer-events: none; }
 .source-options span { display: flex; flex: 1; align-items: center; justify-content: center; min-height: 48px; padding: 0 .8rem; color: #bdd5dc; font-size: 1.2rem; white-space: nowrap; }
 .source-options input:checked + span { background: #173747; color: #fff; box-shadow: inset 0 -3px 0 #a9eaf7; }
 .source-options input:focus-visible + span { outline: 2px solid #a9eaf7; outline-offset: -4px; }
