@@ -70,7 +70,7 @@ Deploy Fizzlayer into your own **Vercel and Supabase accounts**. The current API
 
 3. Import the repository into Vercel using the **Other** framework preset and the repository root. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as server-side environment variables.
 4. Configure Supabase Auth, email delivery, and redirects for your deployment's domain. Deploy the app and verify that `/api/status` reports `database: "connected"`.
-5. Open `/app.html` on your deployment and create your first account. Anyone who can reach the deployment can sign up; to close a private instance afterwards, turn off new sign-ups in Supabase Auth settings.
+5. Open `/app.html` on your deployment and create your first account. Anyone who can reach the deployment can sign up; to close a private instance afterwards, run `update public.fizz_instance_settings set sign_up_open = false;` in the Supabase SQL editor.
 
 Every account is a customer account; there is no separate administrator role. Keep the service-role key on the server and out of browser assets.
 

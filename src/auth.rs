@@ -214,6 +214,9 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBod
                 "Too many attempts. Try again in an hour.",
             );
         }
+        Ok(value) if value.get("error").and_then(Value::as_str) == Some("sign_up_closed") => {
+            return sign_up_closed();
+        }
         Ok(_) | Err(_) => return unavailable(),
     }
     let (status, body) = match ctx
@@ -501,6 +504,7 @@ async fn signed_in(
             })
         }
         (_, _, Some("rate_limited")) => Err("rate_limited"),
+        (_, _, Some("sign_up_closed")) => Err("sign_up_closed"),
         _ => Err("failed"),
     }
 }
@@ -542,8 +546,17 @@ fn account_reply(result: Result<Account, &'static str>) -> Response<ResponseBody
             "rate_limited",
             "Too many attempts. Try again in an hour.",
         ),
+        Err("sign_up_closed") => sign_up_closed(),
         Err(_) => unavailable(),
     }
+}
+
+fn sign_up_closed() -> Response<ResponseBody> {
+    error(
+        403,
+        "sign_up_closed",
+        "This instance isn't accepting new accounts.",
+    )
 }
 
 // ---- Errors and checks -------------------------------------------------------------------------

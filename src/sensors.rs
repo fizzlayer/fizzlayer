@@ -1,4 +1,3 @@
-use http_body_util::{BodyExt, Limited};
 use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
@@ -31,21 +30,9 @@ pub fn valid_uuid(value: &str) -> bool {
         })
 }
 
+/// Sensor endpoints have used `request_too_large` for oversized bodies since launch.
 async fn body(request: Request, max: usize) -> Result<Value, Response<ResponseBody>> {
-    let json_type = request
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| crate::security::is_json(v));
-    if !json_type {
-        return Err(error(415, "unsupported_media_type", "Send JSON."));
-    }
-    let bytes = Limited::new(request.into_body(), max)
-        .collect()
-        .await
-        .map_err(|_| error(413, "request_too_large", "Request is too large."))?
-        .to_bytes();
-    serde_json::from_slice(&bytes).map_err(|_| error(400, "invalid_request", "Send valid JSON."))
+    crate::customer::json_body_with(request, max, "request_too_large").await
 }
 
 fn db() -> Result<Supabase, Response<ResponseBody>> {

@@ -26,7 +26,7 @@ supabase db push --linked
 
 Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, sign-up flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
 
-> **Upgrading an invite-only instance:** `20261105000000_open_sign_up.sql` removes the invite requirement, so anyone who can reach your deployment can create an account once it is applied. To stay private, turn off **Allow new users to sign up** in Supabase Auth settings first. The migration only adds functions, so apply it before or after deploying the matching code; the old invite functions stay until a later cleanup migration.
+> **Upgrading an invite-only instance:** `20261105000000_open_sign_up.sql` removes the invite requirement. Apply the migration first, then deploy the matching code: the new code calls functions the migration adds, so deploying it first breaks sign-in. The old code keeps working, and keeps requiring invites, until the new code is live, because the invite functions stay until a later cleanup migration. Once the new code is deployed, anyone who can reach your deployment can create an account, including people who already have a Supabase Auth user from an earlier sign-in that was turned away. To stay private, run `update public.fizz_instance_settings set sign_up_open = false;` after applying the migration and before deploying the code.
 
 Use a separate Supabase project for development or staging. Preview deployments pointing at the production database can write production data. Review migrations and backups before updating an existing instance; do not use `db reset` against production.
 
@@ -120,7 +120,7 @@ curl --fail https://sensors.example.com/api/status
 
 Expect `"status":"ok"` and `"database":"connected"`. A database failure still returns a JSON response with HTTP 200, so monitoring must inspect those fields. `unconfigured` means the Supabase variables are missing; `unavailable` means configuration or the connection failed. `invalid_host` means the request host was not allowed by the configuration described above.
 
-Anyone who can reach your deployment can create an account. Open `https://sensors.example.com/app.html`, create an account, confirm the email, and complete onboarding. New sign-ups are limited to 10 an hour per network. To keep a private instance closed after creating your own accounts, turn off **Allow new users to sign up** in Supabase Auth settings; existing users can still sign in.
+Anyone who can reach your deployment can create an account. Open `https://sensors.example.com/app.html`, create an account, confirm the email, and complete onboarding. New sign-ups are limited to 10 an hour per network. To keep a private instance closed after creating your own accounts, run `update public.fizz_instance_settings set sign_up_open = false;` in the Supabase SQL editor; existing accounts can still sign in. This also covers Supabase Auth users that have no Fizzlayer account yet, which turning off **Allow new users to sign up** in Supabase Auth settings does not.
 
 ## 5. Connect devices and agents
 

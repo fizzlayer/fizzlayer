@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 
 use http_body_util::{BodyExt, Limited};
 use reqwest::Method;
@@ -48,6 +48,15 @@ pub fn error(status: u16, code: &str, message: &str) -> Response<ResponseBody> {
 }
 
 pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response<ResponseBody>> {
+    json_body_with(request, limit, "invalid_request").await
+}
+
+/// `json_body` with the error code to return when the body is over `limit`.
+pub async fn json_body_with(
+    request: Request,
+    limit: usize,
+    too_large: &'static str,
+) -> Result<Value, Response<ResponseBody>> {
     let is_json = request
         .headers()
         .get("content-type")
@@ -59,7 +68,7 @@ pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response
     let bytes = Limited::new(request.into_body(), limit)
         .collect()
         .await
-        .map_err(|_| error(413, "invalid_request", "Request is too large."))?
+        .map_err(|_| error(413, too_large, "Request is too large."))?
         .to_bytes();
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| error(400, "invalid_request", "Send a JSON object."))?;
@@ -69,8 +78,10 @@ pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response
     Ok(value)
 }
 
-/// The caller's IP for rate limiting. Vercel sets `x-real-ip` and overwrites
-/// `x-forwarded-for`, so clients cannot choose these values in production.
+/// The caller's network for rate limiting. Vercel sets `x-real-ip` and overwrites
+/// `x-forwarded-for`, so clients cannot choose these values in production. An IPv6
+/// address is reduced to its /64 block, the smallest one a single subscriber is usually
+/// given, so rotating through one block counts as one caller.
 pub fn client_ip(request: &Request) -> Option<String> {
     ip_from_headers(|name| request.headers().get(name).and_then(|v| v.to_str().ok()))
 }
@@ -79,7 +90,16 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
     header("x-real-ip")
         .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
         .and_then(|v| v.trim().parse::<IpAddr>().ok())
-        .map(|ip| ip.to_string())
+        .map(|ip| match ip {
+            IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+                Some(v4) => v4.to_string(),
+                None => {
+                    let [a, b, c, d, ..] = v6.segments();
+                    format!("{}/64", Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
+                }
+            },
+            IpAddr::V4(v4) => v4.to_string(),
+        })
 }
 
 /// A plausible address: one @, a dotted domain, no spaces or control characters.
@@ -339,7 +359,19 @@ mod tests {
         );
         assert_eq!(
             ip(&[("x-forwarded-for", "2001:db8::1, 10.0.0.1")]),
-            Some("2001:db8::1".into())
+            Some("2001:db8::/64".into())
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "2001:db8:1:2:aaaa:bbbb:cccc:dddd")]),
+            ip(&[("x-real-ip", "2001:db8:1:2::9")])
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "2001:db8:1:2:aaaa::1")]),
+            Some("2001:db8:1:2::/64".into())
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "::ffff:203.0.113.9")]),
+            Some("203.0.113.9".into())
         );
         assert_eq!(ip(&[("x-real-ip", "not-an-ip")]), None);
         assert_eq!(ip(&[]), None);

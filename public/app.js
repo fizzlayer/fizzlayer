@@ -335,11 +335,12 @@ $('dashboard-sign-out').addEventListener('click', signOut);
 // - #access_token=...&type=signup|recovery from a Supabase email link, or #error=... if it expired.
 const hash = new URLSearchParams(location.hash.slice(1));
 const authErrors = {
-  mfa_required: [null, 'Complete multi-factor authentication before signing in.'],
-  rate_limited: [null, 'Too many attempts. Try again in an hour.'],
-  cancelled: [null, 'Google sign-in was cancelled.'],
-  expired: [null, 'Google sign-in took too long or was interrupted. Try again.'],
-  failed: [null, 'Google sign-in is temporarily unavailable. Try again.'],
+  mfa_required: 'Complete multi-factor authentication before signing in.',
+  rate_limited: 'Too many attempts. Try again in an hour.',
+  sign_up_closed: "This instance isn't accepting new accounts.",
+  cancelled: 'Google sign-in was cancelled.',
+  expired: 'Google sign-in took too long or was interrupted. Try again.',
+  failed: 'Google sign-in is temporarily unavailable. Try again.',
 };
 const linkToken = hash.get('access_token');
 const authError = hash.get('auth_error');
@@ -358,8 +359,6 @@ if (linkToken && hash.get('type') === 'recovery') {
   send('/api/auth', 'POST', { action: 'link', access_token: linkToken })
     .then((result) => showSetup(result.username))
     .catch((error) => {
-      const fix = authErrors[error.code];
-      if (fix?.[0]) mode = fix[0];
       render();
       showError(error.message);
     });
@@ -368,13 +367,8 @@ if (linkToken && hash.get('type') === 'recovery') {
   render();
   showError('That link has expired or was already used. Request a new one.');
 } else {
-  if (authError) mode = (authErrors[authError] || authErrors.failed)[0] || mode;
   render();
-  if (authError) {
-    const [, message, field] = authErrors[authError] || authErrors.failed;
-    showError(message);
-    if (field) $(field).focus();
-  }
+  if (authError) showError(authErrors[authError] || authErrors.failed);
   fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
     .then((response) => response.ok ? response.json() : null)
     .then((data) => { if (data?.username) showSetup(data.username); })

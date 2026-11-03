@@ -519,7 +519,7 @@
       pending.querySelector('p').textContent = result.reply || 'I could not find an answer.';
       window.fizzVoiceClips.attach(pending, result.clips);
       chatHistory.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
-      chatHistory = chatHistory.slice(-12);
+      chatHistory = chatHistory.slice(-CHAT_LIMITS.messages);
       if (result.rule) {
         pending.append(createdAlertSummary(result.rule));
       }

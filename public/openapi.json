@@ -127,13 +127,14 @@
                 },
                 "required": ["email", "company"]
               },
-              "example": { "email": "ada@example.com" }
+              "example": { "email": "ada@example.com", "company": "Example Labs", "interest": "Water leaks across three warehouses" }
             }
           }
         },
         "responses": {
           "200": { "description": "Sent.", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "const": true } }, "required": ["ok"] } } } },
           "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "410": { "description": "The request has no company. The waitlist this endpoint used to accept is closed (code waitlist_closed); create an account in the app instead.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         }

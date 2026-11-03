@@ -3,15 +3,29 @@
 -- people who joined the list can still be emailed, and so redeemed invites keep their
 -- history.
 --
--- SELF-HOSTED INSTANCES: after this migration anyone who can reach your deployment can
--- create an account. To keep a private instance closed, turn off "Allow new users to sign
--- up" in Supabase Auth settings before applying it. Existing users can still sign in.
---
--- Deploy order: this migration only adds functions. The invite-era functions
+-- Deploy order: apply this migration first, then deploy the matching code. The new code
+-- calls functions this migration adds, so deploying it first breaks sign-in. The code
+-- that is live while the migration runs keeps working, because the invite-era functions
 -- (4-argument fizz_oauth_sign_in, fizz_check_invite, fizz_join_waitlist,
--- fizz_create_invites, fizz_normalize_invite) are left in place so the code that is live
--- while the migration runs keeps working. Drop them in a later migration once the new
--- code is deployed everywhere.
+-- fizz_create_invites, fizz_normalize_invite) are left in place and still require an
+-- invite. Drop them in a later migration once the new code is deployed everywhere.
+--
+-- SELF-HOSTED INSTANCES: once the new code is deployed, anyone who can reach your
+-- deployment can create an account. That includes people who already have a Supabase
+-- Auth user, for example from a Google sign-in that was turned away for lack of an
+-- invite. To keep a private instance closed, run this after applying the migration and
+-- before deploying the code:
+--   update public.fizz_instance_settings set sign_up_open = false;
+-- Existing accounts can still sign in.
+
+create table public.fizz_instance_settings (
+  id boolean primary key default true check (id),
+  sign_up_open boolean not null default true
+);
+insert into public.fizz_instance_settings default values;
+alter table public.fizz_instance_settings enable row level security;
+revoke all on public.fizz_instance_settings from anon, authenticated;
+grant all on public.fizz_instance_settings to service_role;
 
 -- ---- Monthly credits ---------------------------------------------------------------------
 
@@ -117,16 +131,45 @@ $$;
 
 -- ---- Sign-up -----------------------------------------------------------------------------
 
--- Each new account counts once against a per-network limit (10 an hour) and a global
--- limit (500 an hour). Email sign-ups count when Supabase is asked to send the
--- confirmation email; Google and other providers count when the customer is created.
+-- Count one sign-up step for a caller. p_ip is an IPv4 address or an IPv6 /64 (the API
+-- groups IPv6 by /64). Each network gets 10 an hour. IPv6 callers also share 50 an hour
+-- per /48, since one site is often given a /48 and could otherwise rotate through its
+-- 65,536 /64s. The global limit is a circuit breaker for a distributed flood, set high
+-- enough that no single network can reach it.
+--
+-- The two steps use separate buckets: 'sign_up_email' when Supabase is asked to send a
+-- confirmation email, and 'sign_up_account' when a customer is created, for every
+-- provider. An email sign-up passes both, once each.
+create function public.fizz_sign_up_hit(p_step text, p_ip text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare v_site text;
+begin
+  begin
+    if family(p_ip::inet) = 6 then
+      v_site := network(set_masklen(p_ip::inet, 48))::text;
+    end if;
+  exception when others then
+    v_site := null;
+  end;
+  if not public.fizz_rate_limit_hit(p_step || '_ip', p_ip, 10, interval '1 hour') then
+    return false;
+  end if;
+  if v_site is not null
+    and not public.fizz_rate_limit_hit(p_step || '_site', v_site, 50, interval '1 hour') then
+    return false;
+  end if;
+  return public.fizz_rate_limit_hit(p_step || '_all', 'all', 5000, interval '1 hour');
+end;
+$$;
 
 -- Before Supabase sends a confirmation email.
 create function public.fizz_sign_up_allowed(p_ip text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 begin
-  if not public.fizz_rate_limit_hit('sign_up_ip', p_ip, 10, interval '1 hour')
-    or not public.fizz_rate_limit_hit('sign_up_all', 'all', 500, interval '1 hour') then
+  if not (select s.sign_up_open from public.fizz_instance_settings s) then
+    return jsonb_build_object('error', 'sign_up_closed');
+  end if;
+  if not public.fizz_sign_up_hit('sign_up_email', p_ip) then
     return jsonb_build_object('error', 'rate_limited');
   end if;
   return jsonb_build_object('ok', true);
@@ -138,13 +181,11 @@ create function public.fizz_oauth_sign_in(p_user_id uuid, p_email text, p_ip tex
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_customer public.fizz_customers%rowtype;
-  v_provider text;
   v_base text;
   v_username text;
   v_token bytea;
 begin
-  select coalesce(u.raw_app_meta_data->>'provider', 'email') into v_provider
-  from auth.users u where u.id = p_user_id
+  perform 1 from auth.users u where u.id = p_user_id
     and not coalesce(u.is_anonymous, false) and u.deleted_at is null
     and (u.banned_until is null or u.banned_until <= now());
   if not found then
@@ -152,10 +193,11 @@ begin
   end if;
   select * into v_customer from public.fizz_customers where auth_user_id = p_user_id;
   if not found then
-    -- Email accounts were already counted by fizz_sign_up_allowed.
-    if v_provider <> 'email' and (
-        not public.fizz_rate_limit_hit('sign_up_ip', p_ip, 10, interval '1 hour')
-        or not public.fizz_rate_limit_hit('sign_up_all', 'all', 500, interval '1 hour')) then
+    -- Counts every provider, including email users created outside this app.
+    if not (select s.sign_up_open from public.fizz_instance_settings s) then
+      return jsonb_build_object('error', 'sign_up_closed');
+    end if;
+    if not public.fizz_sign_up_hit('sign_up_account', p_ip) then
       return jsonb_build_object('error', 'rate_limited');
     end if;
     v_base := regexp_replace(lower(split_part(coalesce(p_email, ''), '@', 1)), '[^a-z0-9_]', '', 'g');
@@ -186,11 +228,13 @@ end;
 $$;
 
 revoke execute on function public.fizz_oauth_sign_in(uuid, text, text),
+  public.fizz_sign_up_hit(text, text),
   public.fizz_sign_up_allowed(text),
   public.fizz_refund_credit(text),
   public.fizz_monthly_credits(uuid)
   from public, anon, authenticated;
 grant execute on function public.fizz_oauth_sign_in(uuid, text, text),
+  public.fizz_sign_up_hit(text, text),
   public.fizz_sign_up_allowed(text),
   public.fizz_refund_credit(text),
   public.fizz_monthly_credits(uuid)
