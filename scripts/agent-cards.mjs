@@ -41,7 +41,7 @@ function webmcpPages() {
 
 // The WebMCP tool reference in docs.html, grouped by area. Tools missing from a group land in "More".
 const TOOL_GROUPS = [
-  ['Getting started', ['get_started', 'list_plans', 'join_waitlist', 'contact_sales']],
+  ['Getting started', ['get_started', 'list_plans', 'contact_sales']],
   ['Account and sign-in', ['create_account', 'resend_confirmation', 'send_password_reset', 'sign_in', 'sign_out', 'get_account']],
   ['Sensors and devices', ['start_with_sample_data', 'list_sensor_types', 'list_sensors', 'get_readings', 'add_sensor', 'update_sensor', 'remove_sensor', 'create_phone_link', 'disconnect_phones', 'get_device_setup', 'pair_device']],
   ['Alerts and Fizz', ['list_alerts', 'create_alert', 'set_alert_enabled', 'delete_alert', 'ask_fizz']],
@@ -106,7 +106,7 @@ function webmcpCard() {
     url: `${ORIGIN}/`,
     api: 'document.modelContext',
     pages: webmcpPages(),
-    instructions: 'Open any listed page in a browser with WebMCP and call get_started. Tools act with the signed-in browser session. Accounts need an invite code and email confirmation; payments are entered by the person on Stripe Checkout. Failures return {"ok": false, "error": "..."}.',
+    instructions: 'Open any listed page in a browser with WebMCP and call get_started. Tools act with the signed-in browser session. Anyone can create an account; it needs email confirmation; payments are entered by the person on Stripe Checkout. Failures return {"ok": false, "error": "..."}.',
     documentation: `${ORIGIN}/llms.txt`,
     mcp_server_card: `${ORIGIN}/.well-known/mcp/server-card.json`,
     tools: webmcpTools(),

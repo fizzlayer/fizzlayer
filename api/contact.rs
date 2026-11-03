@@ -1,4 +1,4 @@
-use fizz::{customer::error, waitlist::join};
+use fizz::{contact::contact, customer::error};
 use vercel_runtime::{Error, Request, Response, ResponseBody, run, service_fn};
 
 #[tokio::main]
@@ -11,7 +11,7 @@ async fn handler(request: Request) -> Result<Response<ResponseBody>, Error> {
         return Ok(response);
     }
     Ok(if request.method() == "POST" {
-        join(request).await
+        contact(request).await
     } else {
         error(405, "method_not_allowed", "Use POST.")
     })

@@ -24,7 +24,7 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase db push --linked
 ```
 
-Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, invite flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
+Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, sign-up flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
 
 Use a separate Supabase project for development or staging. Preview deployments pointing at the production database can write production data. Review migrations and backups before updating an existing instance; do not use `db reset` against production.
 
@@ -118,13 +118,7 @@ curl --fail https://sensors.example.com/api/status
 
 Expect `"status":"ok"` and `"database":"connected"`. A database failure still returns a JSON response with HTTP 200, so monitoring must inspect those fields. `unconfigured` means the Supabase variables are missing; `unavailable` means configuration or the connection failed. `invalid_host` means the request host was not allowed by the configuration described above.
 
-Accounts require invitations. In your Supabase SQL editor, create your initial codes:
-
-```sql
-select * from public.fizz_create_invites(5, 'Initial users', interval '14 days');
-```
-
-Copy the returned codes when created: the database stores only their hashes. Open `https://sensors.example.com/app.html`, sign up with an invite, confirm the email, and complete onboarding. Invite codes are single-use and expire after the requested interval.
+Anyone who can reach your deployment can create an account. Open `https://sensors.example.com/app.html`, create an account, confirm the email, and complete onboarding. New sign-ups are limited to 10 an hour per network. To keep a private instance closed after creating your own accounts, turn off **Allow new users to sign up** in Supabase Auth settings; existing users can still sign in.
 
 ## 5. Connect devices and agents
 
@@ -161,7 +155,7 @@ The local `supabase/config.toml` disables Google sign-in and seeding, and uses `
 
 ## Verify and operate
 
-Before opening access, exercise one complete flow: invite sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/passkey, speech, and call integrations separately with accounts and numbers you control.
+Before opening access, exercise one complete flow: sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/passkey, speech, and call integrations separately with accounts and numbers you control.
 
 The database regression suites use transactions and roll back their fixtures. Run linked commands sequentially because they share a temporary database login:
 
@@ -173,7 +167,7 @@ supabase db query --linked --file supabase/tests/billing.sql
 supabase db query --linked --file supabase/tests/silence_alerts.sql
 ```
 
-New accounts start on the Hobbyist plan: 3 connected devices and 100 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
+New accounts start on the Hobbyist plan: 3 connected devices and 10 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
 
 ```sql
 update public.fizz_plans set device_limit = null, monthly_credits = null where id = 'hobbyist';

@@ -4,29 +4,23 @@ Account flows, plans, sensor APIs, alerts, voice, and agent connections. For set
 
 ## Customer onboarding
 
-Fizz is invite-only. The landing page collects emails for a waitlist through `POST /api/waitlist`, which stores lowercased addresses in `fizz_waitlist`. It answers the same way for new and duplicate addresses, accepts at most 20 sign-ups per client IP per hour and 5,000 overall per hour, and returns `429` past those limits. IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`.
+Anyone can create an account from `/app.html` with email and password or Google. New accounts start on the free Hobbyist plan. New sign-ups are limited to 10 per client IP per hour. IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`.
 
-Businesses use the Enterprise form on the landing page, which posts to the same endpoint with `"kind": "business"`, a company name (up to 120 characters), and an optional note (up to 500). Entries go to `fizz_business_interest`, one row per email; submitting again updates the company and note. That form allows 10 submissions per client IP per hour and 1,000 overall per hour.
+Businesses use the Enterprise form on the landing page, which posts to `POST /api/contact` with an email, a company name (up to 120 characters), and an optional note (up to 500). Entries go to `fizz_business_interest`, one row per email; submitting again updates the company and note. That form allows 10 submissions per client IP per hour and 1,000 overall per hour.
 
-New accounts need a single-use invite code such as `FIZZ-ABCD-EFGH-JKMN` (60 random bits). Mint codes in the Supabase SQL editor; each plaintext code is shown only once and only its hash is stored:
-
-```sql
-select * from public.fizz_create_invites(5, 'Initial customers', interval '14 days');
-```
-
-Codes are case-insensitive, and dashes, spaces, and the `FIZZ` prefix are optional. A code is consumed in the same transaction that creates the customer, so a failed or unconfirmed sign-up leaves it unused. Sign-up allows 10 attempts per client IP per hour. To see who has used a code, query `fizz_invite_codes.used_by`.
+Sign-up used to need an invite code, and the landing page collected a waitlist. Both are retired: `fizz_waitlist` and `fizz_invite_codes` are kept for their existing rows (to email the people on the list, and to keep redemption history), but nothing writes to them.
 
 ### Sign-in through Supabase Auth
 
 Every customer is a Supabase Auth user (`fizz_customers.auth_user_id`, required). Customers sign in with **email and password**, **Google**, or a **passkey**. Supabase verifies who they are, then Fizzlayer issues its own session: a random token stored only as a hash and sent in a 12 hour HttpOnly, Secure, SameSite=Lax `fizz_session` cookie. Authenticated web app endpoints use that cookie; ingestion, MCP, and paired devices use their own scoped credentials. All Supabase Auth calls run in `src/auth.rs`, so the browser never receives a Supabase key.
 
-`fizz_oauth_sign_in` links a verified Supabase user to its customer. A new customer needs an unused invite and gets a username derived from the email address, such as `janedoe` or `janedoe_4821`. Deleting the Supabase user (for example from the Supabase dashboard, to honor a deletion request) deletes the customer and everything it owns.
+`fizz_oauth_sign_in` links a verified Supabase user to its customer. A new customer is created on first sign-in and gets a username derived from the email address, such as `janedoe` or `janedoe_4821`. Deleting the Supabase user (for example from the Supabase dashboard, to honor a deletion request) deletes the customer and everything it owns.
 
 **Email and password.** `POST /api/auth` takes a JSON `action`:
 
 | Action | What it does |
 | --- | --- |
-| `sign_up` | Checks the invite with `fizz_check_invite`, then calls Supabase `signup` with the invite in `user_metadata`. Supabase emails a confirmation link to `/app.html`. Replies the same way for new and existing addresses. |
+| `sign_up` | Checks the per-network sign-up limit with `fizz_sign_up_allowed`, then calls Supabase `signup`. Supabase emails a confirmation link to `/app.html`. Replies the same way for new and existing addresses. |
 | `sign_in` | Supabase password grant. Unconfirmed addresses get `email_not_confirmed`, and the page offers to resend. |
 | `resend`, `recover` | Resend the confirmation, or send a password reset link to `/app.html`. Always reply `ok`. |
 | `link` | Finishes an email link. Supabase puts an access token in the URL fragment; the page sends it here once and clears it. With `password`, it sets a new password first (reset links). |
@@ -35,7 +29,7 @@ New and reset passwords require at least 12 characters and at most 72 bytes; Sup
 
 **Passkeys.** Supabase only lets an existing, signed-in user register a passkey, so passkeys are a way back in rather than a way to sign up. After any sign-in, the Supabase access token is kept for up to an hour in an HttpOnly `fizz_supabase` cookie (`Path=/api`). The **+** button on the Settings page (`/settings.html`) uses it: `passkey_add_options` → `navigator.credentials.create()` → `passkey_add`, which also labels the passkey with the browser and device, such as "Chrome on Mac". Settings lists passkeys and removes them through `GET` and `DELETE /api/account`, which use Supabase's admin API, so they work for the whole session. **Sign in with a passkey** runs `passkey_options` → `navigator.credentials.get()` → `passkey_sign_in`, with no email needed. WebAuthn JSON passes through unchanged. Signing out revokes the Supabase session and clears both cookies.
 
-**Google.** **Continue with Google** opens `GET /api/auth?provider=google`, adding `&invite=...` for new accounts. The function stores a PKCE verifier and the invite in a 10 minute HttpOnly `fizz_oauth` cookie, then redirects to Supabase's `/auth/v1/authorize`. Supabase returns to `GET /api/auth?code=...`, where the code is exchanged using the verifier, so a code minted for a different browser fails. Failures come back as `/app.html#auth_error=<code>` (`no_account`, `invalid_invite`, `rate_limited`, `cancelled`, `expired`, or `failed`).
+**Google.** **Continue with Google** opens `GET /api/auth?provider=google`. The function stores a PKCE verifier in a 10 minute HttpOnly `fizz_oauth` cookie, then redirects to Supabase's `/auth/v1/authorize`. Supabase returns to `GET /api/auth?code=...`, where the code is exchanged using the verifier, so a code minted for a different browser fails. Failures come back as `/app.html#auth_error=<code>` (`rate_limited`, `cancelled`, `expired`, or `failed`). A Google account with no Fizzlayer account yet gets one on its first sign-in.
 
 Supabase sees every Auth request coming from Vercel. The client IP is forwarded in `X-Forwarded-For`, but if Supabase ignores it, its per-IP Auth rate limits apply to all customers together.
 
@@ -66,9 +60,9 @@ Each account has a plan that caps its connected devices and its monthly Fizz cre
 
 | Plan | Price | Connected devices | Fizz credits per month |
 | --- | --- | --- | --- |
-| Hobbyist | Free | 3 | 100 |
-| Tinkerer | $10/month | 10 | 1,000 |
-| Pro | $25/month | 50 | 5,000 |
+| Hobbyist | Free | 3 | 10 |
+| Tinkerer | $10/month | 10 | 100 |
+| Pro | $25/month | 50 | 1,000 |
 | Enterprise | Custom | Unlimited | Unlimited |
 
 - **Connected devices** are API sensors (including CLI-paired devices) and phone sensors that have not been deleted. Sample sensors are free and unlimited. The limit is checked when a sensor is created as, or switched to, API or phone mode; when a phone link is created for a sample Phone sensor; when a pairing code is claimed from the dashboard, chat, or MCP; and again when the device approves. Over the limit, the API returns `403` with code `device_limit`. Existing devices keep working after a downgrade, but no more can be added until the count is below the limit.
@@ -136,6 +130,18 @@ curl -X POST https://fizzlayer.com/api/ingest \
   -H 'Content-Type: application/json' \
   -d '{"sensor_id":"YOUR_SENSOR_ID","event_id":"sample-001","metrics":{"temperature_c":27.4}}'
 ```
+
+### Request size limits
+
+Every limit below is checked before any database or model call. Request bodies are capped while they are read, so an oversized body is rejected without being buffered.
+
+| Request | Limits |
+| --- | --- |
+| `POST /api/ingest` | Body up to 16 KB (`413` beyond). 1 to 16 metrics per reading, metric names up to 40 characters (lowercase letters, digits, underscores), text values up to 512 bytes, `event_id` up to 128 characters. Numbers, booleans, and text only; objects and arrays are rejected. The database enforces the metric count and text length again. |
+| Phone readings and transcripts | Body up to 360 KB. Audio clips up to about 256 KB, transcripts up to 500 bytes, event IDs up to 100 characters. |
+| `POST /api/chat` | Body up to 64 KB. The new message is up to 1,000 characters. Up to 12 earlier messages of up to 3,000 characters each. The new message and history together are capped at 12,000 characters (`413`, `conversation_too_large`); the dashboard sends only the newest messages that fit. Fizz's replies are at most 3,000 characters. |
+| `POST /api/voice` | Recordings up to 2 MB and 30 seconds; transcripts up to 1,000 characters; text to speak up to 3,000 characters. |
+| `POST /api/mcp` | Body up to 64 KB. |
 
 Phone pairing links expire after 15 minutes and can be claimed once. A claimed phone can share motion and orientation while its page is open, and can optionally share location, a short audio clip, or a transcript after separate consent. Browser support and permissions vary by phone. Owners can revoke paired phones from the Sensors page.
 
@@ -209,7 +215,7 @@ The tools call the same same-origin JSON endpoints as the pages, with the browse
 
 | Area | Tools |
 | --- | --- |
-| Onboarding | `get_started`, `list_plans`, `join_waitlist`, `contact_sales`, `create_account`, `resend_confirmation`, `send_password_reset`, `sign_in`, `sign_out`, `start_with_sample_data` |
+| Onboarding | `get_started`, `list_plans`, `contact_sales`, `create_account`, `resend_confirmation`, `send_password_reset`, `sign_in`, `sign_out`, `start_with_sample_data` |
 | Sensors and devices | `list_sensor_types`, `list_sensors`, `get_readings`, `add_sensor`, `update_sensor`, `remove_sensor`, `create_phone_link`, `disconnect_phones`, `get_device_setup`, `pair_device` |
 | Alerts and Fizz | `list_alerts`, `create_alert`, `set_alert_enabled`, `delete_alert`, `ask_fizz` |
 | Agent connections | `list_agent_connections`, `create_agent_connection` (returns an MCP token and client configuration once), `revoke_agent_connection` |
@@ -218,7 +224,7 @@ The tools call the same same-origin JSON endpoints as the pages, with the browse
 
 Tools that change accounts, credentials, money, or data that can't be recovered carry `consequentialHint`, so browsers and agents can ask the person to confirm; read-only tools carry `readOnlyHint`; tools that return text written by people or devices carry `untrustedContentHint`. Some steps stay with the person by design:
 
-- **Accounts:** an invite code and email confirmation are still required. `create_account` asks the agent to use a password the person chose.
+- **Accounts:** anyone can sign up, but email confirmation is still required. `create_account` asks the agent to use a password the person chose.
 - **Payments:** `start_checkout` creates a Stripe Checkout session for Tinkerer or Pro and opens it in the same tab. The person enters payment details on Stripe's page; the webhook updates the plan as usual. `open_billing_portal` opens the Stripe portal the same way.
 - **Device presence:** passkeys, Google sign-in, voice, and phone sensor permissions need the person at the device.
 

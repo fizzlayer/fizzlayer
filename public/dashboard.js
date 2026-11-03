@@ -175,6 +175,21 @@
     }
   }
 
+  // The server accepts 12 earlier messages of up to 3,000 characters each, and 12,000
+  // characters for the whole conversation. Send the newest messages that fit.
+  function historyFor(message) {
+    const chars = (text) => [...(text || '')].length;
+    let budget = 12000 - chars(message);
+    const kept = [];
+    for (const entry of chatHistory.slice(-12).reverse()) {
+      const size = chars(entry.content);
+      if (!size || size > 3000 || size > budget) break;
+      budget -= size;
+      kept.unshift(entry);
+    }
+    return kept;
+  }
+
   async function refresh() {
     if ($('dashboard').hidden) return;
     if (requestInFlight) { refreshQueued = true; return; }
@@ -490,7 +505,7 @@
     const controller = new AbortController();
     chatController = controller;
     try {
-      const result = await api('/api/chat', 'POST', { message, history: chatHistory.slice(-12) }, controller.signal);
+      const result = await api('/api/chat', 'POST', { message, history: historyFor(message) }, controller.signal);
       if (version !== sessionGeneration || $('dashboard').hidden) return null;
       pending.classList.remove('thinking');
       pending.querySelector('p').textContent = result.reply || 'I could not find an answer.';

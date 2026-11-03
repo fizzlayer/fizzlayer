@@ -37,6 +37,9 @@ select pairing_id, extensions.digest(token, 'sha256'), extensions.digest(second_
 insert into public.fizz_phone_pairings(token_hash, customer_id, sensor_id, expires_at)
 select extensions.digest(token, 'sha256'), customer_id, phone_id, now() + interval '1 hour' from security_ids;
 
+-- Owner 1 is on Pro so the per-minute chat limit, not the monthly credits, is what the budget checks below hit.
+insert into public.fizz_subscriptions(customer_id, plan) select customer_id, 'pro' from security_ids where n=1;
+
 -- Exercise service-role RPCs through their real permission boundary.
 grant execute on function pg_temp.security_assert(boolean,text) to service_role;
 grant select on security_ids to service_role;
@@ -100,7 +103,17 @@ select pg_temp.security_assert(public.fizz_session_customer(token) is null, 'ema
 
 update auth.users set banned_until = now() + interval '1 day' where id = (select auth_id from security_ids where n=2);
 select pg_temp.security_assert(public.fizz_session_customer(token) is null, 'ban invalidates session') from security_ids where n=2;
-select pg_temp.security_assert(public.fizz_oauth_sign_in(auth_id, 'audit@example.invalid', null, '127.0.0.1')->>'error' = 'unavailable', 'ban prevents new Fizz session') from security_ids where n=2;
+select pg_temp.security_assert(public.fizz_oauth_sign_in(auth_id, 'audit@example.invalid', '127.0.0.1')->>'error' = 'unavailable', 'ban prevents new Fizz session') from security_ids where n=2;
+-- Sign-up is open: a confirmed Supabase user with no customer gets one on first sign-in, without an invite.
+insert into auth.users(id, email, encrypted_password, is_anonymous)
+values ('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', 'hash', false),
+  ('00000000-0000-4000-8000-0000000000f2', 'anon-signup@example.invalid', 'hash', true);
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.7') ? 'token', 'new user signs up without an invite');
+select pg_temp.security_assert((select count(*) from public.fizz_customers where auth_user_id = '00000000-0000-4000-8000-0000000000f1') = 1, 'first sign-in creates one customer');
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.7')->>'username' = 'opensignup', 'second sign-in reuses the customer');
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f2', 'anon-signup@example.invalid', '198.51.100.7')->>'error' = 'unavailable', 'anonymous users cannot sign up');
+select pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.8')->>'ok' = 'true', 'sign-up limit allows a new network');
+select pg_temp.security_assert(to_regproc('public.fizz_join_waitlist') is null and to_regproc('public.fizz_check_invite') is null, 'waitlist and invite functions are removed');
 select pg_temp.security_assert(s.api_key_hash is null and s.status='paused', 'ban revokes sensor keys') from security_ids i join public.fizz_sensors s on s.id=i.sensor_id where n=2;
 select pg_temp.security_assert(d.revoked_at is not null, 'ban revokes phone devices') from security_ids i join public.fizz_phone_devices d on d.sensor_id=i.phone_id where n=2;
 select pg_temp.security_assert(a.revoked_at is not null, 'ban revokes agents') from security_ids i join public.fizz_agent_connections a on a.id=i.agent_id where n=2;

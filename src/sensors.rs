@@ -300,6 +300,54 @@ pub async fn readings(request: Request) -> Response<ResponseBody> {
     }
 }
 
+/// Ingest payload limits. The request body is capped at `MAX_INGEST_BYTES` before parsing,
+/// and the database enforces the same metric count and text length again.
+pub const MAX_INGEST_BYTES: usize = 16 * 1024;
+pub const MAX_METRICS_PER_READING: usize = 16;
+pub const MAX_METRIC_NAME_BYTES: usize = 40;
+pub const MAX_TEXT_VALUE_BYTES: usize = 512;
+pub const MAX_EVENT_ID_BYTES: usize = 128;
+
+fn valid_metric_name(metric: &str) -> bool {
+    metric.len() <= MAX_METRIC_NAME_BYTES
+        && metric.bytes().enumerate().all(|(i, c)| {
+            if i == 0 {
+                c.is_ascii_lowercase()
+            } else {
+                c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_'
+            }
+        })
+}
+
+/// Check one ingest body: the sensor and event IDs, 1 to 16 metrics with valid names, and
+/// values that are numbers, booleans, or text up to 512 bytes.
+fn check_reading(data: &Value) -> Result<(), &'static str> {
+    let id = data.get("sensor_id").and_then(Value::as_str).unwrap_or("");
+    let event = data.get("event_id").and_then(Value::as_str).unwrap_or("");
+    let Some(metrics) = data.get("metrics").and_then(Value::as_object) else {
+        return Err("Send a metrics object.");
+    };
+    if !valid_uuid(id)
+        || event.is_empty()
+        || event.len() > MAX_EVENT_ID_BYTES
+        || metrics.is_empty()
+        || metrics.len() > MAX_METRICS_PER_READING
+    {
+        return Err("Check the sensor ID, event ID, and metrics.");
+    }
+    for (metric, value) in metrics {
+        if !valid_metric_name(metric) {
+            return Err("Metric names must use lowercase letters, digits, and underscores.");
+        }
+        if !matches!(value, Value::Number(_) | Value::Bool(_))
+            && !matches!(value, Value::String(s) if s.len() <= MAX_TEXT_VALUE_BYTES)
+        {
+            return Err("Metric values must be numbers, booleans, or short text.");
+        }
+    }
+    Ok(())
+}
+
 pub async fn ingest(request: Request) -> Response<ResponseBody> {
     let key = request
         .headers()
@@ -314,54 +362,17 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
     {
         return error(401, "unauthorized", "Use the sensor API key.");
     }
-    let data = match body(request, 16 * 1024).await {
+    let data = match body(request, MAX_INGEST_BYTES).await {
         Ok(v) => v,
         Err(r) => return r,
     };
-    let id = data.get("sensor_id").and_then(Value::as_str).unwrap_or("");
-    let event = data.get("event_id").and_then(Value::as_str).unwrap_or("");
+    if let Err(message) = check_reading(&data) {
+        return error(400, "invalid_request", message);
+    }
+    let id = data["sensor_id"].as_str().unwrap_or("");
+    let event = data["event_id"].as_str().unwrap_or("");
     let observed = data.get("observed_at").and_then(Value::as_str);
-    let Some(metrics) = data.get("metrics").and_then(Value::as_object) else {
-        return error(400, "invalid_request", "Send a metrics object.");
-    };
-    if !valid_uuid(id)
-        || event.is_empty()
-        || event.len() > 128
-        || metrics.is_empty()
-        || metrics.len() > 16
-    {
-        return error(
-            400,
-            "invalid_request",
-            "Check the sensor ID, event ID, and metrics.",
-        );
-    }
-    for (metric, value) in metrics {
-        if metric.len() > 40
-            || !metric.bytes().enumerate().all(|(i, c)| {
-                if i == 0 {
-                    c.is_ascii_lowercase()
-                } else {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_'
-                }
-            })
-        {
-            return error(
-                400,
-                "invalid_request",
-                "Metric names must use lowercase letters, digits, and underscores.",
-            );
-        }
-        if !matches!(value, Value::Number(_) | Value::Bool(_))
-            && !matches!(value, Value::String(s) if s.len() <= 512)
-        {
-            return error(
-                400,
-                "invalid_request",
-                "Metric values must be numbers, booleans, or short text.",
-            );
-        }
-    }
+    let metrics = &data["metrics"];
     let Ok(store) = db() else {
         return error(
             503,
@@ -390,5 +401,54 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
             "database_unavailable",
             "Ingestion is temporarily unavailable.",
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reading(metrics: Value) -> Value {
+        json!({"sensor_id":"4f1c7e2a-9b3d-4c5e-8f6a-1b2c3d4e5f60","event_id":"e1","metrics":metrics})
+    }
+
+    #[test]
+    fn ingest_payloads_are_bounded() {
+        assert!(
+            check_reading(&reading(
+                json!({"temperature_c": 21.5, "door_open": true, "note": "ok"})
+            ))
+            .is_ok()
+        );
+        let many: serde_json::Map<String, Value> = (0..=MAX_METRICS_PER_READING)
+            .map(|i| (format!("m{i}"), json!(1)))
+            .collect();
+        assert!(check_reading(&reading(Value::Object(many))).is_err());
+        assert!(check_reading(&reading(json!({}))).is_err());
+        assert!(check_reading(&reading(json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES)}))).is_ok());
+        assert!(
+            check_reading(&reading(
+                json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES + 1)})
+            ))
+            .is_err()
+        );
+        assert!(
+            check_reading(&reading(
+                json!({"note": "é".repeat(MAX_TEXT_VALUE_BYTES / 2 + 1)})
+            ))
+            .is_err()
+        );
+        assert!(
+            check_reading(&reading(json!({"a".repeat(MAX_METRIC_NAME_BYTES + 1): 1}))).is_err()
+        );
+        assert!(check_reading(&reading(json!({"Temp": 1}))).is_err());
+        assert!(check_reading(&reading(json!({"nested": {"a": 1}}))).is_err());
+        assert!(check_reading(&reading(json!({"list": [1, 2]}))).is_err());
+        let mut long_event = reading(json!({"t": 1}));
+        long_event["event_id"] = json!("e".repeat(MAX_EVENT_ID_BYTES + 1));
+        assert!(check_reading(&long_event).is_err());
+        let mut bad_id = reading(json!({"t": 1}));
+        bad_id["sensor_id"] = json!("not-a-uuid");
+        assert!(check_reading(&bad_id).is_err());
     }
 }

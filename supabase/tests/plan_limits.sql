@@ -29,7 +29,7 @@ do $$ declare a record; b record; result jsonb; sample uuid; phone uuid; api uui
 
   result := public.fizz_session_account(a.token)->'plan';
   perform pg_temp.plan_assert(result->>'id' = 'hobbyist' and (result->>'device_limit')::int = 3
-    and (result->>'monthly_credits')::int = 100 and (result->>'devices_used')::int = 0, 'new accounts start on Hobbyist');
+    and (result->>'monthly_credits')::int = 10 and (result->>'devices_used')::int = 0, 'new accounts start on Hobbyist');
 
   -- Hobbyist: three devices, sample sensors are free.
   for i in 1..3 loop
@@ -71,13 +71,15 @@ do $$ declare a record; b record; result jsonb; sample uuid; phone uuid; api uui
   -- Credits: chat spends one per message until the monthly allowance is used.
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'chat spends a credit');
   perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'credits_used')::int = 1, 'credit usage is reported');
-  update public.fizz_credit_usage set used = 99 where customer_id = b.customer_id;
+  update public.fizz_credit_usage set used = 9 where customer_id = b.customer_id;
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'voice')->>'ok' = 'true', 'voice allowed while credits remain');
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'last credit');
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'error' = 'credits_exhausted', 'chat over monthly credits');
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'voice')->>'error' = 'credits_exhausted', 'voice stops when credits run out');
-  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'credits_used')::int = 100, 'refused chat spends nothing');
+  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'credits_used')::int = 10, 'refused chat spends nothing');
   perform pg_temp.plan_assert(public.fizz_request_budget(a.token, 'chat')->>'ok' = 'true', 'credits are per customer');
+  perform pg_temp.plan_assert((select string_agg(id || '=' || monthly_credits, ',' order by sort_order) from public.fizz_plans where monthly_credits is not null)
+    = 'hobbyist=10,tinkerer=100,pro=1000', 'plan credit allowances');
   update public.fizz_credit_usage set period_start = period_start - interval '1 month' where customer_id = b.customer_id;
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'credits reset each month');
   insert into public.fizz_subscriptions(customer_id, plan) values (b.customer_id, 'enterprise');

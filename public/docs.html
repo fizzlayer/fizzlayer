@@ -129,7 +129,7 @@
 
         <h2 id="get-started">Get started</h2>
         <ol class="docs-steps">
-          <li><strong>Create your account.</strong> Fizzlayer is invite-only for now. <a href="/app.html">Open the app</a>, choose <em>Create account</em>, and enter your invite code, email, and a password of at least 12 characters. No invite yet? <a href="/#join">Join the waitlist</a>.</li>
+          <li><strong>Create your account.</strong> <a href="/app.html">Open the app</a>, choose <em>Create account</em>, and enter your email and a password of at least 12 characters, or continue with Google. New accounts start on the free Hobbyist plan.</li>
           <li><strong>Confirm your email.</strong> Open the link we send you. Then sign in with your email and password. You can add a passkey later in Settings.</li>
           <li><strong>Choose your sensors.</strong> Pick the types you care about and choose <em>Start with sample data</em> to see a live dashboard right away, or <em>Set up with Fizz in chat</em> to connect a real device first.</li>
           <li><strong>Connect something real.</strong> On the <a href="/sensors.html">Sensors</a> page, add a sensor with <em>Real device</em> selected. You get an API key, a phone link, or pairing steps, depending on the type.</li>
@@ -227,9 +227,9 @@ fizz status                               # show the pairing</code></pre>
           <table>
             <thead><tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">Devices</th><th scope="col">Fizz credits a month</th></tr></thead>
             <tbody>
-              <tr><td>Hobbyist</td><td>Free</td><td>3</td><td>100</td></tr>
-              <tr><td>Tinkerer</td><td>$10/month</td><td>10</td><td>1,000</td></tr>
-              <tr><td>Pro</td><td>$25/month</td><td>50</td><td>5,000</td></tr>
+              <tr><td>Hobbyist</td><td>Free</td><td>3</td><td>10</td></tr>
+              <tr><td>Tinkerer</td><td>$10/month</td><td>10</td><td>100</td></tr>
+              <tr><td>Pro</td><td>$25/month</td><td>50</td><td>1,000</td></tr>
               <tr><td>Enterprise</td><td>Contact us</td><td>Custom</td><td>Custom</td></tr>
             </tbody>
           </table>
@@ -335,7 +335,7 @@ fizz status                               # show the pairing</code></pre>
         <ol class="docs-steps">
           <li>Open <code>fizzlayer.com</code> in a browser whose agent supports WebMCP, and ask it to onboard you.</li>
           <li>The agent calls <code>get_started</code>, which explains Fizzlayer and what to do next.</li>
-          <li>It calls <code>create_account</code> with your invite code, email, and a password you choose. You open the confirmation email.</li>
+          <li>It calls <code>create_account</code> with your email and a password you choose. You open the confirmation email.</li>
           <li>It calls <code>sign_in</code>, then <code>start_with_sample_data</code> or <code>add_sensor</code>, which returns an API key, a phone link, or pairing steps.</li>
           <li>Optionally, it sets alerts, creates an MCP token for your other agents with <code>create_agent_connection</code>, or opens Stripe Checkout for an upgrade with <code>start_checkout</code>.</li>
         </ol>
@@ -360,14 +360,13 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
         <tbody>
         <tr><td><code>get_started</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Start here. Explains what Fizzlayer is, whether this browser is signed in, the current plan and setup state, and the exact next tool calls to onboard or use the site.</p><p class="docs-args">No input.</p></td></tr>
         <tr><td><code>list_plans</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Fizzlayer plans with price, device limit, and monthly Fizz credits.</p><p class="docs-args">No input.</p></td></tr>
-        <tr><td><code>join_waitlist</code></td><td><p>Add an email address to the Fizzlayer waitlist for people without an invite code.</p><p class="docs-args">Input: <code>email</code></p></td></tr>
         <tr><td><code>contact_sales</code></td><td><p>Ask the Fizzlayer team about the Enterprise plan or a business deployment.</p><p class="docs-args">Input: <code>email</code>, <code>company</code>, <code>note</code> (optional)</p></td></tr>
         </tbody></table></div>
         <h4>Account and sign-in</h4>
         <div class="docs-table-wrap"><table>
         <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th></tr></thead>
         <tbody>
-        <tr><td><code>create_account</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Create a Fizzlayer account with an invite code. Use a password the person chose, never one you invented without telling them. Fizzlayer then emails a confirmation link the person must open before sign_in works.</p><p class="docs-args">Input: <code>invite_code</code>, <code>email</code>, <code>password</code></p></td></tr>
+        <tr><td><code>create_account</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Create a free Fizzlayer account. Use a password the person chose, never one you invented without telling them. Fizzlayer then emails a confirmation link the person must open before sign_in works.</p><p class="docs-args">Input: <code>email</code>, <code>password</code></p></td></tr>
         <tr><td><code>resend_confirmation</code></td><td><p>Send the account confirmation email again.</p><p class="docs-args">Input: <code>email</code></p></td></tr>
         <tr><td><code>send_password_reset</code></td><td><p>Email a password reset link. The person opens it to choose a new password.</p><p class="docs-args">Input: <code>email</code></p></td></tr>
         <tr><td><code>sign_in</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Sign in to Fizzlayer with email and password. The session is this browser's, so every other tool then acts for that account.</p><p class="docs-args">Input: <code>email</code>, <code>password</code></p></td></tr>
@@ -429,7 +428,7 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
               <tr><td><a href="/.well-known/webmcp"><code>/.well-known/webmcp</code></a></td><td>The WebMCP card: every tool with its description, input schema, and hints, and the pages that offer them.</td></tr>
               <tr><td><a href="/.well-known/mcp/server-card.json"><code>/.well-known/mcp/server-card.json</code></a></td><td>The MCP server card: endpoint, transport, protocol version, and authentication for <code>/api/mcp</code>.</td></tr>
               <tr><td><a href="/.well-known/mcp.json"><code>/.well-known/mcp.json</code></a></td><td>A compact MCP manifest: server name, endpoint, authentication, and tool names.</td></tr>
-              <tr><td><a href="/openapi.json"><code>/openapi.json</code></a></td><td>An OpenAPI 3.1 description of the HTTP API: sending readings, the MCP endpoint, service status, and the waitlist.</td></tr>
+              <tr><td><a href="/openapi.json"><code>/openapi.json</code></a></td><td>An OpenAPI 3.1 description of the HTTP API: sending readings, the MCP endpoint, service status, and sales contact.</td></tr>
               <tr><td><a href="/.well-known/ai-plugin.json"><code>/.well-known/ai-plugin.json</code></a></td><td>A plugin manifest that points agents to the OpenAPI description, the logo, and support contacts.</td></tr>
               <tr><td><a href="/robots.txt"><code>/robots.txt</code></a></td><td>Welcomes AI crawlers such as GPTBot, ClaudeBot, and PerplexityBot, and links the sitemap.</td></tr>
             </tbody>

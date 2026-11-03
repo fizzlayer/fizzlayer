@@ -10,6 +10,16 @@ use crate::{
     store::Supabase,
 };
 
+/// Chat size limits. A message is up to 1,000 characters and each earlier message up to
+/// 3,000 (the longest reply Fizz sends). The whole conversation sent with a request,
+/// history plus the new message, is capped too, so a request cannot carry a large prompt.
+pub const MAX_CHAT_MESSAGE_CHARS: usize = 1000;
+pub const MAX_CHAT_HISTORY_MESSAGES: usize = 12;
+pub const MAX_CHAT_HISTORY_ENTRY_CHARS: usize = 3000;
+pub const MAX_CHAT_CONVERSATION_CHARS: usize = 12_000;
+/// Room for the conversation cap in multi-byte text plus JSON escaping.
+const MAX_CHAT_BODY_BYTES: usize = 64 * 1024;
+
 async fn body(request: Request) -> Result<Value, Response<ResponseBody>> {
     if !request
         .headers()
@@ -19,7 +29,7 @@ async fn body(request: Request) -> Result<Value, Response<ResponseBody>> {
     {
         return Err(error(415, "unsupported_media_type", "Send JSON."));
     }
-    let bytes = Limited::new(request.into_body(), 32768)
+    let bytes = Limited::new(request.into_body(), MAX_CHAT_BODY_BYTES)
         .collect()
         .await
         .map_err(|_| error(413, "invalid_request", "Request is too large."))?
@@ -309,12 +319,19 @@ fn valid_proposal(proposal: &Value, context: &Value) -> bool {
     }
 }
 
+fn chat_message(data: &Value) -> Option<&str> {
+    data.get("message")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && s.chars().count() <= MAX_CHAT_MESSAGE_CHARS)
+}
+
 fn chat_history(data: &Value) -> Option<Vec<Value>> {
     let Some(history) = data.get("history") else {
         return Some(Vec::new());
     };
     let history = history.as_array()?;
-    if history.len() > 12 {
+    if history.len() > MAX_CHAT_HISTORY_MESSAGES {
         return None;
     }
     history
@@ -322,12 +339,25 @@ fn chat_history(data: &Value) -> Option<Vec<Value>> {
         .map(|entry| {
             let role = entry.get("role")?.as_str()?;
             let content = entry.get("content")?.as_str()?;
-            if !matches!(role, "user" | "assistant") || content.is_empty() || content.len() > 3000 {
+            if !matches!(role, "user" | "assistant")
+                || content.is_empty()
+                || content.chars().count() > MAX_CHAT_HISTORY_ENTRY_CHARS
+            {
                 return None;
             }
             Some(json!({"role":role,"content":content}))
         })
         .collect()
+}
+
+/// Characters in the new message plus every history entry.
+fn conversation_chars(message: &str, history: &[Value]) -> usize {
+    message.chars().count()
+        + history
+            .iter()
+            .filter_map(|entry| entry["content"].as_str())
+            .map(|content| content.chars().count())
+            .sum::<usize>()
 }
 
 fn supplied_phone(phone: &str, message: &str, history: &[Value]) -> bool {
@@ -690,12 +720,7 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
         Ok(v) => v,
         Err(e) => return e,
     };
-    let Some(message) = data
-        .get("message")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty() && s.len() <= 1000)
-    else {
+    let Some(message) = chat_message(&data) else {
         return error(
             400,
             "invalid_message",
@@ -709,6 +734,13 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
             "Send up to 12 recent conversation messages.",
         );
     };
+    if conversation_chars(message, &history) > MAX_CHAT_CONVERSATION_CHARS {
+        return error(
+            413,
+            "conversation_too_large",
+            "This conversation is too long. Start a new chat or send fewer earlier messages.",
+        );
+    }
     let Ok(store) = Supabase::from_env() else {
         return error(
             503,
@@ -871,6 +903,23 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn chat_limits_count_characters_and_cap_the_whole_conversation() {
+        let message = |text: String| chat_message(&json!({ "message": text })).map(str::to_owned);
+        assert_eq!(message("é".repeat(1000)), Some("é".repeat(1000)));
+        assert_eq!(message("x".repeat(1001)), None);
+        assert_eq!(message("   ".into()), None);
+        let entry = |chars: usize| json!({"role":"assistant","content":"x".repeat(chars)});
+        assert!(chat_history(&json!({"history": [entry(3000)]})).is_some());
+        assert!(chat_history(&json!({"history": [entry(3001)]})).is_none());
+        assert!(chat_history(&json!({"history": vec![entry(1); 13]})).is_none());
+        assert!(chat_history(&json!({"history": [{"role":"system","content":"x"}]})).is_none());
+        let history = chat_history(&json!({"history": vec![entry(1000); 11]})).unwrap();
+        assert_eq!(conversation_chars("hi", &history), 11_002);
+        assert!(conversation_chars("hi", &history) <= MAX_CHAT_CONVERSATION_CHARS);
+        let history = chat_history(&json!({"history": vec![entry(3000); 4]})).unwrap();
+        assert!(conversation_chars("hi", &history) > MAX_CHAT_CONVERSATION_CHARS);
+    }
     #[test]
     fn silence_reply_uses_the_singular_for_one_minute() {
         let context = json!({"sensors":[{"id":"s1","name":"Closet"}]});

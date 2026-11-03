@@ -8,12 +8,12 @@ let chosenKinds = [];
 let signedInUsername = '';
 
 // Sign-in goes through Supabase Auth via /api/auth: email and password, Google, or a passkey.
-// New accounts need an invite. Passkeys are added on the Settings page once signed in.
+// Anyone can create an account. Passkeys are added on the Settings page once signed in.
 const passkeysSupported = window.fizzPasskey.supported;
 const modes = {
   create: {
-    label: 'NEW ACCOUNT', title: 'Create your account', intro: 'Enter your invite code, your email, and a password.',
-    submit: 'Create account', fields: ['invite', 'email', 'password'], google: 'Sign up with Google',
+    label: 'NEW ACCOUNT', title: 'Create your account', intro: 'Enter your email and choose a password.',
+    submit: 'Create account', fields: ['email', 'password'], google: 'Sign up with Google',
   },
   'sign-in': {
     label: 'SIGN IN', title: 'Welcome back', intro: 'Sign in with your email and password, Google, or a passkey.',
@@ -46,7 +46,7 @@ function render(intro) {
     $(id).classList.toggle('selected', on);
     $(id).setAttribute('aria-pressed', String(on));
   }
-  for (const field of ['invite', 'email', 'password']) $(`${field}-wrap`).hidden = !current.fields.includes(field);
+  for (const field of ['email', 'password']) $(`${field}-wrap`).hidden = !current.fields.includes(field);
   // The form stays visible in every mode so its error message can show; only its parts hide.
   $('form-actions').hidden = !current.submit;
   $('email-sent').hidden = mode !== 'check-email';
@@ -75,17 +75,6 @@ function setMode(next, intro) {
   render(intro);
   const first = modes[next].fields.find((field) => !(field === 'email' && email));
   if (first) $(first).focus();
-}
-
-// Invite codes look like FIZZ-ABCD-EFGH-JKMN; the server does the real check.
-function validInvite() {
-  const symbols = $('invite').value.replace(/[^A-Za-z0-9]/g, '').length;
-  if (symbols < 12 || symbols > 16) {
-    showError('Enter the invite code from your Fizzlayer invitation.');
-    $('invite').focus();
-    return false;
-  }
-  return true;
 }
 
 function validEmail() {
@@ -183,13 +172,12 @@ async function send(url, method, data) {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const { fields } = modes[mode];
-  if (fields.includes('invite') && !validInvite()) return;
   if (fields.includes('email') && !validEmail()) return;
   if (fields.includes('password') && !validPassword()) return;
   const email = $('email').value.trim();
   const password = $('password').value;
   const body = {
-    create: { action: 'sign_up', invite: $('invite').value.trim(), email, password },
+    create: { action: 'sign_up', email, password },
     'sign-in': { action: 'sign_in', email, password },
     forgot: { action: 'recover', email },
     reset: { action: 'link', access_token: resetToken, password },
@@ -222,7 +210,7 @@ form.addEventListener('submit', async (event) => {
       return;
     }
     showError(error.message);
-    const field = { invalid_invite: 'invite', invalid_email: 'email', weak_password: 'password', same_password: 'password' }[error.code];
+    const field = { invalid_email: 'email', weak_password: 'password', same_password: 'password' }[error.code];
     if (field && modes[mode].fields.includes(field)) $(field).focus();
   } finally {
     button.disabled = false;
@@ -264,11 +252,9 @@ $('create-mode').addEventListener('click', () => setMode('create'));
 $('sign-in-mode').addEventListener('click', () => setMode('sign-in'));
 $('forgot').addEventListener('click', () => setMode(mode === 'forgot' ? 'sign-in' : 'forgot'));
 $('back-to-sign-in').addEventListener('click', () => setMode('sign-in'));
-// Google sign-in leaves the page; new accounts still need an invite, which rides along.
+// Google sign-in leaves the page. A new Google account gets a Fizzlayer account on return.
 $('google').addEventListener('click', () => {
-  if (mode === 'create' && !validInvite()) return;
-  const invite = mode === 'create' ? `&invite=${encodeURIComponent($('invite').value.trim())}` : '';
-  location.assign(`/api/auth?provider=google${invite}`);
+  location.assign('/api/auth?provider=google');
 });
 
 document.querySelectorAll('.sensor-card').forEach((card) => {
@@ -350,8 +336,6 @@ $('dashboard-sign-out').addEventListener('click', signOut);
 const hash = new URLSearchParams(location.hash.slice(1));
 const authErrors = {
   mfa_required: [null, 'Complete multi-factor authentication before signing in.'],
-  no_account: ['create', 'No Fizzlayer account uses that Google account yet. Enter your invite code to sign up with Google.', 'invite'],
-  invalid_invite: ['create', 'That invite code is not valid or has already been used.', 'invite'],
   rate_limited: [null, 'Too many attempts. Try again in an hour.'],
   cancelled: [null, 'Google sign-in was cancelled.'],
   expired: [null, 'Google sign-in took too long or was interrupted. Try again.'],

@@ -79,8 +79,8 @@ name = "voice"
 path = "api/voice.rs"
 
 [[bin]]
-name = "waitlist"
-path = "api/waitlist.rs"
+name = "contact"
+path = "api/contact.rs"
 
 [[bin]]
 name = "mcp"

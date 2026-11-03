@@ -82,17 +82,20 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
         .map(|ip| ip.to_string())
 }
 
-/// Invite codes look like FIZZ-ABCD-EFGH-JKMN. The database normalizes and checks them;
-/// this only rejects input that cannot possibly be a code.
-pub fn invite_code(invite: &str) -> Option<String> {
-    let invite = invite.trim();
-    let symbols = invite.bytes().filter(u8::is_ascii_alphanumeric).count();
-    ((12..=16).contains(&symbols)
-        && invite.len() <= 32
-        && invite
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b' '))
-    .then(|| invite.to_owned())
+/// A plausible address: one @, a dotted domain, no spaces or control characters.
+/// Delivery is the real test; this keeps obvious junk out of the list.
+pub fn normalize_email(value: &str) -> Option<String> {
+    let email = value.trim().to_ascii_lowercase();
+    let (local, domain) = email.split_once('@')?;
+    let valid = email.len() <= 254
+        && !local.is_empty()
+        && local.len() <= 64
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !domain.contains('@')
+        && email.chars().all(|c| !c.is_whitespace() && !c.is_control());
+    valid.then_some(email)
 }
 
 pub fn cookie<'a>(request: &'a Request, name: &str) -> Option<&'a str> {
@@ -292,16 +295,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn invite_codes_accept_typed_variants_and_reject_junk() {
+    fn emails_are_trimmed_lowercased_and_sanity_checked() {
         assert_eq!(
-            invite_code(" FIZZ-ABCD-EFGH-JKMN "),
-            Some("FIZZ-ABCD-EFGH-JKMN".into())
+            normalize_email("  Ann@Example.COM "),
+            Some("ann@example.com".into())
         );
-        assert!(invite_code("abcd efgh jkmn").is_some());
-        assert!(invite_code("FIZZ-ABCD").is_none());
-        assert!(invite_code("FIZZ-ABCD-EFGH-JKMN-PQRS").is_none());
-        assert!(invite_code("FIZZ_ABCD_EFGH_JKMN").is_none());
-        assert!(invite_code("").is_none());
+        assert_eq!(
+            normalize_email("a.b+fizz@mail.co.uk"),
+            Some("a.b+fizz@mail.co.uk".into())
+        );
+        for bad in [
+            "",
+            "ann",
+            "ann@",
+            "@example.com",
+            "ann@example",
+            "ann@.com",
+            "ann@example.",
+            "a@b@c.com",
+            "an n@example.com",
+            "ann@exa\u{7}mple.com",
+        ] {
+            assert_eq!(normalize_email(bad), None, "{bad:?}");
+        }
+        assert_eq!(
+            normalize_email(&format!("{}@example.com", "a".repeat(65))),
+            None
+        );
     }
 
     #[test]
