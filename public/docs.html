@@ -301,7 +301,7 @@ fizz status                               # show the pairing</code></pre>
               <tr><td><code>list_sensors</code></td><td>Your sensors and paired devices, with each one's type, source, and latest reading.</td></tr>
               <tr><td><code>get_readings</code></td><td>Recent readings for one sensor, newest first (up to 100). Optionally one <code>metric</code>.</td></tr>
               <tr><td><code>list_alerts</code></td><td>Threshold and silence rules, whether each is triggered, and the 20 most recent triggers.</td></tr>
-              <tr><td><code>create_alert</code></td><td>A threshold alert, or a silence alert (<code>kind: "silence"</code>, optional <code>silence_minutes</code>, default 10). Optional <code>call_phone</code> must already be saved on an alert in this workspace. Only listed for tokens with <em>Can create alerts</em>. Asking twice returns the existing alert.</td></tr>
+              <tr><td><code>create_alert</code></td><td>A threshold alert, or a silence alert (<code>kind: "silence"</code>, optional <code>silence_minutes</code>, default 10). Optional <code>call_phone</code> must already be saved on an active alert in this workspace. Only listed for tokens with <em>Can create alerts</em>. Asking twice returns the existing alert.</td></tr>
               <tr><td><code>pair_device</code></td><td>Claims a code from <code>fizz pair</code>. The person at the device still has to approve it.</td></tr>
             </tbody>
           </table>

@@ -36,6 +36,7 @@ fn rpc_error(value: &Value) -> Option<Response<ResponseBody>> {
             error(400, code, "Use a reported numeric metric and its unit.")
         }
         "invalid_notify" => error(400, code, "Enter a valid US phone number."),
+        "simulated_sensor" => error(400, code, SAMPLE_SILENCE),
         _ => error(
             503,
             "database_unavailable",
@@ -43,6 +44,9 @@ fn rpc_error(value: &Value) -> Option<Response<ResponseBody>> {
         ),
     })
 }
+
+const SAMPLE_SILENCE: &str =
+    "Sample sensors only report while you're viewing them, so they can't have a silence alert.";
 
 fn uuid(value: &str) -> bool {
     value.len() == 36
@@ -405,14 +409,14 @@ fn alert_reply(rule: &Value, context: &Value, created: bool) -> String {
         " You'll see it on your dashboard.".into()
     };
     if rule["kind"] == "silence" {
-        let minutes = rule["silence_minutes"].as_i64().unwrap_or(10);
+        let minutes = notify::minutes_phrase(rule["silence_minutes"].as_f64().unwrap_or(10.0));
         let recovery = if rule["notify_recovery"] == true {
             " I'll also let you know when it reports again."
         } else {
             ""
         };
         return format!(
-            "{prefix}: {sensor} if it sends no reading for {minutes} minutes.{delivery}{recovery}"
+            "{prefix}: {sensor} if it sends no reading for {minutes}.{delivery}{recovery}"
         );
     }
     let comparison = match rule["comparator"].as_str().unwrap_or("") {
@@ -831,7 +835,7 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
             );
         };
         payload["p_token"] = json!(token);
-        let result = match store.rpc("fizz_create_chat_alert", payload).await {
+        let result = match store.rpc("fizz_create_alert", payload).await {
             Ok(result) => result,
             Err(_) => {
                 return error(
@@ -841,6 +845,9 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
                 );
             }
         };
+        if result["error"] == "simulated_sensor" {
+            return reply(200, json!({"reply":SAMPLE_SILENCE,"clips":clips}), None);
+        }
         if let Some(response) = rpc_error(&result) {
             return response;
         }
@@ -864,6 +871,13 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn silence_reply_uses_the_singular_for_one_minute() {
+        let context = json!({"sensors":[{"id":"s1","name":"Closet"}]});
+        let rule = |minutes: i64| json!({"sensor_id":"s1","kind":"silence","silence_minutes":minutes,"notify_channel":"none"});
+        assert!(alert_reply(&rule(1), &context, true).contains("no reading for 1 minute."));
+        assert!(alert_reply(&rule(15), &context, true).contains("no reading for 15 minutes."));
+    }
     #[test]
     fn setup_actions_validate_modes_names_and_user_supplied_codes() {
         assert!(setup_payload(&json!({"type":"create_sensor","kind":"temperature","name":"Cold room","mode":"api"}), "add sensor", &[]).is_some());

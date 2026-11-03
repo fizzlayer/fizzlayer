@@ -9,7 +9,7 @@
   const eventPreview = 5;
   let timer = null;
   let sensors = [];
-  let alertData = { rules: [], events: [] };
+  let alertData = { rules: [], events: [], schedulerActive: true };
   let showAllEvents = false;
   let requestInFlight = false;
   let refreshQueued = false;
@@ -185,7 +185,7 @@
       const [inventory, alerts] = await Promise.all([api('/api/sensors'), api('/api/alerts')]);
       if (version !== sessionGeneration || $('dashboard').hidden) return;
       sensors = inventory.sensors || [];
-      alertData = { rules: alerts.rules || [], events: alerts.events || [] };
+      alertData = { rules: alerts.rules || [], events: alerts.events || [], schedulerActive: alerts.silence_scheduler_active !== false };
       renderSensors();
       renderAlerts();
       detail.update(sensors);
@@ -339,13 +339,17 @@
     } else if (sensor) {
       meta.append(node('span', '', 'Waiting for a matching reading'));
     }
-    const fired = alertData.events.filter((event) => event.rule_id === rule.id);
+    // A recovery notice is not a firing, so it does not count toward the history.
+    const fired = alertData.events.filter((event) => event.rule_id === rule.id && event.event_kind !== 'recovery');
     if (fired.length) {
       const last = node('span', '', 'Last fired ');
       last.append(timeElement(fired[0].observed_at || fired[0].created_at));
       meta.append(last, node('span', '', `${fired.length}× in recent history`));
     } else {
       meta.append(node('span', '', 'Has not fired yet'));
+    }
+    if (silenceRule(rule) && status !== 'paused' && !alertData.schedulerActive) {
+      meta.append(node('span', 'over', 'Not being checked: silence checks are not running on this server.'));
     }
     if (status === 'triggered') meta.append(node('span', 'over', silenceRule(rule) ? 'Resets when a reading arrives' : 'Resets when the reading returns inside the limit'));
     const actions = node('div', 'alert-actions');
@@ -578,7 +582,9 @@
       if (notify !== 'none') Object.assign(rule, { notify_channel: notify, notify_phone: $('alert-phone').value.trim() });
       await api('/api/alerts', 'POST', rule);
       const ready = silence ? 'Fizz will call you if it goes quiet.' : 'Fizz will call you when it triggers.';
-      $('alert-message').textContent = notify === 'none' ? 'Alert is active.' : `Alert is active. ${ready}`;
+      $('alert-message').textContent = silence && !alertData.schedulerActive
+        ? 'Alert saved, but silence checks are not running on this server yet, so it will not fire until they are.'
+        : notify === 'none' ? 'Alert is active.' : `Alert is active. ${ready}`;
       $('alert-threshold').value = '';
       await refresh();
     } catch (error) { $('alert-message').textContent = error.message; }
@@ -644,7 +650,7 @@
       readingHistory.clear();
       sensorFilter = 'all';
       for (const filter of document.querySelectorAll('[data-sensor-filter]')) filter.setAttribute('aria-pressed', String(filter.dataset.sensorFilter === 'all'));
-      alertData = { rules: [], events: [] };
+      alertData = { rules: [], events: [], schedulerActive: true };
       showAllEvents = false;
       setThinking(false);
       window.fizzVoiceClips.reset();

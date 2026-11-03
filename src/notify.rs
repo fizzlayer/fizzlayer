@@ -80,7 +80,8 @@ fn comparison(comparator: &str) -> &'static str {
     }
 }
 
-fn minutes_phrase(value: f64) -> String {
+/// "1 minute" or "N minutes", rounded to whole minutes.
+pub fn minutes_phrase(value: f64) -> String {
     let minutes = value.round().max(0.0) as i64;
     if minutes == 1 {
         "1 minute".into()

@@ -3,7 +3,10 @@
 //! The same endpoint accepts a POST from an external scheduler. Overlapping runs
 //! are safe: the database claims each rule and each call at most once.
 
-use std::env;
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
 use ring::digest;
 use serde_json::{Value, json};
@@ -55,7 +58,40 @@ fn notifications(report: DispatchReport) -> Value {
     })
 }
 
+/// Stop starting new calls after this long. One more pass is an agent lookup
+/// plus one dial, each capped at 8 seconds, so a run still ends inside the
+/// 60-second function budget the docs ask for.
+const DISPATCH_BUDGET: Duration = Duration::from_secs(36);
+
+/// Send queued calls one at a time until the queue is empty or the budget is
+/// spent. Silence calls have no reading to ride on, so this is their only path:
+/// one call per run would cap the whole deployment at about 60 calls an hour.
+async fn drain_queue(store: &Supabase, started: Instant) -> DispatchReport {
+    let mut total = DispatchReport {
+        configured: false,
+        claimed: 0,
+        sent: 0,
+        retry: 0,
+        failed: 0,
+    };
+    while started.elapsed() < DISPATCH_BUDGET {
+        let pass = notify::dispatch_limited(store, 1).await;
+        total.configured |= pass.configured;
+        total.claimed += pass.claimed;
+        total.sent += pass.sent;
+        total.retry += pass.retry;
+        total.failed += pass.failed;
+        // Nothing claimed means the queue is empty, AgentPhone is unconfigured,
+        // or the claim failed. A retry stays in the queue for the next run.
+        if pass.claimed == 0 || pass.retry > 0 {
+            break;
+        }
+    }
+    total
+}
+
 pub async fn handle(request: Request) -> Response<ResponseBody> {
+    let started = Instant::now();
     if !matches!(request.method().as_str(), "GET" | "POST") {
         return error(405, "method_not_allowed", "Use GET or POST.");
     }
@@ -94,8 +130,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         }
     };
     // Dispatch even when the scan failed, so retries do not wait on it.
-    // One call per run: an agent lookup and a single 8s dial fit in a 60s budget.
-    let report = notify::dispatch_limited(&store, 1).await;
+    let report = drain_queue(&store, started).await;
     let failed = silence.get("error").is_some();
     reply(
         if failed { 503 } else { 200 },

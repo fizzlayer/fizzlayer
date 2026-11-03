@@ -69,8 +69,7 @@ begin
   perform pg_temp.silence_assert(listed->'rules'->0->>'kind' = 'silence', 'list_alerts includes the silence rule');
   perform pg_temp.silence_assert((listed->'rules'->0->>'silence_minutes')::int = 10, 'list_alerts includes the window');
 
-  created := public.fizz_create_chat_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_silence_minutes => 10, p_notify_channel => 'call', p_notify_phone => '+14155550100');
-  perform pg_temp.silence_assert(created->>'created' = 'false', 'chat reuses the same silence rule');
+  perform pg_temp.silence_assert(to_regproc('public.fizz_create_chat_alert') is null, 'chat uses fizz_create_alert, not a second copy');
 
   created := public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0100'));
   perform pg_temp.silence_assert(created->'result'->>'created' = 'false', 'MCP reuses the same silence rule');
@@ -223,6 +222,54 @@ begin
   update public.fizz_sensors set status = 'paused' where id = '00000000-0000-4000-8000-0000000000c5';
   perform pg_temp.silence_assert(public.fizz_alert_call_still_due((claimed->0->>'id')::uuid)->>'send' = 'false', 'a claimed call is not dialed after the sensor is paused');
   perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where id = (claimed->0->>'id')::uuid) = 'skipped', 'the claimed call is marked skipped');
+
+  -- Another account cannot cancel this account's queued calls by deleting or pausing its rule.
+  select id into v_rule from public.fizz_alert_rules where customer_id = b.customer_id and sensor_id = b.sensor_id and kind = 'silence';
+  insert into public.fizz_alert_events(rule_id, reading_id, customer_id, sensor_id, metric, numeric_value, threshold, comparator, unit, observed_at, notify_channel, notify_phone, notify_status, event_kind)
+  select v_rule, r.id, b.customer_id, b.sensor_id, 'silence', 30, 10, 'gte', 'min', now(), 'call', '+14155550199', 'pending', 'silence'
+  from public.fizz_sensor_readings r where r.sensor_id = b.sensor_id and r.event_id = 'fresh'
+  returning id into v_event;
+  perform pg_temp.silence_assert(public.fizz_update_alert(a.session_token, v_rule, null, true)->>'error' = 'not_found', 'cannot delete another account''s rule');
+  perform pg_temp.silence_assert(public.fizz_update_alert(a.session_token, v_rule, false, false)->>'error' = 'not_found', 'cannot pause another account''s rule');
+  perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where id = v_event) = 'pending', 'another account''s queued call is left alone');
+  perform pg_temp.silence_assert((select enabled from public.fizz_alert_rules where id = v_rule), 'another account''s rule stays enabled');
+  perform pg_temp.silence_assert(public.fizz_update_alert(b.session_token, v_rule, null, true)->>'ok' = 'true', 'the owner can delete the rule');
+  perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where id = v_event) = 'skipped', 'deleting your own rule cancels its queued call');
+
+  -- A disabled silence rule is not rewritten by readings.
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, enabled, silence_due_at)
+  values (b.customer_id, b.sensor_id, 'silence', 'gte', 30, 'min', 'silence', 30, false, '2000-01-01')
+  returning id into v_rule;
+  insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, metric, numeric_value, unit, source)
+  values (b.sensor_id, 'while-disabled', now(), 'temperature_c', 21, 'C', 'api');
+  perform pg_temp.silence_assert((select silence_due_at from public.fizz_alert_rules where id = v_rule) = '2000-01-01', 'readings skip disabled silence rules');
+  perform public.fizz_update_alert(b.session_token, v_rule, true, false);
+  perform pg_temp.silence_assert((select silence_due_at from public.fizz_alert_rules where id = v_rule) > now() + interval '29 minutes', 'resuming the rule recomputes its due time');
+
+  -- Sample sensors only report while viewed, so they cannot have silence alerts.
+  insert into public.fizz_sensors(id, customer_id, kind, name, mode)
+  values ('00000000-0000-4000-8000-0000000000c6', a.customer_id, 'temperature', 'Sample closet', 'simulated');
+  perform pg_temp.silence_assert(public.fizz_create_alert(a.session_token, '00000000-0000-4000-8000-0000000000c6', p_kind => 'silence')->>'error' = 'simulated_sensor', 'dashboard rejects silence on a sample sensor');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', '00000000-0000-4000-8000-0000000000c6', 'kind', 'silence'))->>'error' = 'invalid_arguments', 'MCP rejects silence on a sample sensor');
+  insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, received_at, metric, numeric_value, unit, source)
+  values ('00000000-0000-4000-8000-0000000000c6', 'sample', now() - interval '1 day', now() - interval '1 day', 'temperature_c', 1, 'C', 'simulated');
+  insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, silence_due_at)
+  values (a.customer_id, '00000000-0000-4000-8000-0000000000c6', 'silence', 'gte', 10, 'min', 'silence', 10, now() - interval '1 day');
+  scan := public.fizz_scan_silence_alerts(50);
+  perform pg_temp.silence_assert((scan->>'fired')::int = 0, 'an older sample-sensor silence rule does not fire');
+
+  -- Resuming a paused sensor gives it a full window before silence can fire.
+  update public.fizz_sensors set status = 'active' where id = '00000000-0000-4000-8000-0000000000c2';
+  perform pg_temp.silence_assert((select silence_due_at from public.fizz_alert_rules where sensor_id = '00000000-0000-4000-8000-0000000000c2') > now() + interval '9 minutes', 'resuming a sensor pushes the due time out');
+  scan := public.fizz_scan_silence_alerts(50);
+  perform pg_temp.silence_assert((scan->>'fired')::int = 0, 'a just-resumed sensor does not fire');
+
+  -- The scan records that a scheduler is running.
+  perform pg_temp.silence_assert((public.fizz_list_alerts(a.session_token)->>'silence_scheduler_active')::boolean, 'list_alerts reports a recent scan');
+
+  -- MCP may only reuse a number that is on an active alert.
+  update public.fizz_alert_rules set enabled = false where customer_id = a.customer_id;
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0100'))->>'error' = 'invalid_arguments', 'MCP cannot reuse a number from a paused alert');
 end $$;
 
 -- Clients cannot run the scanner or read another account's silence rule.

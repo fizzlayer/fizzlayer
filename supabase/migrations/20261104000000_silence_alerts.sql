@@ -30,6 +30,16 @@ alter table public.fizz_alert_events
   add constraint fizz_alert_events_rule_reading_kind_key
   unique (rule_id, reading_id, event_kind);
 
+-- One row, written by each silence scan. The dashboard reads it to warn when no
+-- scheduler is calling /api/cron, since silence alerts cannot fire without one.
+create table public.fizz_scheduler_status (
+  id boolean primary key default true check (id),
+  last_scan_at timestamptz not null
+);
+alter table public.fizz_scheduler_status enable row level security;
+revoke all on public.fizz_scheduler_status from anon, authenticated;
+grant all on public.fizz_scheduler_status to service_role;
+
 create index fizz_alert_rules_silence_due_idx
   on public.fizz_alert_rules (silence_due_at, id)
   where kind = 'silence' and enabled and armed and silence_due_at is not null;
@@ -86,7 +96,8 @@ declare
 begin
   update public.fizz_alert_rules
   set silence_due_at = new.received_at + make_interval(mins => silence_minutes)
-  where sensor_id = new.sensor_id and kind = 'silence'
+  -- Enabled only, so this uses the partial sensor index. Resuming a rule recomputes it.
+  where sensor_id = new.sensor_id and kind = 'silence' and enabled
     and (silence_due_at is null or silence_due_at < new.received_at + make_interval(mins => silence_minutes));
 
   -- A reading just stored by the server means the sensor is reporting again.
@@ -166,11 +177,15 @@ declare
   v_queued integer := 0;
   v_skipped integer := 0;
 begin
+  insert into public.fizz_scheduler_status(id, last_scan_at) values (true, now())
+  on conflict (id) do update set last_scan_at = excluded.last_scan_at;
   for v_rule in
     select r.*
     from public.fizz_alert_rules r
     join public.fizz_sensors s
       on s.id = r.sensor_id and s.deleted_at is null and s.status = 'active'
+      -- Sample sensors only produce readings while someone is viewing them.
+      and s.mode <> 'simulated'
     where r.kind = 'silence' and r.enabled and r.armed
       and r.silence_due_at <= now()
     order by r.silence_due_at, r.id
@@ -300,6 +315,60 @@ $$;
 drop function public.fizz_create_chat_alert(text, uuid, text, text, double precision, text, text, text);
 drop function public.fizz_create_alert(text, uuid, text, text, double precision, text, text, text);
 
+-- Shared by the dashboard, chat, and MCP paths, so matching and the due time
+-- live in one place. Callers check ownership and validate the arguments first.
+-- Returns {rule, created} or {error}. p_max_active caps enabled rules (null = no cap).
+create function public.fizz_save_alert_rule(p_customer uuid, p_sensor_id uuid, p_kind text,
+  p_metric text, p_comparator text, p_threshold double precision, p_unit text,
+  p_channel text, p_phone text, p_minutes integer, p_recovery boolean, p_max_active integer)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_rule public.fizz_alert_rules%rowtype;
+begin
+  -- Serialize per customer so concurrent repeats cannot create duplicate rules.
+  perform pg_advisory_xact_lock(hashtextextended(p_customer::text, 0));
+  if p_kind = 'silence' and exists(select 1 from public.fizz_sensors
+      where id = p_sensor_id and mode = 'simulated') then
+    return jsonb_build_object('error','simulated_sensor');
+  end if;
+  select r.* into v_rule from public.fizz_alert_rules r
+  join public.fizz_sensors s on s.id = r.sensor_id
+  where r.customer_id = p_customer and s.deleted_at is null and r.enabled
+    and r.kind = p_kind and r.sensor_id = p_sensor_id
+    and r.notify_channel = p_channel and r.notify_phone is not distinct from p_phone
+    and case when p_kind = 'silence'
+      then r.silence_minutes = p_minutes and r.notify_recovery = p_recovery
+      else r.metric = p_metric and r.comparator = p_comparator
+        and r.threshold = p_threshold and r.unit = p_unit end
+  limit 1;
+  if found then
+    return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', false);
+  end if;
+  if p_max_active is not null and (select count(*) from public.fizz_alert_rules
+      where customer_id = p_customer and enabled) >= p_max_active then
+    return jsonb_build_object('error','alert_limit');
+  end if;
+  if p_kind = 'silence' then
+    insert into public.fizz_alert_rules(
+      customer_id, sensor_id, metric, comparator, threshold, unit,
+      notify_channel, notify_phone, kind, silence_minutes, notify_recovery, silence_due_at)
+    values (
+      p_customer, p_sensor_id, 'silence', 'gte', p_minutes, 'min',
+      p_channel, p_phone, 'silence', p_minutes, p_recovery,
+      (select rd.received_at + make_interval(mins => p_minutes)
+       from public.fizz_sensor_readings rd
+       where rd.sensor_id = p_sensor_id order by rd.received_at desc limit 1))
+    returning * into v_rule;
+  else
+    insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, notify_channel, notify_phone)
+    values (p_customer, p_sensor_id, p_metric, p_comparator, p_threshold, p_unit, p_channel, p_phone)
+    returning * into v_rule;
+  end if;
+  return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', true);
+end;
+$$;
+
+-- Chat and the dashboard both call this. It returns the existing rule when an
+-- identical one is already active.
 create function public.fizz_create_alert(p_token text, p_sensor_id uuid, p_metric text default null,
   p_comparator text default null, p_threshold double precision default null, p_unit text default null,
   p_notify_channel text default 'none', p_notify_phone text default null,
@@ -308,7 +377,6 @@ create function public.fizz_create_alert(p_token text, p_sensor_id uuid, p_metri
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_customer uuid;
-  v_rule public.fizz_alert_rules%rowtype;
   v_unit text;
   v_minutes integer;
 begin
@@ -330,30 +398,8 @@ begin
     if v_minutes < 1 or v_minutes > 10080 then
       return jsonb_build_object('error','invalid_rule');
     end if;
-    perform pg_advisory_xact_lock(hashtextextended(v_customer::text, 0));
-    select r.* into v_rule from public.fizz_alert_rules r
-    join public.fizz_sensors s on s.id = r.sensor_id
-    where r.customer_id = v_customer and s.deleted_at is null and r.enabled
-      and r.kind = 'silence' and r.sensor_id = p_sensor_id and r.silence_minutes = v_minutes
-      and r.notify_recovery = coalesce(p_notify_recovery, false)
-      and r.notify_channel = coalesce(p_notify_channel, 'none')
-      and r.notify_phone is not distinct from p_notify_phone
-    limit 1;
-    if found then
-      return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', false);
-    end if;
-    insert into public.fizz_alert_rules(
-      customer_id, sensor_id, metric, comparator, threshold, unit,
-      notify_channel, notify_phone, kind, silence_minutes, notify_recovery, silence_due_at)
-    values (
-      v_customer, p_sensor_id, 'silence', 'gte', v_minutes, 'min',
-      coalesce(p_notify_channel, 'none'), p_notify_phone,
-      'silence', v_minutes, coalesce(p_notify_recovery, false),
-      (select rd.received_at + make_interval(mins => v_minutes)
-       from public.fizz_sensor_readings rd
-       where rd.sensor_id = p_sensor_id order by rd.received_at desc limit 1))
-    returning * into v_rule;
-    return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', true);
+    return public.fizz_save_alert_rule(v_customer, p_sensor_id, 'silence', null, null, null, null,
+      coalesce(p_notify_channel, 'none'), p_notify_phone, v_minutes, coalesce(p_notify_recovery, false), null);
   elsif coalesce(p_kind, 'threshold') <> 'threshold'
     or p_silence_minutes is not null or coalesce(p_notify_recovery, false) then
     return jsonb_build_object('error','invalid_rule');
@@ -371,64 +417,8 @@ begin
   if not found or v_unit <> p_unit then
     return jsonb_build_object('error','unknown_metric');
   end if;
-  perform pg_advisory_xact_lock(hashtextextended(v_customer::text, 0));
-  select r.* into v_rule from public.fizz_alert_rules r
-  join public.fizz_sensors s on s.id = r.sensor_id
-  where r.customer_id = v_customer and s.deleted_at is null and r.enabled and r.kind = 'threshold'
-    and r.sensor_id = p_sensor_id and r.metric = p_metric
-    and r.comparator = p_comparator and r.threshold = p_threshold and r.unit = p_unit
-    and r.notify_channel = coalesce(p_notify_channel, 'none')
-    and r.notify_phone is not distinct from p_notify_phone
-  limit 1;
-  if found then
-    return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', false);
-  end if;
-  insert into public.fizz_alert_rules(customer_id,sensor_id,metric,comparator,threshold,unit,notify_channel,notify_phone)
-  values(v_customer,p_sensor_id,p_metric,p_comparator,p_threshold,p_unit,coalesce(p_notify_channel,'none'),p_notify_phone)
-  returning * into v_rule;
-  return jsonb_build_object('rule', to_jsonb(v_rule) - 'customer_id', 'created', true);
-end;
-$$;
-
-create function public.fizz_create_chat_alert(p_token text, p_sensor_id uuid, p_metric text default null,
-  p_comparator text default null, p_threshold double precision default null, p_unit text default null,
-  p_notify_channel text default 'none', p_notify_phone text default null,
-  p_kind text default 'threshold', p_silence_minutes integer default null,
-  p_notify_recovery boolean default false)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_customer uuid; v_rule public.fizz_alert_rules%rowtype; v_result jsonb; v_minutes integer;
-begin
-  v_customer := public.fizz_session_customer(p_token);
-  if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
-  perform pg_advisory_xact_lock(hashtextextended(v_customer::text, 0));
-  if coalesce(p_kind, 'threshold') = 'silence' then
-    v_minutes := coalesce(p_silence_minutes, 10);
-    select r.* into v_rule from public.fizz_alert_rules r
-    join public.fizz_sensors s on s.id = r.sensor_id
-    where r.customer_id = v_customer and s.deleted_at is null and r.enabled
-      and r.kind = 'silence' and r.sensor_id = p_sensor_id and r.silence_minutes = v_minutes
-      and r.notify_recovery = coalesce(p_notify_recovery, false)
-      and r.notify_channel = coalesce(p_notify_channel, 'none')
-      and r.notify_phone is not distinct from p_notify_phone
-    limit 1;
-  else
-    select r.* into v_rule from public.fizz_alert_rules r
-    join public.fizz_sensors s on s.id = r.sensor_id
-    where r.customer_id = v_customer and s.deleted_at is null and r.enabled and r.kind = 'threshold'
-      and r.sensor_id = p_sensor_id and r.metric = p_metric
-      and r.comparator = p_comparator and r.threshold = p_threshold and r.unit = p_unit
-      and r.notify_channel = coalesce(p_notify_channel, 'none')
-      and r.notify_phone is not distinct from p_notify_phone
-    limit 1;
-  end if;
-  if found then
-    return jsonb_build_object('rule',to_jsonb(v_rule)-'customer_id','created',false);
-  end if;
-  v_result := public.fizz_create_alert(p_token, p_sensor_id, p_metric,
-    p_comparator, p_threshold, p_unit, p_notify_channel, p_notify_phone,
-    p_kind, p_silence_minutes, p_notify_recovery);
-  if v_result ? 'error' then return v_result; end if;
-  return v_result;
+  return public.fizz_save_alert_rule(v_customer, p_sensor_id, 'threshold', p_metric, p_comparator,
+    p_threshold, p_unit, coalesce(p_notify_channel, 'none'), p_notify_phone, null, false, null);
 end;
 $$;
 
@@ -439,7 +429,7 @@ declare
   v_args jsonb := coalesce(p_args, '{}'::jsonb);
   v_sensor public.fizz_sensors%rowtype;
   v_limit integer; v_metric text; v_comparator text; v_threshold double precision; v_unit text;
-  v_rule public.fizz_alert_rules%rowtype;
+  v_saved jsonb;
   v_kind text; v_minutes integer; v_channel text; v_phone text; v_recovery boolean;
 begin
   if p_agent_token is null or p_agent_token !~ '^fizz_agent_[0-9a-f]{64}$' then
@@ -529,12 +519,15 @@ begin
       end if;
       v_channel := 'call';
     end if;
+    -- Agents may only reuse a number the owner has on an active alert, so pausing
+    -- or deleting the last alert for a number also stops agents from calling it.
     if v_phone is not null and not exists (
-      select 1 from public.fizz_alert_rules
-      where customer_id = v_conn.customer_id and notify_phone = v_phone
+      select 1 from public.fizz_alert_rules r
+      join public.fizz_sensors s on s.id = r.sensor_id and s.deleted_at is null
+      where r.customer_id = v_conn.customer_id and r.enabled and r.notify_phone = v_phone
     ) then
       return jsonb_build_object('error','invalid_arguments','message',
-        'call_phone must already be saved on an alert in this workspace. The owner adds it from the dashboard or by asking Fizz.');
+        'call_phone must already be saved on an active alert in this workspace. The owner adds it from the dashboard or by asking Fizz.');
     end if;
     if v_args ? 'notify_recovery' and jsonb_typeof(v_args->'notify_recovery') <> 'boolean' then
       return jsonb_build_object('error','invalid_arguments','message','notify_recovery must be true or false.');
@@ -556,74 +549,42 @@ begin
       else
         v_minutes := 10;
       end if;
-      perform pg_advisory_xact_lock(hashtextextended(v_conn.customer_id::text, 0));
-      select r.* into v_rule from public.fizz_alert_rules r
-      where r.customer_id = v_conn.customer_id and r.enabled and r.kind = 'silence' and r.sensor_id = v_sensor.id
-        and r.silence_minutes = v_minutes and r.notify_recovery = v_recovery
-        and r.notify_channel = v_channel and r.notify_phone is not distinct from v_phone
-      limit 1;
-      if found then
-        return jsonb_build_object('result', jsonb_build_object('created', false, 'rule', jsonb_build_object(
-          'id', v_rule.id, 'sensor_id', v_rule.sensor_id, 'kind', v_rule.kind,
-          'silence_minutes', v_rule.silence_minutes, 'notify_recovery', v_rule.notify_recovery,
-          'calls_phone', v_rule.notify_channel = 'call')));
+      v_saved := public.fizz_save_alert_rule(v_conn.customer_id, v_sensor.id, 'silence', null, null, null, null,
+        v_channel, v_phone, v_minutes, v_recovery, 100);
+    else
+      v_metric := v_args->>'metric';
+      v_comparator := v_args->>'comparator';
+      if v_metric is null or v_metric !~ '^[a-z][a-z0-9_]{0,63}$' or v_comparator is null
+        or v_comparator not in ('gt','gte','lt','lte') or jsonb_typeof(v_args->'threshold') <> 'number' then
+        return jsonb_build_object('error','invalid_arguments','message','Provide metric, comparator (gt, gte, lt, lte), and a numeric threshold.');
       end if;
-      if (select count(*) from public.fizz_alert_rules where customer_id = v_conn.customer_id and enabled) >= 100 then
-        return jsonb_build_object('error','invalid_arguments','message','This account already has 100 active alerts. Pause or delete some first.');
+      v_threshold := (v_args->>'threshold')::double precision;
+      select coalesce(unit, '') into v_unit from public.fizz_sensor_readings
+      where sensor_id = v_sensor.id and metric = v_metric and numeric_value is not null
+      order by received_at desc limit 1;
+      if not found then
+        return jsonb_build_object('error','invalid_arguments','message','That sensor has not reported a numeric value for this metric yet. Use get_readings to see its metrics.');
       end if;
-      insert into public.fizz_alert_rules(
-        customer_id, sensor_id, metric, comparator, threshold, unit,
-        notify_channel, notify_phone, kind, silence_minutes, notify_recovery, silence_due_at)
-      values (
-        v_conn.customer_id, v_sensor.id, 'silence', 'gte', v_minutes, 'min',
-        v_channel, v_phone, 'silence', v_minutes, v_recovery,
-        (select rd.received_at + make_interval(mins => v_minutes)
-         from public.fizz_sensor_readings rd
-         where rd.sensor_id = v_sensor.id order by rd.received_at desc limit 1))
-      returning * into v_rule;
-      return jsonb_build_object('result', jsonb_build_object('created', true, 'rule', jsonb_build_object(
-        'id', v_rule.id, 'sensor_id', v_rule.sensor_id, 'kind', v_rule.kind,
-        'silence_minutes', v_rule.silence_minutes, 'notify_recovery', v_rule.notify_recovery,
-        'calls_phone', v_rule.notify_channel = 'call')));
+      if v_args ? 'unit' and coalesce(v_args->>'unit', '') <> v_unit then
+        return jsonb_build_object('error','invalid_arguments','message', format('This metric is reported in %s; use that unit or omit it.', coalesce(nullif(v_unit, ''), 'no unit')));
+      end if;
+      v_saved := public.fizz_save_alert_rule(v_conn.customer_id, v_sensor.id, 'threshold', v_metric, v_comparator,
+        v_threshold, v_unit, v_channel, v_phone, null, false, 100);
     end if;
-
-    v_metric := v_args->>'metric';
-    v_comparator := v_args->>'comparator';
-    if v_metric is null or v_metric !~ '^[a-z][a-z0-9_]{0,63}$' or v_comparator is null
-      or v_comparator not in ('gt','gte','lt','lte') or jsonb_typeof(v_args->'threshold') <> 'number' then
-      return jsonb_build_object('error','invalid_arguments','message','Provide metric, comparator (gt, gte, lt, lte), and a numeric threshold.');
-    end if;
-    v_threshold := (v_args->>'threshold')::double precision;
-    select coalesce(unit, '') into v_unit from public.fizz_sensor_readings
-    where sensor_id = v_sensor.id and metric = v_metric and numeric_value is not null
-    order by received_at desc limit 1;
-    if not found then
-      return jsonb_build_object('error','invalid_arguments','message','That sensor has not reported a numeric value for this metric yet. Use get_readings to see its metrics.');
-    end if;
-    if v_args ? 'unit' and coalesce(v_args->>'unit', '') <> v_unit then
-      return jsonb_build_object('error','invalid_arguments','message', format('This metric is reported in %s; use that unit or omit it.', coalesce(nullif(v_unit, ''), 'no unit')));
-    end if;
-    perform pg_advisory_xact_lock(hashtextextended(v_conn.customer_id::text, 0));
-    select r.* into v_rule from public.fizz_alert_rules r
-    where r.customer_id = v_conn.customer_id and r.enabled and r.kind = 'threshold'
-      and r.sensor_id = v_sensor.id and r.metric = v_metric
-      and r.comparator = v_comparator and r.threshold = v_threshold and r.unit = v_unit
-      and r.notify_channel = v_channel and r.notify_phone is not distinct from v_phone
-    limit 1;
-    if found then
-      return jsonb_build_object('result', jsonb_build_object('created', false, 'rule', jsonb_build_object('id', v_rule.id,
-        'sensor_id', v_rule.sensor_id, 'kind', v_rule.kind, 'metric', v_rule.metric, 'comparator', v_rule.comparator,
-        'threshold', v_rule.threshold, 'unit', v_rule.unit, 'calls_phone', v_rule.notify_channel = 'call')));
-    end if;
-    if (select count(*) from public.fizz_alert_rules where customer_id = v_conn.customer_id and enabled) >= 100 then
+    if v_saved->>'error' = 'simulated_sensor' then
+      return jsonb_build_object('error','invalid_arguments','message',
+        'Sample sensors only report while someone is viewing them, so they cannot have a silence alert.');
+    elsif v_saved->>'error' = 'alert_limit' then
       return jsonb_build_object('error','invalid_arguments','message','This account already has 100 active alerts. Pause or delete some first.');
     end if;
-    insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, notify_channel, notify_phone)
-    values (v_conn.customer_id, v_sensor.id, v_metric, v_comparator, v_threshold, v_unit, v_channel, v_phone)
-    returning * into v_rule;
-    return jsonb_build_object('result', jsonb_build_object('created', true, 'rule', jsonb_build_object('id', v_rule.id,
-      'sensor_id', v_rule.sensor_id, 'kind', v_rule.kind, 'metric', v_rule.metric, 'comparator', v_rule.comparator,
-      'threshold', v_rule.threshold, 'unit', v_rule.unit, 'calls_phone', v_rule.notify_channel = 'call')));
+    return jsonb_build_object('result', jsonb_build_object('created', v_saved->'created', 'rule',
+      jsonb_build_object('id', v_saved->'rule'->'id', 'sensor_id', v_saved->'rule'->'sensor_id',
+        'kind', v_saved->'rule'->'kind', 'calls_phone', v_saved->'rule'->>'notify_channel' = 'call')
+      || case when v_kind = 'silence'
+        then jsonb_build_object('silence_minutes', v_saved->'rule'->'silence_minutes',
+          'notify_recovery', v_saved->'rule'->'notify_recovery')
+        else jsonb_build_object('metric', v_saved->'rule'->'metric', 'comparator', v_saved->'rule'->'comparator',
+          'threshold', v_saved->'rule'->'threshold', 'unit', v_saved->'rule'->'unit') end));
 
   elsif p_tool = 'pair_device' then
     return (select case when x ? 'error' then x || jsonb_build_object('message', case x->>'error'
@@ -646,10 +607,16 @@ begin
   where p_token ~ '^[0-9a-f]{64}$'
     and token_hash = extensions.digest(decode(p_token, 'hex'), 'sha256') and expires_at > now();
   if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
+  -- Check ownership before cancelling anything: fizz_cancel_pending_alerts has no
+  -- account filter, and a later not_found return does not undo its update.
   if coalesce(p_delete,false) then
+    if not exists(select 1 from public.fizz_alert_rules
+        where id = p_rule_id and customer_id = v_customer) then
+      return jsonb_build_object('error','not_found');
+    end if;
+    -- Cancel first: deleting the rule sets the events' rule_id to null.
     perform public.fizz_cancel_pending_alerts(p_rule_id, null, 'Alert was deleted.');
-    delete from public.fizz_alert_rules where id = p_rule_id and customer_id = v_customer returning * into v_rule;
-    if not found then return jsonb_build_object('error','not_found'); end if;
+    delete from public.fizz_alert_rules where id = p_rule_id and customer_id = v_customer;
     return jsonb_build_object('ok',true);
   end if;
   if p_enabled is null then return jsonb_build_object('error','invalid_rule'); end if;
@@ -657,9 +624,6 @@ begin
       join public.fizz_sensors s on s.id = r.sensor_id
       where r.id = p_rule_id and r.customer_id = v_customer and s.deleted_at is null) then
     return jsonb_build_object('error','not_found');
-  end if;
-  if not p_enabled then
-    perform public.fizz_cancel_pending_alerts(p_rule_id, null, 'Alert was paused.');
   end if;
   update public.fizz_alert_rules r set
     enabled = p_enabled,
@@ -672,6 +636,9 @@ begin
       else r.silence_due_at end
   where r.id = p_rule_id and r.customer_id = v_customer returning * into v_rule;
   if not found then return jsonb_build_object('error','not_found'); end if;
+  if not p_enabled then
+    perform public.fizz_cancel_pending_alerts(p_rule_id, null, 'Alert was paused.');
+  end if;
   return jsonb_build_object('rule',to_jsonb(v_rule)-'customer_id');
 end;
 $$;
@@ -685,6 +652,14 @@ begin
   end if;
   if new.status = 'paused' and old.status is distinct from 'paused' then
     perform public.fizz_cancel_pending_alerts(null, new.id, 'Sensor is paused.');
+  end if;
+  -- Readings are rejected while paused, so the stored due time is stale on resume.
+  -- Give the device a full window to report before a silence alert can fire.
+  if new.status = 'active' and old.status = 'paused' then
+    update public.fizz_alert_rules
+    set silence_due_at = greatest(silence_due_at, now() + make_interval(mins => silence_minutes)),
+        updated_at = now()
+    where sensor_id = new.id and kind = 'silence' and enabled and silence_due_at is not null;
   end if;
   return new;
 end;
@@ -733,16 +708,35 @@ returns jsonb language sql stable security definer set search_path = '' as $$
   );
 $$;
 
+-- Same as before, plus whether a scheduler has scanned in the last five minutes.
+create or replace function public.fizz_list_alerts(p_token text)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare v_customer uuid;
+begin
+  select customer_id into v_customer from public.fizz_sessions
+  where p_token ~ '^[0-9a-f]{64}$'
+    and token_hash = extensions.digest(decode(p_token, 'hex'), 'sha256') and expires_at > now();
+  if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
+  return jsonb_build_object(
+    'rules', coalesce((select jsonb_agg(to_jsonb(r) - 'customer_id' order by r.created_at desc)
+      from public.fizz_alert_rules r where r.customer_id = v_customer), '[]'::jsonb),
+    'events', coalesce((select jsonb_agg(to_jsonb(e) - 'customer_id' order by e.created_at desc)
+      from (select * from public.fizz_alert_events where customer_id = v_customer
+        order by created_at desc limit 100) e), '[]'::jsonb),
+    'silence_scheduler_active', exists(select 1 from public.fizz_scheduler_status
+      where last_scan_at > now() - interval '5 minutes'));
+end;
+$$;
+
 revoke execute on function public.fizz_us_phone(text),
   public.fizz_cancel_pending_alerts(uuid, uuid, text),
   public.fizz_alert_call_still_due(uuid),
   public.fizz_alert_notify_status(uuid, uuid, text),
   public.fizz_scan_silence_alerts(integer),
-  public.fizz_create_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean),
-  public.fizz_create_chat_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean)
+  public.fizz_save_alert_rule(uuid, uuid, text, text, text, double precision, text, text, text, integer, boolean, integer),
+  public.fizz_create_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean)
   from public, anon, authenticated;
 grant execute on function public.fizz_alert_call_still_due(uuid),
   public.fizz_scan_silence_alerts(integer),
-  public.fizz_create_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean),
-  public.fizz_create_chat_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean)
+  public.fizz_create_alert(text, uuid, text, text, double precision, text, text, text, text, integer, boolean)
   to service_role;
