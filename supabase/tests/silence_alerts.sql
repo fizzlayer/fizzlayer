@@ -50,19 +50,19 @@ begin
   -- Calls require a paid plan and a paired number. These fixtures are the happy path.
   insert into public.fizz_subscriptions(customer_id, plan) values (a.customer_id, 'tinkerer'), (b.customer_id, 'pro');
   insert into public.fizz_verified_phones(customer_id, phone)
-  values (a.customer_id, '+14155550100'), (b.customer_id, '+14155550199');
+  values (a.customer_id, '+14152020100'), (b.customer_id, '+14152020199');
 
   perform pg_temp.silence_assert(public.fizz_us_phone('(415) 555-0199') = '+14155550199', 'formats a US number');
   perform pg_temp.silence_assert(public.fizz_us_phone('415-055-0199') is null, 'rejects an invalid exchange');
 
-  created := public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14155550100');
+  created := public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14152020100');
   perform pg_temp.silence_assert(created->'rule'->>'kind' = 'silence', 'creates a silence rule');
   perform pg_temp.silence_assert((created->'rule'->>'silence_minutes')::int = 10, 'defaults to 10 minutes');
   perform pg_temp.silence_assert(created->'rule'->>'notify_channel' = 'call', 'stores the call number');
   perform pg_temp.silence_assert(created->>'created' = 'true', 'the first save is new');
   perform pg_temp.silence_assert(
-    public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14155550100')->'rule'->>'id' = created->'rule'->>'id'
-    and public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14155550100')->>'created' = 'false',
+    public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14152020100')->'rule'->>'id' = created->'rule'->>'id'
+    and public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_notify_channel => 'call', p_notify_phone => '+14152020100')->>'created' = 'false',
     'posting the same silence alert again returns it');
   perform pg_temp.silence_assert((select count(*) from public.fizz_alert_rules where customer_id = a.customer_id and kind = 'silence') = 1, 'a repeated save does not add a second rule');
   perform pg_temp.silence_assert(public.fizz_create_alert(a.session_token, a.sensor_id, p_kind => 'silence', p_silence_minutes => 0)->>'error' = 'invalid_rule', 'rejects a window under a minute');
@@ -76,14 +76,14 @@ begin
 
   perform pg_temp.silence_assert(to_regproc('public.fizz_create_chat_alert') is null, 'chat uses fizz_create_alert, not a second copy');
 
-  created := public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0100'));
+  created := public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 202-0100'));
   perform pg_temp.silence_assert(created->'result'->>'created' = 'false', 'MCP reuses the same silence rule');
   perform pg_temp.silence_assert(created->'result'->'rule'->>'kind' = 'silence', 'MCP result names the silence rule');
   listed := public.fizz_agent_call(a.agent_token, '127.0.0.1', 'list_alerts', '{}'::jsonb);
   perform pg_temp.silence_assert(listed->'result'->'rules'->0->>'kind' = 'silence', 'MCP list_alerts shows silence');
   perform pg_temp.silence_assert((listed->'result'->'rules'->0->>'silence_minutes')::int = 10, 'MCP list_alerts shows the window');
   perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'silence_minutes', 0))->>'error' = 'invalid_arguments', 'MCP rejects a window under a minute');
-  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0198'))->>'error' = 'invalid_arguments', 'MCP cannot introduce a new phone number');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 202-0198'))->>'error' = 'invalid_arguments', 'MCP cannot introduce a new phone number');
 
   -- Not quiet long enough, never reported, paused, and removed sensors stay armed.
   perform pg_temp.silence_assert(public.fizz_create_alert(b.session_token, b.sensor_id, p_kind => 'silence', p_silence_minutes => 10) ? 'rule', 'second account can create a silence rule');
@@ -108,7 +108,7 @@ begin
   claimed := public.fizz_claim_alert_notifications(3);
   perform pg_temp.silence_assert(jsonb_array_length(claimed) = 1, 'claims the queued call');
   perform pg_temp.silence_assert(claimed->0->>'event_kind' = 'silence', 'claim tells the caller this is silence');
-  perform pg_temp.silence_assert(claimed->0->>'phone' = '+14155550100', 'claim includes the phone number');
+  perform pg_temp.silence_assert(claimed->0->>'phone' = '+14152020100', 'claim includes the phone number');
   perform pg_temp.silence_assert((select notify_status from public.fizz_alert_events where id = v_event) = 'sending', 'marks the call sending');
   perform pg_temp.silence_assert((select notify_attempts from public.fizz_alert_events where id = v_event) = 1, 'counts one attempt');
   claimed := public.fizz_claim_alert_notifications(3);
@@ -127,7 +127,7 @@ begin
   perform pg_temp.silence_assert((select count(*) from public.fizz_alert_events where customer_id = a.customer_id and event_kind = 'recovery') = 0, 'recovery stays off unless asked');
 
   -- Opt-in recovery is a dashboard notice, and a call still obeys the 5-minute rule limit.
-  update public.fizz_alert_rules set notify_recovery = true, armed = false, notify_channel = 'call', notify_phone = '+14155550100'
+  update public.fizz_alert_rules set notify_recovery = true, armed = false, notify_channel = 'call', notify_phone = '+14152020100'
   where customer_id = a.customer_id and kind = 'silence';
   update public.fizz_alert_events set notify_status = 'sent', notified_at = now() where id = v_event;
   update public.fizz_sensor_readings set received_at = now() - interval '40 minutes'
@@ -174,7 +174,7 @@ begin
   from public.fizz_sensor_readings r
   where r.sensor_id = '00000000-0000-4000-8000-0000000000c1' and r.event_id like 'cap-%' and r.event_id <> 'cap-latest';
   insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, notify_channel, notify_phone, silence_due_at)
-  values (a.customer_id, '00000000-0000-4000-8000-0000000000c1', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14155550100', now() - interval '1 minute')
+  values (a.customer_id, '00000000-0000-4000-8000-0000000000c1', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14152020100', now() - interval '1 minute')
   returning id into v_rule;
   scan := public.fizz_scan_silence_alerts(50);
   perform pg_temp.silence_assert((scan->>'skipped')::int = 1 and (scan->>'queued')::int = 0, 'the account cap skips the call');
@@ -202,7 +202,7 @@ begin
 
   -- Threshold evaluation is unchanged, and a silence rule does not steal its reading.
   insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, notify_channel, notify_phone)
-  values (b.customer_id, b.sensor_id, 'temperature_c', 'gt', 20, 'C', 'call', '+14155550199');
+  values (b.customer_id, b.sensor_id, 'temperature_c', 'gt', 20, 'C', 'call', '+14152020199');
   insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, metric, numeric_value, unit, source)
   values (b.sensor_id, 'hot', now(), 'temperature_c', 30, 'C', 'api')
   returning id into v_reading;
@@ -219,7 +219,7 @@ begin
   insert into public.fizz_sensor_readings(sensor_id, event_id, observed_at, received_at, metric, numeric_value, unit, source)
   values ('00000000-0000-4000-8000-0000000000c5', 'dial', now() - interval '30 minutes', now() - interval '30 minutes', 'temperature_c', 21, 'C', 'api');
   insert into public.fizz_alert_rules(customer_id, sensor_id, metric, comparator, threshold, unit, kind, silence_minutes, notify_channel, notify_phone, silence_due_at)
-  values (b.customer_id, '00000000-0000-4000-8000-0000000000c5', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14155550199', now() - interval '1 minute');
+  values (b.customer_id, '00000000-0000-4000-8000-0000000000c5', 'silence', 'gte', 10, 'min', 'silence', 10, 'call', '+14152020199', now() - interval '1 minute');
   scan := public.fizz_scan_silence_alerts(50);
   perform pg_temp.silence_assert((scan->>'queued')::int = 1, 'a due silence rule queues a call');
   claimed := public.fizz_claim_alert_notifications(1);
@@ -231,7 +231,7 @@ begin
   -- Another account cannot cancel this account's queued calls by deleting or pausing its rule.
   select id into v_rule from public.fizz_alert_rules where customer_id = b.customer_id and sensor_id = b.sensor_id and kind = 'silence';
   insert into public.fizz_alert_events(rule_id, reading_id, customer_id, sensor_id, metric, numeric_value, threshold, comparator, unit, observed_at, notify_channel, notify_phone, notify_status, event_kind)
-  select v_rule, r.id, b.customer_id, b.sensor_id, 'silence', 30, 10, 'gte', 'min', now(), 'call', '+14155550199', 'pending', 'silence'
+  select v_rule, r.id, b.customer_id, b.sensor_id, 'silence', 30, 10, 'gte', 'min', now(), 'call', '+14152020199', 'pending', 'silence'
   from public.fizz_sensor_readings r where r.sensor_id = b.sensor_id and r.event_id = 'fresh'
   returning id into v_event;
   perform pg_temp.silence_assert(public.fizz_update_alert(a.session_token, v_rule, null, true)->>'error' = 'not_found', 'cannot delete another account''s rule');
@@ -274,8 +274,8 @@ begin
 
   -- A paired number can be used even when older alerts are paused. An unpaired number cannot.
   update public.fizz_alert_rules set enabled = false where customer_id = a.customer_id;
-  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'silence_minutes', 15, 'call_phone', '(415) 555-0100'))->'result'->>'created' = 'true', 'MCP can call a paired number after older alerts are paused');
-  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0198'))->>'error' = 'invalid_arguments', 'MCP cannot call a number that is not paired');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'silence_minutes', 15, 'call_phone', '(415) 202-0100'))->'result'->>'created' = 'true', 'MCP can call a paired number after older alerts are paused');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 202-0198'))->>'error' = 'invalid_arguments', 'MCP cannot call a number that is not paired');
 end $$;
 
 -- Clients cannot run the scanner or read another account's silence rule.

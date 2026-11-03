@@ -17,43 +17,73 @@ pub const PHONE_NOT_PAIRED: &str = "Pair this phone number in the dashboard befo
 
 fn phone_error(value: &Value) -> Option<Response<ResponseBody>> {
     let code = value.get("error")?.as_str()?;
+    let retry = value.get("retry_after_seconds").and_then(Value::as_u64);
+    let attempts = value.get("attempts_remaining").and_then(Value::as_i64);
     let (status, message) = match code {
-        "unauthorized" => (401, "Sign in to continue."),
-        "invalid_phone" => (400, "Enter a valid US phone number."),
-        "calls_not_included" => (402, CALLS_NOT_INCLUDED),
+        "unauthorized" => (401, "Sign in to continue.".to_owned()),
+        "invalid_phone" => (
+            400,
+            "Enter a real US phone number. Toll-free, premium, and fictional numbers can't be called."
+                .to_owned(),
+        ),
+        "calls_not_included" => (402, CALLS_NOT_INCLUDED.to_owned()),
         "phone_limit" => (
             400,
-            "This workspace already has 10 paired numbers. Remove one to pair another.",
+            "This workspace already has 10 paired numbers. Remove one to pair another.".to_owned(),
         ),
-        "cooldown" => (429, "Wait a minute before calling this number again."),
-        "rate_limited" => (
-            429,
-            "Too many pairing calls from this account, number, or network. Try again later.",
-        ),
+        "cooldown" => {
+            let seconds = retry.unwrap_or(60);
+            (
+                429,
+                format!("Wait {seconds} seconds before calling this number again."),
+            )
+        }
+        "rate_limited" => {
+            let seconds = retry.unwrap_or(60);
+            (
+                429,
+                format!(
+                    "Too many pairing calls from this account, number, or network. Try again in {seconds} seconds."
+                ),
+            )
+        }
         "invalid_code" => (
             400,
-            "That code doesn't match. Enter the 6 digits from the call.",
+            match attempts {
+                Some(n) if n > 0 => format!("That code doesn't match. {n} tries left."),
+                Some(_) => {
+                    "That code doesn't match. Call the number again for a new code.".to_owned()
+                }
+                None => "That code doesn't match. Enter the 6 digits from the call.".to_owned(),
+            },
         ),
         "expired" => (
             400,
-            "That code expired. Call the number again for a new one.",
+            "That code expired. Call the number again for a new one.".to_owned(),
         ),
-        "too_many_attempts" => (400, "Too many tries for this code. Call the number again."),
-        "not_found" => (404, "That paired number was not found."),
+        "too_many_attempts" => (
+            400,
+            "Too many tries for this code. Call the number again.".to_owned(),
+        ),
+        "not_found" => (404, "That paired number was not found.".to_owned()),
         _ => (
             503,
-            "Phone pairing is temporarily unavailable. Please try again.",
+            "Phone pairing is temporarily unavailable. Please try again.".to_owned(),
         ),
     };
-    let mut response = error(status, code, message);
+    let mut body = json!({"error": {"code": code, "message": message}});
+    if let Some(n) = attempts {
+        body["error"]["attempts_remaining"] = json!(n);
+    }
+    if let Some(seconds) = retry {
+        body["error"]["retry_after_seconds"] = json!(seconds);
+    }
+    let mut response = reply(status, body, None);
     if status == 429 {
-        let retry = value["retry_after_seconds"]
-            .as_u64()
-            .unwrap_or(60)
-            .to_string();
+        let header = retry.unwrap_or(60).to_string();
         response.headers_mut().insert(
             "retry-after",
-            retry
+            header
                 .parse()
                 .unwrap_or_else(|_| "60".parse().expect("valid header")),
         );
@@ -208,6 +238,7 @@ async fn start(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::BodyExt;
 
     #[test]
     fn start_response_never_includes_the_spoken_code() {
@@ -238,7 +269,17 @@ mod tests {
                 .and_then(|v| v.to_str().ok()),
             Some("60")
         );
-        let response = phone_error(&json!({"error": "invalid_code"})).unwrap();
+        let response =
+            phone_error(&json!({"error": "invalid_code", "attempts_remaining": 4})).unwrap();
         assert_eq!(response.status(), 400);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let parsed: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["error"]["attempts_remaining"], 4);
+        assert!(
+            parsed["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("4 tries left")
+        );
     }
 }

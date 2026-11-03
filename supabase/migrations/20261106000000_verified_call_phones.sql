@@ -16,11 +16,17 @@ returns public.fizz_plans language sql stable security definer set search_path =
   where p.id = coalesce((select s.plan from public.fizz_subscriptions s where s.customer_id = p_customer), 'hobbyist');
 $$;
 
+-- past_due and trialing stay paid (Stripe is still retrying or the trial is open).
+-- canceled, unpaid, and incomplete do not, even if the plan column was not rewritten.
+-- A null status means the plan was set by hand (self-hosted or Enterprise).
 create function public.fizz_calls_allowed(p_customer uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
   select coalesce((
-    select p.calls_enabled from public.fizz_plans p
-    where p.id = coalesce((select s.plan from public.fizz_subscriptions s where s.customer_id = p_customer), 'hobbyist')
+    select p.calls_enabled
+      and (s.status is null or public.fizz_billing_active(s.status))
+    from public.fizz_plans p
+    left join public.fizz_subscriptions s on s.customer_id = p_customer
+    where p.id = coalesce(s.plan, 'hobbyist')
   ), false);
 $$;
 
@@ -34,12 +40,23 @@ create table public.fizz_verified_phones (
 );
 create index fizz_verified_phones_customer_idx on public.fizz_verified_phones(customer_id);
 
--- The code itself is never stored. A hash of a 6-digit code can be guessed offline,
--- so this table has no client policies even if a grant is added later.
+-- The code itself is never stored. Each row has its own salt, mixed with a pepper that
+-- clients cannot read, so a leaked hash is not a single rainbow table of every code.
+-- The table has no client policies even if a grant is added later.
+create table public.fizz_call_code_pepper (
+  id boolean primary key default true check (id),
+  pepper bytea not null
+);
+insert into public.fizz_call_code_pepper(pepper) values (extensions.gen_random_bytes(32));
+alter table public.fizz_call_code_pepper enable row level security;
+revoke all on public.fizz_call_code_pepper from public, anon, authenticated;
+grant all on public.fizz_call_code_pepper to service_role;
+
 create table public.fizz_call_verifications (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.fizz_customers(id) on delete cascade,
   phone text not null check (phone ~ '^\+1[2-9][0-9]{2}[2-9][0-9]{6}$'),
+  code_salt bytea not null,
   code_hash bytea not null,
   expires_at timestamptz not null,
   attempts smallint not null default 0 check (attempts between 0 and 5),
@@ -69,6 +86,20 @@ create policy fizz_verified_phones_owner_delete on public.fizz_verified_phones
     and exists (select 1 from public.fizz_customers c
       where c.id = customer_id and c.auth_user_id = (select auth.uid()))
   );
+
+-- Any delete, including one a future client grant would allow through the policy above,
+-- drops queued calls to that number. The API remove path hits this trigger too.
+create function public.fizz_verified_phone_removed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.fizz_skip_call_events(old.customer_id, old.phone, 'Phone number was removed.');
+  return old;
+end;
+$$;
+create trigger fizz_verified_phone_removed
+  before delete on public.fizz_verified_phones
+  for each row execute function public.fizz_verified_phone_removed();
+revoke execute on function public.fizz_verified_phone_removed() from public, anon, authenticated, service_role;
 
 -- Six digits, rejection-sampled so 000000 through 999999 are equally likely.
 create function public.fizz_pairing_code()
@@ -167,6 +198,8 @@ begin
     where customer_id = v_event.customer_id and phone = v_event.notify_phone
   ) then
     v_reason := 'Phone number is not paired.';
+  elsif public.fizz_callable_us_phone(v_event.notify_phone) is null then
+    v_reason := 'That phone number cannot be called.';
   end if;
   if v_reason is not null then
     update public.fizz_alert_events
@@ -190,6 +223,9 @@ begin
     return jsonb_build_object('error','simulated_sensor');
   end if;
   if p_channel = 'call' then
+    if public.fizz_callable_us_phone(p_phone) is null then
+      return jsonb_build_object('error','invalid_phone');
+    end if;
     if not public.fizz_calls_allowed(p_customer) then
       return jsonb_build_object('error','calls_not_included');
     end if;
@@ -236,6 +272,64 @@ begin
 end;
 $$;
 
+-- Toll-free, premium, personal-communication, and fictional numbers are not geographic lines.
+-- 555 is the fictional exchange. 976 is a premium exchange. 8xx and 900 are not local numbers.
+create function public.fizz_callable_us_phone(p_phone text)
+returns text language plpgsql immutable set search_path = '' as $$
+declare v_phone text := public.fizz_us_phone(p_phone); v_npa text; v_nxx text;
+begin
+  if v_phone is null then return null; end if;
+  v_npa := substr(v_phone, 3, 3);
+  v_nxx := substr(v_phone, 6, 3);
+  if v_nxx in ('555', '976') or v_npa in (
+    '500','521','522','523','524','525','526','527','528','529',
+    '532','533','535','538','542','543','544','545','546','547','549',
+    '550','552','553','554','556','558','566','569','577','578','588','589',
+    '700','710',
+    '800','822','833','844','855','866','877','880','881','882','883','884','885','886','887','888',
+    '900'
+  ) then
+    return null;
+  end if;
+  return v_phone;
+end;
+$$;
+
+-- Seconds until the current fixed rate-limit window ends. At least 1.
+create function public.fizz_rate_retry_seconds(p_window interval)
+returns integer language sql stable set search_path = '' as $$
+  select greatest(1, ceil(extract(epoch from (
+    to_timestamp((floor(extract(epoch from now()) / extract(epoch from p_window)) + 1)
+      * extract(epoch from p_window))
+    - now()
+  )))::integer);
+$$;
+
+create function public.fizz_code_hash(p_salt bytea, p_code text)
+returns bytea language sql stable security definer set search_path = '' as $$
+  select extensions.digest(
+    (select pepper from public.fizz_call_code_pepper where id)
+      || p_salt
+      || convert_to(p_code, 'UTF8'),
+    'sha256');
+$$;
+
+-- Compare both 32-byte hashes without returning on the first differing byte.
+create function public.fizz_hash_equals(p_left bytea, p_right bytea)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare v_diff integer := 0; v_i integer;
+begin
+  if p_left is null or p_right is null
+    or octet_length(p_left) <> 32 or octet_length(p_right) <> 32 then
+    return false;
+  end if;
+  for v_i in 0..31 loop
+    v_diff := v_diff | (pg_catalog.get_byte(p_left, v_i) # pg_catalog.get_byte(p_right, v_i));
+  end loop;
+  return v_diff = 0;
+end;
+$$;
+
 -- Owner session only. Agent tokens are not fizz_sessions rows, so they cannot start,
 -- confirm, list, or remove a pairing. The plaintext code is returned to the service
 -- role so it can be spoken on the call; the HTTP handler must not send it to the browser.
@@ -246,44 +340,77 @@ declare
   v_phone text;
   v_code text;
   v_id uuid;
+  v_salt bytea;
+  v_site text;
+  v_recent timestamptz;
+  v_network text := coalesce(nullif(btrim(p_ip), ''), 'unknown');
 begin
   v_customer := public.fizz_session_customer(p_token);
   if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
+  delete from public.fizz_call_verifications
+  where expires_at < now() - interval '1 day'
+     or (consumed_at is not null and consumed_at < now() - interval '1 day')
+     or (cancelled_at is not null and cancelled_at < now() - interval '1 day');
   if not public.fizz_rate_limit_hit('call_pair_request', v_customer::text, 30, interval '1 hour') then
-    return jsonb_build_object('error','rate_limited','retry_after_seconds',3600);
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
   end if;
-  v_phone := public.fizz_us_phone(p_phone);
+  v_phone := public.fizz_callable_us_phone(p_phone);
   if v_phone is null then return jsonb_build_object('error','invalid_phone'); end if;
   if not public.fizz_calls_allowed(v_customer) then
     return jsonb_build_object('error','calls_not_included');
   end if;
+  -- One lock for this workspace covers the cooldown, the cap, and confirm.
+  perform pg_advisory_xact_lock(hashtextextended('fizz_call_phones:' || v_customer::text, 0));
   if exists (select 1 from public.fizz_verified_phones where customer_id = v_customer and phone = v_phone) then
     return jsonb_build_object('already_paired', true, 'phone', v_phone);
   end if;
   if (select count(*) from public.fizz_verified_phones where customer_id = v_customer) >= 10 then
     return jsonb_build_object('error','phone_limit');
   end if;
-  if exists (
-    select 1 from public.fizz_call_verifications
-    where customer_id = v_customer and phone = v_phone and created_at > now() - interval '60 seconds'
-  ) then
-    return jsonb_build_object('error','cooldown','retry_after_seconds',60);
+  select created_at into v_recent from public.fizz_call_verifications
+  where customer_id = v_customer and phone = v_phone
+  order by created_at desc
+  limit 1
+  for update;
+  if v_recent is not null and v_recent > now() - interval '60 seconds' then
+    return jsonb_build_object('error','cooldown','retry_after_seconds',
+      greatest(1, ceil(extract(epoch from (v_recent + interval '60 seconds' - now())))::integer));
   end if;
-  if not public.fizz_rate_limit_hit('call_pair_account_hour', v_customer::text, 5, interval '1 hour')
-    or not public.fizz_rate_limit_hit('call_pair_account_day', v_customer::text, 10, interval '1 day')
-    or not public.fizz_rate_limit_hit('call_pair_number_hour', v_phone, 3, interval '1 hour')
-    or not public.fizz_rate_limit_hit('call_pair_number_day', v_phone, 5, interval '1 day')
-    or not public.fizz_rate_limit_hit('call_pair_network_hour', coalesce(nullif(btrim(p_ip), ''), 'unknown'), 8, interval '1 hour')
-    or not public.fizz_rate_limit_hit('call_pair_all_hour', 'all', 100, interval '1 hour')
-  then
-    return jsonb_build_object('error','rate_limited','retry_after_seconds',3600);
+  begin
+    if family(v_network::inet) = 6 then
+      v_site := network(set_masklen(v_network::inet, 48))::text;
+    end if;
+  exception when others then
+    v_site := null;
+  end;
+  if not public.fizz_rate_limit_hit('call_pair_account_hour', v_customer::text, 5, interval '1 hour') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
+  end if;
+  if not public.fizz_rate_limit_hit('call_pair_account_day', v_customer::text, 10, interval '1 day') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 day'));
+  end if;
+  if not public.fizz_rate_limit_hit('call_pair_number_hour', v_phone, 3, interval '1 hour') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
+  end if;
+  if not public.fizz_rate_limit_hit('call_pair_number_day', v_phone, 5, interval '1 day') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 day'));
+  end if;
+  if not public.fizz_rate_limit_hit('call_pair_network_hour', v_network, 8, interval '1 hour') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
+  end if;
+  if v_site is not null and not public.fizz_rate_limit_hit('call_pair_network48_hour', v_site, 20, interval '1 hour') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
+  end if;
+  if not public.fizz_rate_limit_hit('call_pair_all_hour', 'all', 100, interval '1 hour') then
+    return jsonb_build_object('error','rate_limited','retry_after_seconds', public.fizz_rate_retry_seconds(interval '1 hour'));
   end if;
   update public.fizz_call_verifications
   set cancelled_at = now()
   where customer_id = v_customer and phone = v_phone and consumed_at is null and cancelled_at is null;
   v_code := public.fizz_pairing_code();
-  insert into public.fizz_call_verifications(customer_id, phone, code_hash, expires_at)
-  values (v_customer, v_phone, extensions.digest(v_code, 'sha256'), now() + interval '10 minutes')
+  v_salt := extensions.gen_random_bytes(16);
+  insert into public.fizz_call_verifications(customer_id, phone, code_salt, code_hash, expires_at)
+  values (v_customer, v_phone, v_salt, public.fizz_code_hash(v_salt, v_code), now() + interval '10 minutes')
   returning id into v_id;
   return jsonb_build_object(
     'verification_id', v_id, 'phone', v_phone, 'code', v_code, 'expires_in_seconds', 600);
@@ -316,8 +443,12 @@ begin
   if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
   v_phone := public.fizz_us_phone(p_phone);
   if v_phone is null then return jsonb_build_object('error','invalid_phone'); end if;
+  perform pg_advisory_xact_lock(hashtextextended('fizz_call_phones:' || v_customer::text, 0));
   if exists (select 1 from public.fizz_verified_phones where customer_id = v_customer and phone = v_phone) then
     return jsonb_build_object('already_paired', true, 'phone', v_phone);
+  end if;
+  if (select count(*) from public.fizz_verified_phones where customer_id = v_customer) >= 10 then
+    return jsonb_build_object('error','phone_limit');
   end if;
   select * into v_row from public.fizz_call_verifications
   where customer_id = v_customer and phone = v_phone
@@ -334,7 +465,12 @@ begin
   v_digits := regexp_replace(coalesce(p_code, ''), '[^0-9]', '', 'g');
   if v_digits !~ '^[0-9]{6}$' then return jsonb_build_object('error','invalid_code'); end if;
   update public.fizz_call_verifications set attempts = attempts + 1 where id = v_row.id;
-  if v_row.code_hash = extensions.digest(v_digits, 'sha256') then
+  if public.fizz_hash_equals(v_row.code_hash, public.fizz_code_hash(v_row.code_salt, v_digits)) then
+    -- Recount under the same lock. Two codes started while nine numbers were paired
+    -- must not both insert.
+    if (select count(*) from public.fizz_verified_phones where customer_id = v_customer) >= 10 then
+      return jsonb_build_object('error','phone_limit');
+    end if;
     update public.fizz_call_verifications set consumed_at = now() where id = v_row.id;
     update public.fizz_call_verifications set cancelled_at = now()
     where customer_id = v_customer and phone = v_phone and id <> v_row.id
@@ -677,6 +813,8 @@ begin
         'Sample sensors only report while someone is viewing them, so they cannot have a silence alert.');
     elsif v_saved->>'error' = 'alert_limit' then
       return jsonb_build_object('error','invalid_arguments','message','This account already has 100 active alerts. Pause or delete some first.');
+    elsif v_saved->>'error' = 'invalid_phone' then
+      return jsonb_build_object('error','invalid_arguments','message','call_phone must be a real geographic US number. Toll-free, premium, and fictional numbers cannot be called.');
     elsif v_saved->>'error' = 'phone_not_paired' then
       return jsonb_build_object('error','invalid_arguments','message','Pair this phone number in the Fizzlayer dashboard before an alert can call it. Open Phones, have Fizzlayer call the number, and enter the code.');
     elsif v_saved->>'error' = 'calls_not_included' then
@@ -804,9 +942,57 @@ where exists (
   where e.customer_id = c.id and e.notify_channel = 'call' and e.notify_status in ('pending', 'sending')
 );
 
+-- Paired numbers are part of the chat context so Fizz can call one the owner already verified.
+create or replace function public.fizz_chat_context(p_token text)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare v_customer uuid;
+begin
+  select customer_id into v_customer from public.fizz_sessions
+  where p_token ~ '^[0-9a-f]{64}$'
+    and token_hash = extensions.digest(decode(p_token, 'hex'), 'sha256') and expires_at > now();
+  if v_customer is null then return jsonb_build_object('error','unauthorized'); end if;
+  return jsonb_build_object(
+    'sensors', coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'name',s.name,'kind',s.kind,'mode',s.mode))
+      from public.fizz_sensors s where s.customer_id = v_customer and s.deleted_at is null), '[]'::jsonb),
+    'latest', coalesce((select jsonb_agg(jsonb_build_object('sensor_id',q.sensor_id,'metric',q.metric,
+      'numeric_value',q.numeric_value,'boolean_value',q.boolean_value,'text_value',q.text_value,
+      'unit',q.unit,'observed_at',q.observed_at,'source',q.source))
+      from (select * from (select distinct on (r.sensor_id,r.metric) r.*
+        from public.fizz_sensor_readings r join public.fizz_sensors s on s.id = r.sensor_id
+        where s.customer_id = v_customer and s.deleted_at is null
+        order by r.sensor_id,r.metric,r.observed_at desc,r.received_at desc) latest_rows
+        order by observed_at desc limit 100) q), '[]'::jsonb),
+    'readings', coalesce((select jsonb_agg(jsonb_build_object('sensor_id',q.sensor_id,'metric',q.metric,
+      'numeric_value',q.numeric_value,'boolean_value',q.boolean_value,'text_value',q.text_value,
+      'unit',q.unit,'observed_at',q.observed_at,'source',q.source))
+      from (select r.* from public.fizz_sensor_readings r join public.fizz_sensors s on s.id = r.sensor_id
+        where s.customer_id = v_customer and s.deleted_at is null
+        order by r.observed_at desc limit 100) q), '[]'::jsonb),
+    'transcripts', coalesce((select jsonb_agg(jsonb_build_object('sensor_id',q.sensor_id,
+      'text_value',q.text_value,'observed_at',q.observed_at))
+      from (select r.* from public.fizz_sensor_readings r join public.fizz_sensors s on s.id = r.sensor_id
+        where s.customer_id = v_customer and s.deleted_at is null and r.metric = 'voice_transcript'
+        order by r.observed_at desc limit 20) q), '[]'::jsonb),
+    'rules', coalesce((select jsonb_agg(jsonb_build_object('sensor_id',r.sensor_id,'metric',r.metric,
+      'comparator',r.comparator,'threshold',r.threshold,'unit',r.unit,'enabled',r.enabled))
+      from public.fizz_alert_rules r join public.fizz_sensors s on s.id = r.sensor_id
+      where r.customer_id = v_customer and s.deleted_at is null), '[]'::jsonb),
+    'alerts', coalesce((select jsonb_agg(jsonb_build_object('sensor_id',e.sensor_id,'metric',e.metric,
+      'numeric_value',e.numeric_value,'threshold',e.threshold,'unit',e.unit,'observed_at',e.observed_at))
+      from (select * from public.fizz_alert_events where customer_id = v_customer
+        order by created_at desc limit 20) e), '[]'::jsonb),
+    'paired_phones', coalesce((select jsonb_agg(phone order by verified_at desc)
+      from public.fizz_verified_phones where customer_id = v_customer), '[]'::jsonb));
+end;
+$$;
+
 revoke execute on function
   public.fizz_calls_allowed(uuid),
   public.fizz_pairing_code(),
+  public.fizz_callable_us_phone(text),
+  public.fizz_rate_retry_seconds(interval),
+  public.fizz_code_hash(bytea, text),
+  public.fizz_hash_equals(bytea, bytea),
   public.fizz_skip_call_events(uuid, text, text),
   public.fizz_alert_call_skip_reason(uuid, uuid, text),
   public.fizz_call_phone_start(text, text, text),

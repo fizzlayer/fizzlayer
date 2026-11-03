@@ -31,7 +31,7 @@ Supabase Auth verifies email/password, Google, GitHub, and passkey sign-ins. Any
 
 The browser talks to the Fizzlayer API. The server-side Supabase client in [`src/store/mod.rs`](../src/store/mod.rs) uses a service-role credential, which is never sent to the browser. Database RLS policies restrict authenticated customer ownership, while server-side authorization remains essential because service-role requests bypass RLS. The [security audit](SECURITY_AUDIT.md) documents protections and validation.
 
-Agent tokens are managed separately from account sessions and sensor keys. Agents can read sensors, readings, and alerts; alert creation requires an explicit token permission and is limited to dashboard alerts. Device pairing is available through MCP, but the person at the device must approve the claim before it connects.
+Agent tokens are managed separately from account sessions and sensor keys. Agents can read sensors, readings, and alerts. Alert creation requires an explicit token permission. A call is allowed only for a number the owner has already paired in the dashboard; the token cannot pair a phone. Otherwise the alert stays on the dashboard. Device pairing is available through MCP, but the person at the device must approve the claim before it connects.
 
 ## AI and optional providers
 

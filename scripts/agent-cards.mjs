@@ -120,7 +120,7 @@ function serverCard() {
     version: '1.0',
     protocolVersion: rustString(mcp, 'MODERN_VERSION'),
     serverInfo: { name: 'fizz', title: 'Fizz', version },
-    description: 'Read a Fizzlayer customer\'s sensors, readings, and alerts, create alerts, and claim device pairing codes.',
+    description: 'Read a Fizzlayer customer\'s sensors, readings, and alerts, create alerts, and claim device pairing codes. create_alert can call a US number only after the owner has paired it in the dashboard. Agent tokens cannot pair a phone.',
     iconUrl: `${ORIGIN}/fizz-logo-480.png`,
     documentationUrl: 'https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md#agent-connections-mcp',
     transport: { type: 'streamable-http', endpoint: `${ORIGIN}/api/mcp` },

@@ -25,7 +25,11 @@
   async function api(path, method = 'GET', body, signal) {
     const response = await fetch(path, { method, credentials: 'same-origin', signal, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || 'Please try again.');
+    if (!response.ok) {
+      const failure = new Error(data.error?.message || 'Please try again.');
+      failure.attemptsRemaining = data.error?.attempts_remaining;
+      throw failure;
+    }
     return data;
   }
 
@@ -696,6 +700,10 @@
       }
       confirm.hidden = false;
       if (!$('phone-number').value) $('phone-number').value = formatPhone(pending.phone);
+      const left = Number(pending.attempts_remaining);
+      if (!$('phone-message').textContent && Number.isFinite(left) && left < 5) {
+        $('phone-message').textContent = `${left} ${left === 1 ? 'try' : 'tries'} left for this code.`;
+      }
     }
   }
   async function startPairing(phone) {
