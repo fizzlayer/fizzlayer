@@ -20,7 +20,7 @@ A sensor instance belongs to one customer and has a type, name, mode, and curren
 
 1. API sensors and paired CLI devices send readings to `POST /api/ingest` with a key scoped to their sensor. Phone devices send readings through `/api/phone` using their paired device credentials.
 2. Rust validates the request and calls Supabase RPCs. The database validates credentials, ownership, metrics, and event identity before storing readings.
-3. Numeric readings trigger database evaluation of enabled threshold rules. Matching events appear in the dashboard and can queue an outbound call.
+3. Numeric readings trigger database evaluation of enabled threshold rules. A separate minute scan evaluates silence rules (no reading for N minutes). Matching events appear in the dashboard and can queue an outbound call.
 4. The dashboard requests current values and recent history. Chat and MCP requests retrieve customer-scoped context from the same stored data.
 
 A unique `event_id` makes ingestion retries idempotent for each sensor. Keys can be rotated or revoked independently. Sample streams advance on authenticated reads, at most once per 15 seconds per sensor; they are not continuously scheduled background jobs.
@@ -39,7 +39,7 @@ Typed chat uses Vercel AI Gateway with customer-scoped readings and consented ph
 
 ElevenLabs supplies speech transcription and synthesized replies for the dashboard's voice chat. AgentPhone supplies optional outbound alert calls. These integrations are configured with server-side credentials and are independent of basic sensor ingestion.
 
-The notification queue is drained during reading-related requests. Dispatch is bounded, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets. There is no independent notification scheduler, so operators should account for request-driven delivery and retries. Provider acceptance does not confirm that someone answered a call.
+The notification queue is drained during reading-related requests and by `GET /api/cron`. The cron path is what delivers silence alerts and retries when no later reading arrives. It is invoked by Vercel Cron on Pro, or by an external scheduler, once a minute. Each cron run places at most one call. Dispatch is bounded, a call is claimed once, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets. Provider acceptance does not confirm that someone answered a call.
 
 ## Deployment boundaries
 

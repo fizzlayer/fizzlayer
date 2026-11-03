@@ -103,7 +103,9 @@ pub async fn list(request: Request) -> Response<ResponseBody> {
                 "Sensor data is temporarily unavailable.",
             );
         }
-        _ => notify::dispatch(&store).await,
+        _ => {
+            notify::dispatch(&store).await;
+        }
     }
     match store
         .rpc("fizz_list_sensors", json!({"p_token":token}))
@@ -278,7 +280,9 @@ pub async fn readings(request: Request) -> Response<ResponseBody> {
                 "Sensor data is temporarily unavailable.",
             );
         }
-        _ => notify::dispatch(&store).await,
+        _ => {
+            notify::dispatch(&store).await;
+        }
     }
     match store
         .rpc(

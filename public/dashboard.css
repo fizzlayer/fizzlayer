@@ -66,6 +66,7 @@
 .quick-alert { border-top: 1px solid #31546a; padding-top: .8rem; }
 .quick-alert > label { font-size: 1.3rem; }
 .quick-alert-fields { display: grid; grid-template-columns: 1.2fr 1.3fr .8fr .7fr .6fr auto; gap: .4rem; }
+.alert-recovery { display: flex; align-items: center; gap: .35rem; }
 .quick-alert-fields input, .quick-alert-fields select { min-width: 0; width: 100%; border: 2px solid #47778a; background: #071b29; color: white; padding: .35rem; font-size: 1.15rem; }
 .quick-alert-fields .primary { padding: .3rem .7rem; font-size: 1.2rem; white-space: nowrap; }
 .quick-alert-notify { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin-top: .5rem; }

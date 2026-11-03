@@ -63,6 +63,10 @@ name = "chat"
 path = "api/chat.rs"
 
 [[bin]]
+name = "cron"
+path = "api/cron.rs"
+
+[[bin]]
 name = "alerts"
 path = "api/alerts.rs"
 

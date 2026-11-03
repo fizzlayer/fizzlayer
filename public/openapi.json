@@ -51,7 +51,7 @@
         "tags": ["Agents"],
         "operationId": "mcp",
         "summary": "Model Context Protocol endpoint (Streamable HTTP)",
-        "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (tokens allowed to create alerts), and pair_device. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
+        "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (threshold or silence alerts; tokens allowed to create alerts), and pair_device. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
         "security": [{ "agentToken": [] }],
         "requestBody": {
           "required": true,

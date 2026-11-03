@@ -104,7 +104,7 @@
         const next = sensors.length ? [
           'list_sensors and get_readings show live data; ask_fizz answers questions about it.',
           'add_sensor connects a real device (API key or phone link) or a sample stream; pair_device claims a code from `fizz pair` on a Linux device.',
-          'create_alert sets a threshold alert, optionally with a phone call.',
+          'create_alert sets a threshold alert or a silence alert (no reading for N minutes), optionally with a phone call.',
           'create_agent_connection issues an MCP token so an agent can reach this account from outside the browser.',
           'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
         ] : [
@@ -397,33 +397,45 @@
     // ---------- Alerts ----------
     {
       name: 'list_alerts',
-      description: 'Threshold alert rules and recent triggers.',
+      description: 'Threshold and silence alert rules, and recent triggers.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       async execute() { return text(await api('/api/alerts')); },
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric. Optionally call a US phone number when it triggers; only use a number the person gave you.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number when it triggers; only use a number the person gave you. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
           sensor_id: { type: 'string' },
-          metric: { type: 'string', description: 'Metric name, e.g. temperature_c. Defaults to the sensor type\'s main metric.' },
-          comparator: { type: 'string', enum: ['gt', 'gte', 'lt', 'lte'], description: 'above, at or above, below, at or below.' },
-          threshold: { type: 'number' },
-          unit: { type: 'string', description: 'Defaults to the metric\'s unit.' },
+          kind: { type: 'string', enum: ['threshold', 'silence'], default: 'threshold', description: 'silence fires when the sensor stops reporting. Omit or use threshold to watch a metric.' },
+          metric: { type: 'string', description: 'Threshold alerts. Metric name, e.g. temperature_c. Defaults to the sensor type\'s main metric.' },
+          comparator: { type: 'string', enum: ['gt', 'gte', 'lt', 'lte'], description: 'Threshold alerts. above, at or above, below, at or below.' },
+          threshold: { type: 'number', description: 'Threshold alerts.' },
+          unit: { type: 'string', description: 'Threshold alerts. Defaults to the metric\'s unit.' },
+          silence_minutes: { type: 'integer', minimum: 1, maximum: 10080, default: 10, description: 'Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor.' },
+          notify_recovery: { type: 'boolean', default: false, description: 'Silence alerts. Also notify when readings resume.' },
           call_phone: { type: 'string', description: 'Optional US phone number to call when the alert triggers.' },
         },
-        required: ['sensor_id', 'comparator', 'threshold'],
+        required: ['sensor_id'],
       },
       annotations: { consequentialHint: true },
-      async execute({ sensor_id: id, metric, comparator, threshold, unit, call_phone: phone }) {
+      async execute({ sensor_id: id, kind, metric, comparator, threshold, unit, silence_minutes: minutes, notify_recovery: recovery, call_phone: phone }) {
         const sensors = (await api('/api/sensors')).sensors || [];
         const sensor = sensors.find((item) => item.id === id);
         if (!sensor) throw new ToolError('No sensor with that sensor_id. Call list_sensors.');
         const info = KINDS[sensor.kind] || KINDS.custom;
-        const rule = { sensor_id: id, metric: (metric || info.metric).trim(), comparator, threshold: Number(threshold), unit: unit ?? (metric && metric !== info.metric ? '' : info.unit) };
+        const silence = kind === 'silence';
+        if (!silence && (comparator == null || threshold == null || Number.isNaN(Number(threshold)))) {
+          throw new ToolError('Threshold alerts need comparator and threshold.');
+        }
+        if (recovery != null && typeof recovery !== 'boolean') {
+          throw new ToolError('notify_recovery must be true or false.');
+        }
+        const rule = silence
+          ? { kind: 'silence', sensor_id: id, silence_minutes: minutes == null ? 10 : Number(minutes), notify_recovery: recovery === true }
+          : { sensor_id: id, metric: (metric || info.metric).trim(), comparator, threshold: Number(threshold), unit: unit ?? (metric && metric !== info.metric ? '' : info.unit) };
         if (phone) Object.assign(rule, { notify_channel: 'call', notify_phone: phone });
         const result = await api('/api/alerts', 'POST', rule);
         changed('alerts');

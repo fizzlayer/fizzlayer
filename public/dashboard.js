@@ -9,7 +9,7 @@
   const eventPreview = 5;
   let timer = null;
   let sensors = [];
-  let alertData = { rules: [], events: [] };
+  let alertData = { rules: [], events: [], schedulerActive: true };
   let showAllEvents = false;
   let requestInFlight = false;
   let refreshQueued = false;
@@ -185,7 +185,7 @@
       const [inventory, alerts] = await Promise.all([api('/api/sensors'), api('/api/alerts')]);
       if (version !== sessionGeneration || $('dashboard').hidden) return;
       sensors = inventory.sensors || [];
-      alertData = { rules: alerts.rules || [], events: alerts.events || [] };
+      alertData = { rules: alerts.rules || [], events: alerts.events || [], schedulerActive: alerts.silence_scheduler_active !== false };
       renderSensors();
       renderAlerts();
       detail.update(sensors);
@@ -216,6 +216,17 @@
     return `${comparatorText[item.comparator] || item.comparator} ${kinds.formatValue(item.threshold, item.unit)}`;
   }
 
+  function silenceRule(rule) {
+    return rule.kind === 'silence';
+  }
+
+  function minutesLabel(value) {
+    const minutes = Number(value);
+    if (!Number.isFinite(minutes)) return 'some time';
+    const rounded = Math.abs(minutes) >= 10 ? Math.round(minutes) : Math.round(minutes * 10) / 10;
+    return `${rounded} minute${rounded === 1 ? '' : 's'}`;
+  }
+
   function timeElement(value) {
     const time = node('time', '', kinds.timeAgo(value));
     time.dateTime = new Date(value).toISOString();
@@ -238,7 +249,7 @@
       sending: `Calling ${phone}…`,
       sent: `Called ${phone}`,
       failed: `${noun} to ${phone} failed${event.notify_error ? `: ${event.notify_error}` : ''}`,
-      skipped: `${noun} skipped: sent one recently`,
+      skipped: event.notify_error || `${noun} skipped: sent one recently`,
     }[event.notify_status];
     if (!text) return null;
     const note = node('span', `notify${event.notify_status === 'failed' ? ' failed' : ''}`, text);
@@ -275,14 +286,23 @@
     head.append(node('strong', '', sensorName(sensor)));
     if (fresh) head.append(node('span', 'alert-new', 'NEW'));
     head.append(timeElement(event.observed_at || event.created_at));
-    const line = node('p', 'alert-line', `${kinds.metricLabel(event.metric)} hit `);
-    line.append(node('span', 'alert-value', kinds.formatValue(event.numeric_value, event.unit)));
+    const silence = event.event_kind === 'silence';
+    const recovery = event.event_kind === 'recovery';
+    const line = node('p', 'alert-line', recovery ? 'Reporting again' : silence ? 'No reading for ' : `${kinds.metricLabel(event.metric)} hit `);
+    if (silence) line.append(node('span', 'alert-value', minutesLabel(event.numeric_value)));
+    else if (!recovery) line.append(node('span', 'alert-value', kinds.formatValue(event.numeric_value, event.unit)));
     const meta = node('p', 'alert-meta');
-    meta.append(
-      node('span', '', `Limit: ${limitText(event)}`),
-      node('span', 'over', event.numeric_value === event.threshold ? 'At the limit' : `${kinds.formatValue(Math.abs(event.numeric_value - event.threshold), event.unit)} past the limit`),
-      node('span', '', new Date(event.observed_at || event.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })),
-    );
+    if (recovery) {
+      meta.append(node('span', '', 'The sensor sent a reading'));
+    } else if (silence) {
+      meta.append(node('span', '', `Limit: ${minutesLabel(event.threshold)} without a reading`));
+    } else {
+      meta.append(
+        node('span', '', `Limit: ${limitText(event)}`),
+        node('span', 'over', event.numeric_value === event.threshold ? 'At the limit' : `${kinds.formatValue(Math.abs(event.numeric_value - event.threshold), event.unit)} past the limit`),
+      );
+    }
+    meta.append(node('span', '', new Date(event.observed_at || event.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })));
     const note = notifyNote(event);
     if (note) meta.append(note);
     body.append(head, line, meta);
@@ -298,12 +318,18 @@
     const body = node('div', 'alert-body');
     const head = node('div', 'alert-item-head');
     head.append(node('strong', '', sensorName(sensor)), node('span', `alert-status ${status}`, statusText[status]));
-    const line = node('p', 'alert-line', `Alert when ${kinds.metricLabel(rule.metric)} is ${limitText(rule)}`);
-    line.title = rule.metric;
+    const line = node('p', 'alert-line', silenceRule(rule)
+      ? `Alert when no reading arrives for ${minutesLabel(rule.silence_minutes)}`
+      : `Alert when ${kinds.metricLabel(rule.metric)} is ${limitText(rule)}`);
+    line.title = silenceRule(rule) ? 'No reading' : rule.metric;
     const meta = node('p', 'alert-meta');
     if (notifyNoun[rule.notify_channel]) meta.append(node('span', 'notify', `Calls ${formatPhone(rule.notify_phone)}`));
+    if (silenceRule(rule) && rule.notify_recovery) meta.append(node('span', '', 'Notifies when readings resume'));
     const latest = sensor?.latest_reading;
-    if (latest?.metric === rule.metric && typeof latest.numeric_value === 'number' && (latest.unit || '') === (rule.unit || '')) {
+    if (silenceRule(rule)) {
+      const heard = sensor?.last_received_at;
+      meta.append(node('span', '', heard ? `Last reading ${kinds.timeAgo(heard)}` : 'No reading yet. This alert calls only after a reading arrives and then stops.'));
+    } else if (latest?.metric === rule.metric && typeof latest.numeric_value === 'number' && (latest.unit || '') === (rule.unit || '')) {
       const now = node('span', '', 'Now ');
       now.append(node('span', 'alert-value', kinds.formatValue(latest.numeric_value, latest.unit)));
       const gap = kinds.formatValue(Math.abs(latest.numeric_value - rule.threshold), rule.unit);
@@ -313,7 +339,8 @@
     } else if (sensor) {
       meta.append(node('span', '', 'Waiting for a matching reading'));
     }
-    const fired = alertData.events.filter((event) => event.rule_id === rule.id);
+    // A recovery notice is not a firing, so it does not count toward the history.
+    const fired = alertData.events.filter((event) => event.rule_id === rule.id && event.event_kind !== 'recovery');
     if (fired.length) {
       const last = node('span', '', 'Last fired ');
       last.append(timeElement(fired[0].observed_at || fired[0].created_at));
@@ -321,7 +348,10 @@
     } else {
       meta.append(node('span', '', 'Has not fired yet'));
     }
-    if (status === 'triggered') meta.append(node('span', 'over', 'Resets when the reading returns inside the limit'));
+    if (silenceRule(rule) && status !== 'paused' && !alertData.schedulerActive) {
+      meta.append(node('span', 'over', 'Not being checked: silence checks are not running on this server.'));
+    }
+    if (status === 'triggered') meta.append(node('span', 'over', silenceRule(rule) ? 'Resets when a reading arrives' : 'Resets when the reading returns inside the limit'));
     const actions = node('div', 'alert-actions');
     const paused = status === 'paused';
     // Rules on removed sensors cannot be resumed, so they only offer Delete.
@@ -348,7 +378,7 @@
       if (counts[status]) summary.append(node('span', `alert-chip ${status}`, `${counts[status]} ${status.toUpperCase()}`));
     }
     if (!rules.length && !events.length) {
-      list.append(node('p', 'dashboard-empty', 'No alerts yet. Set a threshold below, or ask Fizz.'));
+      list.append(node('p', 'dashboard-empty', 'No alerts yet. Set a threshold or a silence alert below, or ask Fizz.'));
       return;
     }
     if (events.length) {
@@ -399,7 +429,8 @@
 
   function createdAlertSummary(rule) {
     const sensor = sensors.find((item) => item.id === rule.sensor_id);
-    const summary = node('p', 'alert-meta', `Active alert · ${sensorName(sensor)} · ${kinds.metricLabel(rule.metric)} ${limitText(rule)}`);
+    const what = silenceRule(rule) ? `no reading for ${minutesLabel(rule.silence_minutes)}` : `${kinds.metricLabel(rule.metric)} ${limitText(rule)}`;
+    const summary = node('p', 'alert-meta', `Active alert · ${sensorName(sensor)} · ${what}`);
     summary.style.setProperty('--sensor-color', kinds.get(sensor?.kind).color);
     return summary;
   }
@@ -515,6 +546,19 @@
     });
   }
 
+  function syncAlertKind() {
+    const silence = $('alert-kind').value === 'silence';
+    for (const id of ['alert-metric', 'alert-operator', 'alert-threshold', 'alert-unit']) {
+      const field = $(id);
+      field.hidden = silence;
+      if (id === 'alert-metric' || id === 'alert-threshold') field.required = !silence;
+    }
+    $('alert-minutes').hidden = !silence;
+    $('alert-minutes').required = silence;
+    $('alert-recovery-wrap').hidden = !silence;
+    $('alert-form-label').textContent = silence ? 'Create a silence alert' : 'Create a threshold alert';
+  }
+  $('alert-kind').addEventListener('change', syncAlertKind);
   $('alert-sensor').addEventListener('change', updateMetricHint);
   $('alert-metric').addEventListener('input', () => { $('alert-metric').dataset.autofill = 'false'; });
   $('alert-unit').addEventListener('input', () => { $('alert-unit').dataset.autofill = 'false'; });
@@ -531,10 +575,16 @@
     button.disabled = true;
     try {
       const notify = $('alert-notify').value;
-      const rule = { sensor_id: $('alert-sensor').value, metric: $('alert-metric').value.trim(), comparator: $('alert-operator').value, threshold: Number($('alert-threshold').value), unit: $('alert-unit').value.trim() };
+      const silence = $('alert-kind').value === 'silence';
+      const rule = silence
+        ? { kind: 'silence', sensor_id: $('alert-sensor').value, silence_minutes: Number($('alert-minutes').value), notify_recovery: $('alert-recovery').checked }
+        : { sensor_id: $('alert-sensor').value, metric: $('alert-metric').value.trim(), comparator: $('alert-operator').value, threshold: Number($('alert-threshold').value), unit: $('alert-unit').value.trim() };
       if (notify !== 'none') Object.assign(rule, { notify_channel: notify, notify_phone: $('alert-phone').value.trim() });
       await api('/api/alerts', 'POST', rule);
-      $('alert-message').textContent = notify === 'none' ? 'Alert is active.' : `Alert is active. Fizz will call you when it triggers.`;
+      const ready = silence ? 'Fizz will call you if it goes quiet.' : 'Fizz will call you when it triggers.';
+      $('alert-message').textContent = silence && !alertData.schedulerActive
+        ? 'Alert saved, but silence checks are not running on this server yet, so it will not fire until they are.'
+        : notify === 'none' ? 'Alert is active.' : `Alert is active. ${ready}`;
       $('alert-threshold').value = '';
       await refresh();
     } catch (error) { $('alert-message').textContent = error.message; }
@@ -555,6 +605,8 @@
     onAlert(sensor, reading) {
       const builder = document.querySelector('.alert-builder');
       if (builder) builder.open = true;
+      $('alert-kind').value = 'threshold';
+      syncAlertKind();
       $('alert-sensor').value = sensor.id;
       $('alert-metric').value = reading.metric;
       $('alert-metric').dataset.autofill = 'false';
@@ -598,7 +650,7 @@
       readingHistory.clear();
       sensorFilter = 'all';
       for (const filter of document.querySelectorAll('[data-sensor-filter]')) filter.setAttribute('aria-pressed', String(filter.dataset.sensorFilter === 'all'));
-      alertData = { rules: [], events: [] };
+      alertData = { rules: [], events: [], schedulerActive: true };
       showAllEvents = false;
       setThinking(false);
       window.fizzVoiceClips.reset();
