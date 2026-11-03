@@ -4,6 +4,8 @@
 //! issues its usual `fizz_session` cookie, so every other endpoint is unchanged. All Supabase calls
 //! happen here on the server, and the browser never receives a Supabase key.
 //!
+//! - `GET /api/auth?providers` lists the OAuth providers turned on in Supabase, so the sign-in
+//!   page shows only buttons that work.
 //! - `GET /api/auth?provider=google` (or `github`) starts sign-in with PKCE, and
 //!   `GET /api/auth?code=...` finishes it.
 //! - `POST /api/auth` with `{"action": ...}` handles email and password, links from Supabase
@@ -36,7 +38,8 @@ const CLEAR_FLOW_COOKIE: &str =
 
 // ---- Google and GitHub ---------------------------------------------------------------------------
 
-/// The Supabase providers offered on the sign-in page.
+/// The Supabase providers the sign-in page has buttons for. Each must also be turned on in
+/// Supabase Auth; `enabled_providers` checks that.
 const OAUTH_PROVIDERS: [&str; 2] = ["google", "github"];
 
 pub async fn oauth(request: Request) -> Response<ResponseBody> {
@@ -56,15 +59,12 @@ pub async fn oauth(request: Request) -> Response<ResponseBody> {
     if let Some(code) = find("code") {
         finish_oauth(&request, code).await
     } else if let Some(reason) = find("error") {
-        // Supabase reports a cancelled consent screen as access_denied.
-        let code = if reason == "access_denied" {
-            "cancelled"
-        } else {
-            "failed"
-        };
+        let code = callback_error(reason, find("error_code"), find("error_description"));
         back_to_app(Some(code), &[CLEAR_FLOW_COOKIE])
+    } else if find("providers").is_some() {
+        list_providers().await
     } else if let Some(provider) = find("provider").filter(|p| OAUTH_PROVIDERS.contains(p)) {
-        start_oauth(&request, provider)
+        start_oauth(&request, provider).await
     } else {
         error(
             400,
@@ -74,10 +74,62 @@ pub async fn oauth(request: Request) -> Response<ResponseBody> {
     }
 }
 
-fn start_oauth(request: &Request, provider: &str) -> Response<ResponseBody> {
+/// The `auth_error` code for an error Supabase sent back to the callback instead of a code.
+fn callback_error(reason: &str, code: Option<&str>, description: Option<&str>) -> &'static str {
+    let description = description.unwrap_or("").to_ascii_lowercase();
+    if reason == "access_denied" {
+        // A cancelled consent screen.
+        "cancelled"
+    } else if code == Some("provider_email_needs_verification") {
+        // Supabase emailed the person to confirm an unverified provider address.
+        "verify_email"
+    } else if description.contains("user email") {
+        // "Error getting user email from external provider": e.g. a GitHub account with no
+        // verified email. Retrying cannot help until the person verifies one.
+        "no_email"
+    } else {
+        "failed"
+    }
+}
+
+/// Which of `OAUTH_PROVIDERS` are turned on, from Supabase's `GET /auth/v1/settings`.
+fn enabled_providers(settings: &Value) -> Vec<&'static str> {
+    OAUTH_PROVIDERS
+        .into_iter()
+        .filter(|provider| settings["external"][provider] == true)
+        .collect()
+}
+
+async fn fetch_enabled_providers(store: &Supabase) -> Option<Vec<&'static str>> {
+    match store
+        .auth(Method::GET, "settings", &[], None, None, None)
+        .await
+    {
+        Ok((status, settings)) if status.is_success() => Some(enabled_providers(&settings)),
+        _ => None,
+    }
+}
+
+async fn list_providers() -> Response<ResponseBody> {
+    let Ok(store) = Supabase::from_env() else {
+        return error(503, "unavailable", "Sign-in is temporarily unavailable.");
+    };
+    match fetch_enabled_providers(&store).await {
+        Some(providers) => reply_with(200, json!({"providers": providers}), &[]),
+        None => error(503, "unavailable", "Sign-in is temporarily unavailable."),
+    }
+}
+
+async fn start_oauth(request: &Request, provider: &str) -> Response<ResponseBody> {
     let (Ok(store), Some(origin)) = (Supabase::from_env(), request_origin(request)) else {
         return back_to_app(Some("failed"), &[]);
     };
+    // Supabase answers a disabled provider with a bare JSON error page and never returns here.
+    match fetch_enabled_providers(&store).await {
+        Some(enabled) if enabled.contains(&provider) => {}
+        Some(_) => return back_to_app(Some("unavailable"), &[]),
+        None => return back_to_app(Some("failed"), &[]),
+    }
     let mut bytes = [0u8; 32];
     if SystemRandom::new().fill(&mut bytes).is_err() {
         return back_to_app(Some("failed"), &[]);
@@ -739,6 +791,44 @@ fn redirect(location: &str, cookies: &[&str]) -> Response<ResponseBody> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_providers_turned_on_in_supabase_are_offered() {
+        let settings =
+            json!({"external": {"email": true, "google": false, "github": true, "apple": true}});
+        assert_eq!(enabled_providers(&settings), ["github"]);
+        assert!(enabled_providers(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn callback_errors_say_whether_retrying_can_help() {
+        assert_eq!(callback_error("access_denied", None, None), "cancelled");
+        assert_eq!(
+            callback_error(
+                "server_error",
+                None,
+                Some("Error getting user email from external provider")
+            ),
+            "no_email"
+        );
+        assert_eq!(
+            callback_error(
+                "access_denied",
+                Some("provider_email_needs_verification"),
+                None
+            ),
+            "cancelled"
+        );
+        assert_eq!(
+            callback_error(
+                "invalid_request",
+                Some("provider_email_needs_verification"),
+                Some("Unverified email with github. A confirmation email has been sent")
+            ),
+            "verify_email"
+        );
+        assert_eq!(callback_error("server_error", None, None), "failed");
+    }
 
     #[test]
     fn verified_mfa_factors_cannot_be_bypassed_with_a_password_only_session() {

@@ -159,7 +159,7 @@ The local `supabase/config.toml` disables Google and GitHub sign-in and seeding,
 
 ## Verify and operate
 
-Before opening access, exercise one complete flow: sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/passkey, speech, and call integrations separately with accounts and numbers you control.
+Before opening access, exercise one complete flow: sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/GitHub/passkey, speech, and call integrations separately with accounts and numbers you control.
 
 The database regression suites use transactions and roll back their fixtures. Run linked commands sequentially because they share a temporary database login:
 

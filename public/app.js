@@ -10,14 +10,18 @@ let signedInUsername = '';
 // Sign-in goes through Supabase Auth via /api/auth: email and password, Google, GitHub, or a passkey.
 // Anyone can create an account. Passkeys are added on the Settings page once signed in.
 const passkeysSupported = window.fizzPasskey.supported;
+// OAuth buttons in #oauth, by Supabase provider id. /api/auth?providers narrows the list to the
+// ones turned on in Supabase, so a self-hosted instance never shows a button that can't work.
+const oauthProviders = { google: 'Google', github: 'GitHub' };
+let oauthEnabled = Object.keys(oauthProviders);
 const modes = {
   create: {
     label: 'NEW ACCOUNT', title: 'Create your account', intro: 'Enter your email and choose a password.',
-    submit: 'Create account', fields: ['email', 'password'], google: 'Sign up with Google', github: 'Sign up with GitHub',
+    submit: 'Create account', fields: ['email', 'password'], oauthVerb: 'Sign up',
   },
   'sign-in': {
-    label: 'SIGN IN', title: 'Welcome back', intro: 'Sign in with your email and password, Google, GitHub, or a passkey.',
-    submit: 'Sign in', fields: ['email', 'password'], google: 'Sign in with Google', github: 'Sign in with GitHub', passkey: true,
+    label: 'SIGN IN', title: 'Welcome back', intro: 'Sign in to your Fizzlayer account.',
+    submit: 'Sign in', fields: ['email', 'password'], oauthVerb: 'Sign in', passkey: true,
   },
   forgot: {
     label: 'RESET', title: 'Reset your password', intro: 'Enter your email and we will send you a link to choose a new password.',
@@ -38,6 +42,19 @@ function showError(message) {
   $('form-error').hidden = !message;
 }
 
+// Shows the OAuth and passkey buttons that work here, and the divider only if any do.
+function renderAlternatives() {
+  const current = modes[mode];
+  const choosing = mode === 'create' || mode === 'sign-in';
+  for (const [provider, name] of Object.entries(oauthProviders)) {
+    $(provider).hidden = !oauthEnabled.includes(provider);
+    $(`${provider}-label`).textContent = `${current.oauthVerb || 'Continue'} with ${name}`;
+  }
+  const passkey = Boolean(current.passkey && passkeysSupported);
+  $('passkey').hidden = !passkey;
+  $('oauth').hidden = !choosing || (!oauthEnabled.length && !passkey);
+}
+
 function render(intro) {
   const current = modes[mode];
   const choosing = mode === 'create' || mode === 'sign-in';
@@ -50,10 +67,7 @@ function render(intro) {
   // The form stays visible in every mode so its error message can show; only its parts hide.
   $('form-actions').hidden = !current.submit;
   $('email-sent').hidden = mode !== 'check-email';
-  $('oauth').hidden = !choosing;
-  $('google-label').textContent = current.google || 'Continue with Google';
-  $('github-label').textContent = current.github || 'Continue with GitHub';
-  $('passkey').hidden = !(current.passkey && passkeysSupported);
+  renderAlternatives();
   $('forgot').hidden = mode !== 'sign-in' && mode !== 'forgot';
   $('forgot').textContent = mode === 'forgot' ? 'Back to sign in' : 'Forgot password?';
   $('step-label').textContent = current.label;
@@ -254,9 +268,18 @@ $('sign-in-mode').addEventListener('click', () => setMode('sign-in'));
 $('forgot').addEventListener('click', () => setMode(mode === 'forgot' ? 'sign-in' : 'forgot'));
 $('back-to-sign-in').addEventListener('click', () => setMode('sign-in'));
 // Google and GitHub sign-in leave the page. A new account gets a Fizzlayer account on return.
-for (const provider of ['google', 'github']) {
+for (const provider of Object.keys(oauthProviders)) {
   $(provider).addEventListener('click', () => location.assign(`/api/auth?provider=${provider}`));
 }
+// If this fails, every button stays: /api/auth?provider= still refuses a disabled provider.
+fetch('/api/auth?providers', { credentials: 'same-origin' })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((data) => {
+    if (!Array.isArray(data?.providers)) return;
+    oauthEnabled = Object.keys(oauthProviders).filter((provider) => data.providers.includes(provider));
+    renderAlternatives();
+  })
+  .catch(() => {});
 
 document.querySelectorAll('.sensor-card').forEach((card) => {
   const info = window.fizzKinds.get(card.dataset.kind);
@@ -342,6 +365,9 @@ const authErrors = {
   cancelled: 'Sign-in was cancelled.',
   expired: 'Sign-in took too long or was interrupted. Try again.',
   failed: 'Sign-in is temporarily unavailable. Try again.',
+  unavailable: "That sign-in option isn't available here. Use another one.",
+  no_email: "We couldn't get a verified email address from that account. Add and verify one with the provider (on GitHub: Settings → Emails), then try again.",
+  verify_email: 'We sent you an email to confirm your address. Open the link in it, then sign in again.',
 };
 const linkToken = hash.get('access_token');
 const authError = hash.get('auth_error');
