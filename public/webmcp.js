@@ -7,12 +7,12 @@
 
   const origin = location.origin;
   const PLANS = [
-    { id: 'hobbyist', name: 'Hobbyist', price: 'Free', devices: 3, monthly_credits: 10 },
-    { id: 'tinkerer', name: 'Tinkerer', price: '$10/month', devices: 10, monthly_credits: 100 },
-    { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 1000 },
-    { id: 'enterprise', name: 'Enterprise', price: 'Contact us', devices: 'Custom', monthly_credits: 'Custom' },
+    { id: 'hobbyist', name: 'Hobbyist', price: 'Free', devices: 3, monthly_credits: 10, phone_calls: false },
+    { id: 'tinkerer', name: 'Tinkerer', price: '$10/month', devices: 10, monthly_credits: 100, phone_calls: true },
+    { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 1000, phone_calls: true },
+    { id: 'enterprise', name: 'Enterprise', price: 'Contact us', devices: 'Custom', monthly_credits: 'Custom', phone_calls: true },
   ];
-  const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz.';
+  const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz. Phone calls, including the call that pairs a number, are included with Tinkerer, Pro, and Enterprise. Hobbyist can still create dashboard alerts.';
   const KINDS = {
     water: { label: 'Water', metric: 'flow_l_min', unit: 'L/min' },
     gas: { label: 'Gas', metric: 'concentration_ppm', unit: 'ppm' },
@@ -104,7 +104,7 @@
         const next = sensors.length ? [
           'list_sensors and get_readings show live data; ask_fizz answers questions about it.',
           'add_sensor connects a real device (API key or phone link) or a sample stream; pair_device claims a code from `fizz pair` on a Linux device.',
-          'create_alert sets a threshold alert or a silence alert (no reading for N minutes), optionally with a phone call.',
+          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in the dashboard, on Tinkerer, Pro, or Enterprise. Pairing is done by the owner in the dashboard, not by a tool.',
           'create_agent_connection issues an MCP token so an agent can reach this account from outside the browser.',
           'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
         ] : [
@@ -120,7 +120,7 @@
     },
     {
       name: 'list_plans',
-      description: 'Fizzlayer plans with price, device limit, and monthly Fizz credits.',
+      description: 'Fizzlayer plans with price, device limit, monthly Fizz credits, and whether phone calls are included.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       async execute() { return text({ plans: PLANS, note: PLAN_NOTE }); },
@@ -394,7 +394,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number when it triggers; only use a number the person gave you. Asking again for the same alert returns the existing one.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number the person has already paired in the dashboard. Phone calls require Tinkerer, Pro, or Enterprise. This tool cannot pair a number. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -406,7 +406,7 @@
           unit: { type: 'string', description: 'Threshold alerts. Defaults to the metric\'s unit.' },
           silence_minutes: { type: 'integer', minimum: 1, maximum: 10080, default: 10, description: 'Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor.' },
           notify_recovery: { type: 'boolean', default: false, description: 'Silence alerts. Also notify when readings resume.' },
-          call_phone: { type: 'string', description: 'Optional US phone number to call when the alert triggers.' },
+          call_phone: { type: 'string', description: 'Optional US number to call. The owner must already have paired it under Phones in the dashboard. Pairing is owner-only and is not available from this tool.' },
         },
         required: ['sensor_id'],
       },

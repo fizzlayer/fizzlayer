@@ -10,6 +10,7 @@
   let timer = null;
   let sensors = [];
   let alertData = { rules: [], events: [], schedulerActive: true };
+  let phoneData = { calls_included: false, phones: [], pending: null };
   let showAllEvents = false;
   let requestInFlight = false;
   let refreshQueued = false;
@@ -24,7 +25,11 @@
   async function api(path, method = 'GET', body, signal) {
     const response = await fetch(path, { method, credentials: 'same-origin', signal, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || 'Please try again.');
+    if (!response.ok) {
+      const failure = new Error(data.error?.message || 'Please try again.');
+      failure.attemptsRemaining = data.error?.attempts_remaining;
+      throw failure;
+    }
     return data;
   }
 
@@ -209,7 +214,15 @@
       if (version !== sessionGeneration || $('dashboard').hidden) return;
       sensors = inventory.sensors || [];
       alertData = { rules: alerts.rules || [], events: alerts.events || [], schedulerActive: alerts.silence_scheduler_active !== false };
+      try {
+        const phones = await api('/api/phones');
+        if (version !== sessionGeneration || $('dashboard').hidden) return;
+        phoneData = { calls_included: phones.calls_included === true, phones: phones.phones || [], pending: phones.pending || null };
+      } catch (error) {
+        if (version === sessionGeneration) $('phone-message').textContent = error.message;
+      }
       renderSensors();
+      renderPhones();
       renderAlerts();
       detail.update(sensors);
       $('dashboard-subtitle').textContent = 'A clear view of your sensors, signals, and alerts.';
@@ -346,7 +359,12 @@
       : `Alert when ${kinds.metricLabel(rule.metric)} is ${limitText(rule)}`);
     line.title = silenceRule(rule) ? 'No reading' : rule.metric;
     const meta = node('p', 'alert-meta');
-    if (notifyNoun[rule.notify_channel]) meta.append(node('span', 'notify', `Calls ${formatPhone(rule.notify_phone)}`));
+    if (notifyNoun[rule.notify_channel]) {
+      meta.append(node('span', 'notify', `Calls ${formatPhone(rule.notify_phone)}`));
+      const paired = phoneData.phones.some((phone) => phone.phone === rule.notify_phone);
+      if (!phoneData.calls_included) meta.append(node('span', 'over', 'Won’t call on the Hobbyist plan'));
+      else if (!paired) meta.append(node('span', 'over', 'Not paired · won’t dial until you pair this number'));
+    }
     if (silenceRule(rule) && rule.notify_recovery) meta.append(node('span', '', 'Notifies when readings resume'));
     const latest = sensor?.latest_reading;
     if (silenceRule(rule)) {
@@ -585,11 +603,158 @@
   $('alert-sensor').addEventListener('change', updateMetricHint);
   $('alert-metric').addEventListener('input', () => { $('alert-metric').dataset.autofill = 'false'; });
   $('alert-unit').addEventListener('input', () => { $('alert-unit').dataset.autofill = 'false'; });
-  $('alert-notify').addEventListener('change', () => {
-    const phone = $('alert-notify').value !== 'none';
-    $('alert-phone').hidden = !phone;
-    $('alert-phone').required = phone;
-    if (phone) $('alert-phone').focus();
+  function fillAlertPhones() {
+    const select = $('alert-phone');
+    const current = select.value;
+    select.replaceChildren();
+    for (const phone of phoneData.phones) {
+      const option = node('option', '', formatPhone(phone.phone));
+      option.value = phone.phone;
+      select.append(option);
+    }
+    if ([...select.options].some((option) => option.value === current)) select.value = current;
+  }
+  function syncAlertCall() {
+    const call = $('alert-notify').value === 'call';
+    const ready = phoneData.calls_included && phoneData.phones.length > 0;
+    const note = $('alert-call-note');
+    $('alert-phone').hidden = !call || !ready;
+    $('alert-phone').required = call && ready;
+    if (!call) {
+      note.hidden = true;
+      note.textContent = '';
+      return;
+    }
+    if (!phoneData.calls_included) {
+      note.hidden = false;
+      note.textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Leave this as dashboard only, or upgrade in Settings.';
+      return;
+    }
+    if (!phoneData.phones.length) {
+      note.hidden = false;
+      note.textContent = 'Pair a number in Phones above before this alert can call.';
+      return;
+    }
+    note.hidden = true;
+    note.textContent = '';
+  }
+  function renderPhones() {
+    const phones = phoneData.phones;
+    const list = $('phone-list');
+    list.replaceChildren();
+    $('phones-empty').hidden = phones.length > 0;
+    for (const phone of phones) {
+      const item = node('li', 'phone-row');
+      item.append(node('strong', '', formatPhone(phone.phone)));
+      const remove = node('button', 'secondary', 'Remove');
+      remove.type = 'button';
+      remove.addEventListener('click', async () => {
+        remove.disabled = true;
+        $('phone-message').textContent = '';
+        try {
+          await api('/api/phones', 'POST', { action: 'remove', phone: phone.phone });
+          $('phone-message').textContent = `${formatPhone(phone.phone)} was removed. Alerts will not call it.`;
+          await refresh();
+        } catch (error) {
+          $('phone-message').textContent = error.message;
+          remove.disabled = false;
+        }
+      });
+      item.append(remove);
+      list.append(item);
+    }
+    const upgrade = $('phones-upgrade');
+    upgrade.replaceChildren();
+    if (phoneData.calls_included) {
+      upgrade.hidden = true;
+      $('phone-pair-form').hidden = false;
+    } else {
+      upgrade.hidden = false;
+      const link = node('a', '', 'Upgrade in Settings');
+      link.href = '/settings.html';
+      upgrade.append('Phone calls are included with Tinkerer, Pro, and Enterprise. ', link, '. Dashboard alerts still work on Hobbyist.');
+      $('phone-pair-form').hidden = true;
+      $('phone-confirm-form').hidden = true;
+    }
+    const banner = $('call-pause-banner');
+    const callRules = alertData.rules.filter((rule) => rule.notify_channel === 'call');
+    const unpaired = callRules.filter((rule) => !phones.some((phone) => phone.phone === rule.notify_phone));
+    if (!phoneData.calls_included && callRules.length) {
+      banner.hidden = false;
+      banner.textContent = 'Calls are paused. These alerts are set to call a phone, but the Hobbyist plan does not place calls. Upgrade to Tinkerer, Pro, or Enterprise, then pair each number. Until then, alerts still show here and will not dial.';
+    } else if (unpaired.length) {
+      banner.hidden = false;
+      banner.textContent = 'Calls are paused. Numbers saved on alerts before verification are not paired, so Fizzlayer will not dial them until you pair each one here.';
+    } else {
+      banner.hidden = true;
+      banner.textContent = '';
+    }
+    fillAlertPhones();
+    syncAlertCall();
+    const pending = phoneData.pending;
+    const confirm = $('phone-confirm-form');
+    if (phoneData.calls_included && pending?.phone) {
+      if (confirm.hidden || confirm.dataset.phone !== pending.phone) {
+        confirm.dataset.phone = pending.phone;
+        $('phone-code').value = '';
+      }
+      confirm.hidden = false;
+      if (!$('phone-number').value) $('phone-number').value = formatPhone(pending.phone);
+      const left = Number(pending.attempts_remaining);
+      if (!$('phone-message').textContent && Number.isFinite(left) && left < 5) {
+        $('phone-message').textContent = `${left} ${left === 1 ? 'try' : 'tries'} left for this code.`;
+      }
+    }
+  }
+  async function startPairing(phone) {
+    $('phone-message').textContent = '';
+    $('phone-start').disabled = true;
+    $('phone-resend').disabled = true;
+    try {
+      const result = await api('/api/phones', 'POST', { action: 'start', phone });
+      if (result.already_paired) {
+        $('phone-message').textContent = `${formatPhone(result.phone)} is already paired.`;
+      } else {
+        $('phone-confirm-form').hidden = false;
+        $('phone-confirm-form').dataset.phone = result.phone;
+        $('phone-code').value = '';
+        $('phone-message').textContent = `Calling ${formatPhone(result.phone)}. Enter the 6-digit code from the call. It expires in 10 minutes. You can call again after one minute.`;
+        $('phone-code').focus();
+      }
+      await refresh();
+    } catch (error) {
+      $('phone-message').textContent = error.message;
+    } finally {
+      $('phone-start').disabled = false;
+      $('phone-resend').disabled = false;
+    }
+  }
+  $('alert-notify').addEventListener('change', syncAlertCall);
+  $('phone-pair-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    void startPairing($('phone-number').value.trim());
+  });
+  $('phone-resend').addEventListener('click', () => {
+    const phone = $('phone-confirm-form').dataset.phone || $('phone-number').value.trim();
+    void startPairing(phone);
+  });
+  $('phone-confirm-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    $('phone-message').textContent = '';
+    const button = event.submitter;
+    if (button) button.disabled = true;
+    try {
+      const phone = $('phone-confirm-form').dataset.phone || $('phone-number').value.trim();
+      const result = await api('/api/phones', 'POST', { action: 'confirm', phone, code: $('phone-code').value.trim() });
+      $('phone-code').value = '';
+      $('phone-confirm-form').hidden = true;
+      $('phone-message').textContent = `${formatPhone(result.phone || phone)} is paired. Alerts can call it.`;
+      await refresh();
+    } catch (error) {
+      $('phone-message').textContent = error.message;
+    } finally {
+      if (button) button.disabled = false;
+    }
   });
   $('quick-alert').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -602,7 +767,17 @@
       const rule = silence
         ? { kind: 'silence', sensor_id: $('alert-sensor').value, silence_minutes: Number($('alert-minutes').value), notify_recovery: $('alert-recovery').checked }
         : { sensor_id: $('alert-sensor').value, metric: $('alert-metric').value.trim(), comparator: $('alert-operator').value, threshold: Number($('alert-threshold').value), unit: $('alert-unit').value.trim() };
-      if (notify !== 'none') Object.assign(rule, { notify_channel: notify, notify_phone: $('alert-phone').value.trim() });
+      if (notify === 'call') {
+        if (!phoneData.calls_included) {
+          $('alert-message').textContent = 'Phone calls are included with Tinkerer, Pro, and Enterprise. Upgrade in Settings, or leave this as a dashboard-only alert.';
+          return;
+        }
+        if (!$('alert-phone').value) {
+          $('alert-message').textContent = 'Pair a phone number above before an alert can call it.';
+          return;
+        }
+        Object.assign(rule, { notify_channel: 'call', notify_phone: $('alert-phone').value });
+      }
       await api('/api/alerts', 'POST', rule);
       const ready = silence ? 'Fizz will call you if it goes quiet.' : 'Fizz will call you when it triggers.';
       $('alert-message').textContent = silence && !alertData.schedulerActive
@@ -682,9 +857,17 @@
       $('chat-input').value = '';
       $('chat-error').textContent = '';
       $('alert-notify').value = 'none';
-      $('alert-phone').value = '';
+      $('alert-phone').replaceChildren();
       $('alert-phone').hidden = true;
       $('alert-phone').required = false;
+      $('alert-call-note').hidden = true;
+      $('alert-call-note').textContent = '';
+      $('phone-message').textContent = '';
+      $('phone-number').value = '';
+      $('phone-code').value = '';
+      $('phone-confirm-form').hidden = true;
+      $('call-pause-banner').hidden = true;
+      phoneData = { calls_included: false, phones: [], pending: null };
     },
   };
 })();

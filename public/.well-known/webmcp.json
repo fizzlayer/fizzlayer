@@ -32,7 +32,7 @@
     },
     {
       "name": "list_plans",
-      "description": "Fizzlayer plans with price, device limit, and monthly Fizz credits.",
+      "description": "Fizzlayer plans with price, device limit, monthly Fizz credits, and whether phone calls are included.",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -412,7 +412,7 @@
     },
     {
       "name": "create_alert",
-      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number when it triggers; only use a number the person gave you. Asking again for the same alert returns the existing one.",
+      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number the person has already paired in the dashboard. Phone calls require Tinkerer, Pro, or Enterprise. This tool cannot pair a number. Asking again for the same alert returns the existing one.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -464,7 +464,7 @@
           },
           "call_phone": {
             "type": "string",
-            "description": "Optional US phone number to call when the alert triggers."
+            "description": "Optional US number to call. The owner must already have paired it under Phones in the dashboard. Pairing is owner-only and is not available from this tool."
           }
         },
         "required": [

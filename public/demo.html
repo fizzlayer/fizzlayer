@@ -52,6 +52,22 @@
               <div class="live-sensors" id="demo-sensors"></div>
               <p class="trend-note">Simulated history · click a sensor to explore its readings.</p>
             </section>
+            <section class="dash-panel phones-panel" id="phones" aria-labelledby="phones-title">
+              <div class="section-heading"><div><p class="setup-eyebrow">CALL THESE NUMBERS</p><h2 id="phones-title">Phones</h2></div><span class="demo-pill">SIMULATED</span></div>
+              <p class="phones-intro">In the app, Fizzlayer calls the number and reads a 6-digit code. This demo shows that call as a preview. No real call is placed.</p>
+              <ul id="demo-phones" class="phone-list"></ul>
+              <p class="dashboard-empty" id="demo-phones-empty">No paired numbers yet.</p>
+              <form id="demo-pair-form" class="phone-pair">
+                <label for="demo-phone">US phone number<input id="demo-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(415) 555-0148" required></label>
+                <button class="primary" type="submit">Call me with a code</button>
+              </form>
+              <form id="demo-confirm-form" class="phone-pair" hidden>
+                <label for="demo-code">6-digit code<input id="demo-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required></label>
+                <button class="primary" type="submit">Confirm</button>
+                <button class="secondary" id="demo-resend" type="button">Call again</button>
+              </form>
+              <p id="demo-phone-message" class="form-message" role="status"></p>
+            </section>
             <section class="dash-panel alerts-panel" id="alerts" aria-labelledby="alerts-title">
               <div class="section-heading"><div><p class="setup-eyebrow">YOUR WATCH LIST</p><h2 id="alerts-title">Alerts & activity</h2></div><span class="alert-chip watching" id="alert-summary">2 watching</span></div>
               <div id="demo-events" class="demo-events" aria-live="polite"></div>
@@ -83,6 +99,6 @@
     </div>
   </main>
   <dialog id="sensor-dialog" class="demo-dialog" aria-labelledby="detail-title"><button type="button" class="secondary dialog-close" data-close-dialog>Close <span class="fa fa-xmark" aria-hidden="true"></span></button><p class="setup-eyebrow">SAMPLE SENSOR DETAIL</p><h2 id="detail-title"></h2><p id="detail-value" class="detail-value"></p><div id="detail-chart"></div><p id="detail-description"></p><p class="detail-footnote">Recent simulated readings. All data stays in this demo.</p></dialog>
-  <dialog id="call-dialog" class="demo-dialog call-dialog" aria-labelledby="call-title"><button type="button" class="secondary dialog-close" data-close-dialog>Close <span class="fa fa-xmark" aria-hidden="true"></span></button><img src="/fizz-agent.svg" alt="" width="64" height="64"><p class="setup-eyebrow">SIMULATED PHONE ALERT</p><h2 id="call-title">Fizz is calling the shift lead.</h2><p id="call-transcript"></p><p class="detail-footnote">This is a call preview. No phone number is used and no real call is placed.</p><button type="button" class="primary" data-close-dialog>Back to the demo</button></dialog>
+  <dialog id="call-dialog" class="demo-dialog call-dialog" aria-labelledby="call-title"><button type="button" class="secondary dialog-close" data-close-dialog>Close <span class="fa fa-xmark" aria-hidden="true"></span></button><img src="/fizz-agent.svg" alt="" width="64" height="64"><p class="setup-eyebrow" id="call-eyebrow">SIMULATED PHONE ALERT</p><h2 id="call-title">Fizz is calling the shift lead.</h2><p id="call-transcript"></p><p class="detail-footnote" id="call-footnote">This is a call preview. No phone number is used and no real call is placed.</p><button type="button" class="primary" data-close-dialog>Back to the demo</button></dialog>
 </body>
 </html>

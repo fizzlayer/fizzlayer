@@ -20,7 +20,7 @@ A sensor instance belongs to one customer and has a type, name, mode, and curren
 
 1. API sensors and paired CLI devices send readings to `POST /api/ingest` with a key scoped to their sensor. Phone devices send readings through `/api/phone` using their paired device credentials.
 2. Rust validates the request and calls Supabase RPCs. The database validates credentials, ownership, metrics, and event identity before storing readings.
-3. Numeric readings trigger database evaluation of enabled threshold rules. A separate minute scan evaluates silence rules (no reading for N minutes). Matching events appear in the dashboard and can queue an outbound call.
+3. Numeric readings trigger database evaluation of enabled threshold rules. A separate minute scan evaluates silence rules (no reading for N minutes). Matching events appear in the dashboard. A call is queued only when the plan includes calls and the number is still paired, and the sender checks both again immediately before dialing.
 4. The dashboard requests current values and recent history. Chat and MCP requests retrieve customer-scoped context from the same stored data.
 
 A unique `event_id` makes ingestion retries idempotent for each sensor. Keys can be rotated or revoked independently. Sample streams advance on authenticated reads, at most once per 15 seconds per sensor; they are not continuously scheduled background jobs.
@@ -31,7 +31,7 @@ Supabase Auth verifies email/password, Google, GitHub, and passkey sign-ins. Any
 
 The browser talks to the Fizzlayer API. The server-side Supabase client in [`src/store/mod.rs`](../src/store/mod.rs) uses a service-role credential, which is never sent to the browser. Database RLS policies restrict authenticated customer ownership, while server-side authorization remains essential because service-role requests bypass RLS. The [security audit](SECURITY_AUDIT.md) documents protections and validation.
 
-Agent tokens are managed separately from account sessions and sensor keys. Agents can read sensors, readings, and alerts; alert creation requires an explicit token permission and is limited to dashboard alerts. Device pairing is available through MCP, but the person at the device must approve the claim before it connects.
+Agent tokens are managed separately from account sessions and sensor keys. Agents can read sensors, readings, and alerts. Alert creation requires an explicit token permission. A call is allowed only for a number the owner has already paired in the dashboard; the token cannot pair a phone. Otherwise the alert stays on the dashboard. Device pairing is available through MCP, but the person at the device must approve the claim before it connects.
 
 ## AI and optional providers
 
@@ -39,7 +39,7 @@ Typed chat uses Vercel AI Gateway with customer-scoped readings and consented ph
 
 ElevenLabs supplies speech transcription and synthesized replies for the dashboard's voice chat. AgentPhone supplies optional outbound alert calls. These integrations are configured with server-side credentials and are independent of basic sensor ingestion.
 
-The notification queue is drained during reading-related requests and by `GET /api/cron`. The cron path is what delivers silence alerts and retries when no later reading arrives. It is invoked by Vercel Cron on Pro, or by an external scheduler, once a minute. Each cron run places at most one call. Dispatch is bounded, a call is claimed once, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets. Provider acceptance does not confirm that someone answered a call.
+The notification queue is drained during reading-related requests and by `GET /api/cron`. The cron path is what delivers silence alerts and retries when no later reading arrives. It is invoked by Vercel Cron on Pro, or by an external scheduler, once a minute. Each cron run places at most one call. Dispatch is bounded, a call is claimed once, and provider failures do not reject an accepted reading. Calls are subject to cooldowns and account budgets, and they are placed only for Tinkerer, Pro, and Enterprise. A number must be paired with a spoken code before any alert can call it; pairing itself is rate-limited per account, number, and network. Hobbyist alerts stay on the dashboard. A downgrade skips calls that are still queued. Provider acceptance does not confirm that someone answered a call.
 
 ## Deployment boundaries
 
