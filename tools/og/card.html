@@ -9,51 +9,47 @@
     <script src="/sensor-kinds.js"></script>
     <style>
       html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
-      body { color: var(--ink); background: radial-gradient(ellipse at 92% 18%, #dcf1f5 0, transparent 52%), linear-gradient(#fcfdfd, #f3f8fa); }
+      body { color: var(--ink); background: radial-gradient(ellipse at 88% 30%, #dcf1f5 0, transparent 55%), linear-gradient(#fcfdfd, #f3f8fa); }
       *, *::before, *::after { animation: none !important; transition: none !important; }
-      .card { display: grid; grid-template-columns: 1fr 540px; align-items: center; gap: 44px; height: 100%; padding: 0 56px 0 72px; box-sizing: border-box; }
-      .wordmark { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 30px; font-weight: 600; letter-spacing: -.8px; text-decoration: none; }
-      .wordmark img { width: 44px; height: 44px; image-rendering: pixelated; }
-      .wordmark .brand-dot { color: var(--accent); }
-      .eyebrow-label { margin: 42px 0 18px; font-size: 15px; }
-      h1 { margin: 0; font-family: var(--display); font-size: 68px; font-weight: 500; line-height: 1.04; letter-spacing: -2.8px; }
-      h1 span { color: #18849c; }
-      .pitch { margin: 24px 0 0; max-width: 470px; color: var(--muted); font-size: 21px; line-height: 1.5; }
-      .pitch strong { font-weight: 500; color: #314d60; }
+      .card { display: grid; grid-template-columns: 1fr 470px; align-items: center; gap: 40px; height: 100%; padding: 0 64px 0 80px; box-sizing: border-box; }
+      .eyebrow-label { margin: 0 0 14px; font-size: 16px; }
+      h1 { margin: 0 0 0 -6px; font-family: var(--display); font-size: 128px; font-weight: 600; line-height: 1; letter-spacing: -6px; }
+      h1 .brand-dot { color: var(--accent); }
+      .tagline { margin: 22px 0 0; font-family: var(--display); font-size: 40px; font-weight: 500; line-height: 1.15; letter-spacing: -1.4px; }
+      .tagline span { color: #18849c; }
+      .kinds { display: flex; gap: 10px; margin-top: 30px; }
+      .kind-badge { display: inline-grid; place-items: center; width: 42px; height: 42px; background: color-mix(in srgb, var(--sensor-color) 12%, white); border: 1px solid color-mix(in srgb, var(--sensor-color) 28%, #e3ebf0); border-radius: 9px; color: color-mix(in srgb, var(--sensor-color) 65%, #183e52); }
+      .kind-badge svg { width: 22px; height: 22px; fill: currentColor; }
       .cta { display: flex; align-items: center; gap: 18px; margin-top: 34px; }
       .cta .button { gap: 13px; padding: 14px 20px; font-size: 18px; pointer-events: none; }
       .cta .url { color: #47616f; font: 18px var(--mono); }
-      .world-visual { padding: 0; }
-      .world-frame { box-shadow: 0 30px 65px -25px #22495a60, 0 0 0 7px #fff9; }
+      .world-frame { aspect-ratio: 1; box-shadow: 0 34px 70px -28px #22495a70, 0 0 0 7px #fff9; }
+      .world-lines { inset: 0; width: 100%; height: 100%; }
+      .world-lines .orbit { stroke: #81d0de26; }
+      .world-core { top: 50%; left: 50%; width: 70%; transform: translate(-50%, -50%); border-radius: 36px; box-shadow: 0 0 90px #a9eaf726, inset 0 0 28px #a9eaf70d; }
+      .world-core img { width: 92%; }
     </style>
   </head>
   <body>
     <div class="card">
       <div>
-        <span class="wordmark"><img src="/fizz-agent.svg" alt=""><span>Fizzlayer<span class="brand-dot">.</span></span></span>
-        <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> The physical layer for AI agents</p>
-        <h1>Your AI.<br>Connected to<br><span>the real world.</span></h1>
-        <p class="pitch">Connect any sensor, ask Fizz about it, and <strong>get a call when it matters.</strong></p>
+        <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> Meet Fizz, your new sidekick</p>
+        <h1>Fizzlayer<span class="brand-dot">.</span></h1>
+        <p class="tagline">The physical layer<br>for <span>AI agents.</span></p>
+        <div class="kinds" id="kinds"></div>
         <div class="cta"><span class="button button-dark">Start free <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span><span class="url">fizzlayer.com</span></div>
       </div>
-      <div class="world-visual">
-        <div class="world-frame">
-          <div class="world-topline"><span>YOUR WORLD, CONNECTED</span><span><span class="status-dot" aria-hidden="true"></span> ILLUSTRATIVE DEMO</span></div>
-          <svg class="world-lines" viewBox="0 0 500 400" aria-hidden="true">
-            <ellipse class="orbit" cx="250" cy="190" rx="175" ry="140"/><ellipse class="orbit" cx="250" cy="190" rx="125" ry="100"/>
-            <path class="connection" d="M120 100 250 170 395 120 M110 290 250 170 400 290"/>
-            <circle cx="177" cy="131" r="3" fill="#a9eaf7"/><circle cx="323" cy="145" r="3" fill="#a9eaf7"/><circle cx="157" cy="250" r="3" fill="#5ee6c4"/><circle cx="341" cy="243" r="3" fill="#bcb7f4"/>
-          </svg>
-          <div class="world-core"><img src="/fizz-agent.svg" alt=""></div>
-          <div class="core-label">A little Fizz. A lot of awareness.<small>Your physical AI layer</small></div>
-          <div class="signal-node signal-temp" data-signal="temperature"><span><strong>22.4 °C</strong>Grow Room</span></div>
-          <div class="signal-node signal-water" data-signal="water"><span><strong>0.0 L/min</strong>Water flow</span></div>
-          <div class="signal-node signal-humidity" data-signal="humidity"><span><strong>48.2 %</strong>Greenhouse</span></div>
-          <div class="signal-node signal-agent"><span class="agent-symbol" aria-hidden="true"><span class="fa fa-robot"></span></span><span><strong>Your AI agent</strong>Connected via MCP</span></div>
-          <div class="visual-bottom"><span>DEVICE <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span> SIGNAL <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span> UNDERSTANDING</span><span>POWERED BY FIZZ</span></div>
-        </div>
+      <div class="world-frame">
+        <svg class="world-lines" viewBox="0 0 400 400" aria-hidden="true">
+          <circle class="orbit" cx="200" cy="200" r="185"/><circle class="orbit" cx="200" cy="200" r="160"/>
+          <circle cx="58" cy="118" r="3" fill="#a9eaf7"/><circle cx="352" cy="140" r="3" fill="#5ee6c4"/><circle cx="330" cy="318" r="3" fill="#bcb7f4"/><circle cx="76" cy="300" r="3" fill="#a9eaf7"/>
+        </svg>
+        <div class="world-core"><img src="/fizz-agent.svg" alt=""></div>
       </div>
     </div>
-    <script>for (const s of document.querySelectorAll('[data-signal]')) s.prepend(window.fizzKinds.badge(s.dataset.signal));</script>
+    <script>
+      const kinds = document.getElementById('kinds');
+      for (const kind of ['water', 'gas', 'radio', 'temperature', 'pressure', 'humidity', 'sound', 'phone', 'custom']) kinds.append(window.fizzKinds.badge(kind));
+    </script>
   </body>
 </html>
