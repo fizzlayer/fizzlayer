@@ -61,15 +61,18 @@ After sign-in, new accounts choose sensor types and press **Start with sample da
 
 Each account has a plan that caps its connected devices and its monthly Fizz credits:
 
-| Plan | Price | Connected devices | Fizz credits per month |
-| --- | --- | --- | --- |
-| Hobbyist | Free | 3 | 10 |
-| Tinkerer | $10/month | 10 | 100 |
-| Pro | $25/month | 50 | 1,000 |
-| Enterprise | Custom | Unlimited | Unlimited |
+| Plan | Price | Connected devices | Fizz credits per month | Phone calls |
+| --- | --- | --- | --- | --- |
+| Hobbyist | Free | 3 | 10 | No. Dashboard alerts only |
+| Tinkerer | $10/month | 10 | 100 | Yes |
+| Pro | $25/month | 50 | 1,000 | Yes |
+| Enterprise | Custom | Unlimited | Unlimited | Yes |
 
 - **Connected devices** are API sensors (including CLI-paired devices) and phone sensors that have not been deleted. Sample sensors are free and unlimited. The limit is checked when a sensor is created as, or switched to, API or phone mode; when a phone link is created for a sample Phone sensor; when a pairing code is claimed from the dashboard, chat, or MCP; and again when the device approves. Over the limit, the API returns `403` with code `device_limit`. Existing devices keep working after a downgrade, but no more can be added until the count is below the limit.
 - **Fizz credits** pay for the workspace chat. Each `POST /api/chat` spends one credit after the rate limits pass, so a spoken turn costs one credit too. Speech requests (`/api/voice`) don't spend credits but stop when none remain. Credits reset at the start of each UTC calendar month. When they run out, chat returns `402` with code `credits_exhausted`. If a chat request fails before Fizz's model is asked (the database or chat configuration is unavailable), its credit is given back (`fizz_refund_credit`). Once the model request is sent, the credit stays spent whatever comes back.
+- **Phone calls** are included when `fizz_plans.calls_enabled` is true (Tinkerer, Pro, and Enterprise). Hobbyist can create dashboard-only alerts (`notify_channel` `none`). A call alert returns `402` `calls_not_included` on Hobbyist and `400` `phone_not_paired` until that number is in `fizz_verified_phones`. The same checks run when the event is queued and again in `fizz_alert_call_still_due` immediately before AgentPhone is contacted, so a downgrade or a removed number does not dial a call that was already queued. `fizz_billing_sync` skips pending and sending calls when the plan loses calls.
+
+Pairing is owner-session only (`GET`/`POST /api/phones`). The database returns a 6-digit code to the API, which speaks it digit by digit and does not return it to the browser. The code is stored as a SHA-256 hash, expires after 10 minutes, allows 5 attempts, and works once. A new call waits 60 seconds for the same account and number. Call budgets, counted only when a call is about to be placed, are 5 an hour and 10 a day per account, 3 an hour and 5 a day per number across all accounts, 8 an hour per network (the same client IP key as other limits: one IPv4 address or one IPv6 /64), and 100 an hour for the whole service. A workspace can hold 10 paired numbers. Agent tokens and WebMCP have no pairing tool.
 
 Limits live in `fizz_plans`, read through `fizz_monthly_credits`, which is the single source for enforcement. When the allowances were cut (November 2026), existing customers kept their previous allowance in `fizz_credit_grandfather`: paid subscribers until the end of the billing period they had paid for, everyone else until the next monthly reset. A grandfathered allowance applies only while the customer stays on the plan it was recorded for; the landing page's pricing table repeats the numbers. Accounts without a `fizz_subscriptions` row are on Hobbyist. Usage is stored in `fizz_credit_usage`, and `GET /api/account` returns the plan and current usage, which Settings displays.
 
@@ -120,7 +123,8 @@ The Sensors page can create additional sensors, switch a sensor to API mode, rot
 | `GET /api/readings?sensor_id=<uuid>&limit=100` | Recent readings for an owned sensor |
 | `POST /api/ingest` | Send readings using a sensor API key |
 | `GET`, `POST`, `DELETE /api/phone` | Pair and revoke phone devices; phone posts motion, voice, and location data |
-| `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold and silence rules |
+| `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold and silence rules. A call alert is rejected unless the number is paired and the plan includes calls |
+| `GET`, `POST /api/phones` | List, pair, confirm, and remove workspace phone numbers. Owner session only; agent tokens cannot call it |
 | `GET`, `POST /api/cron` | Scan silence alerts and send queued calls for up to about 36 seconds. Requires `Authorization: Bearer $CRON_SECRET`. A blank secret is treated as unset and the route returns 503 |
 | `POST /api/chat` | Ask Fizz about readings, add sensors, claim device pairing codes, and create alerts |
 | `GET`, `POST /api/voice` | Check voice availability, transcribe microphone audio, and speak agent replies (session cookie) |
@@ -192,7 +196,7 @@ The server is stateless and speaks both MCP eras on the same endpoint. Clients o
 | `list_sensors` | Sensors and paired devices with their latest reading |
 | `get_readings` | Recent readings for one sensor, optionally one metric (up to 100) |
 | `list_alerts` | Threshold and silence rules (kind, window, whether each is triggered) and the 20 most recent triggers |
-| `create_alert` | Threshold or silence alert. A silence alert takes `kind: "silence"` and optional `silence_minutes` (default 10). Optional `call_phone` must already be saved on an active alert in this workspace (the owner adds it from the dashboard or by asking Fizz). Repeats return the existing rule (only for tokens allowed to create alerts) |
+| `create_alert` | Threshold or silence alert. A silence alert takes `kind: "silence"` and optional `silence_minutes` (default 10). Optional `call_phone` must already be paired by the owner in the dashboard, and the plan must be Tinkerer, Pro, or Enterprise. The token cannot pair a number. Repeats return the existing rule (only for tokens allowed to create alerts) |
 | `pair_device` | Claim a pairing code shown by `fizz pair` |
 
 Hermes Agent (`config.yaml`):

@@ -3,6 +3,7 @@ pub mod agent;
 pub mod agents;
 pub mod auth;
 pub mod billing;
+pub mod call_phones;
 pub mod contact;
 pub mod cron;
 pub mod customer;

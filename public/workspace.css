@@ -186,6 +186,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .quick-alert-notify label { color: #647c8d; font-size: 13px; }
 .quick-alert-notify select { width: auto; }
 .quick-alert-notify input { width: auto; }
+.phones-panel { margin-bottom: 18px; }
+.phones-intro { margin: 0 0 12px; color: #647c8d; font-size: 14px; line-height: 1.6; }
+.phone-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.phone-list:empty { display: none; }
+.phone-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #d7e2e9; border-radius: 6px; background: white; }
+.phone-row strong { color: #254253; font-size: 15px; letter-spacing: .2px; }
+.phone-pair { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 8px; }
+.phone-pair label { display: grid; gap: 4px; flex: 1 1 16rem; color: #647c8d; font-size: 13px; }
+.phone-pair input { width: 100%; border: 1px solid #d7e2e9; border-radius: 5px; background: white; color: #254253; padding: 9px; font-size: 14px; }
+.phone-pair .primary, .phone-pair .secondary { min-height: 38px; }
+#call-pause-banner, #phones-upgrade { margin: 0 0 12px; }
+#phones-upgrade a { font-weight: 600; }
 .form-message { margin-top: 8px; color: var(--accent); font-size: 14px; line-height: 1.6; }
 .form-message:empty { min-height: 0; margin: 0; }
 .chat-panel { position: sticky; top: 22px; min-height: 550px; padding: 21px; border-color: #cfe3eb; background: linear-gradient(165deg, #f6fcfd, #fff 35%); }

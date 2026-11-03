@@ -75,6 +75,10 @@ name = "phone"
 path = "api/phone.rs"
 
 [[bin]]
+name = "phones"
+path = "api/phones.rs"
+
+[[bin]]
 name = "voice"
 path = "api/voice.rs"
 

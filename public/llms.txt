@@ -24,7 +24,7 @@ Tools return JSON text. Failures return `{"ok": false, "error": "..."}` with a m
 
 ## Payments
 
-Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month), Tinkerer ($10/month, 10 devices, 100 credits), Pro ($25/month, 50 devices, 1,000 credits), Enterprise (contact us). Sample sensors do not count as devices; one credit is one message to Fizz.
+Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month, dashboard alerts only), Tinkerer ($10/month, 10 devices, 100 credits, phone calls), Pro ($25/month, 50 devices, 1,000 credits, phone calls), Enterprise (contact us, phone calls). Sample sensors do not count as devices; one credit is one message to Fizz. Phone calls, including the call that pairs a number, are not included on Hobbyist.
 
 `start_checkout` with `plan: "tinkerer"` or `"pro"` opens Stripe Checkout in the same tab. The person enters their own payment details and confirms; do not enter card details for them. The plan updates within seconds, and `get_account` shows it. `open_billing_portal` handles plan changes, payment methods, invoices, and cancellation.
 
@@ -43,7 +43,7 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 - A person must confirm their email before signing in; an agent cannot skip that step.
 - Passkeys, Google sign-in, voice chat, and phone sensor permissions need the person at the device.
 - Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`.
-- `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must already be saved on an active alert in this workspace; the owner adds it from the dashboard or by asking Fizz. Asking again for the same alert returns the existing one.
+- `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must already be paired by the owner under Phones in the dashboard. Pairing is a phone call that reads a code; only the signed-in owner can start or finish it, and agent or MCP tokens cannot. Phone calls require Tinkerer, Pro, or Enterprise. If the number is not paired, or the plan does not include calls, create a dashboard-only alert and tell the person to pair the number or upgrade. Asking again for the same alert returns the existing one.
 
 ## Machine-readable descriptions
 

@@ -47,6 +47,11 @@ begin
   select * into a from pg_temp.silence_ids where n = 1;
   select * into b from pg_temp.silence_ids where n = 2;
 
+  -- Calls require a paid plan and a paired number. These fixtures are the happy path.
+  insert into public.fizz_subscriptions(customer_id, plan) values (a.customer_id, 'tinkerer'), (b.customer_id, 'pro');
+  insert into public.fizz_verified_phones(customer_id, phone)
+  values (a.customer_id, '+14155550100'), (b.customer_id, '+14155550199');
+
   perform pg_temp.silence_assert(public.fizz_us_phone('(415) 555-0199') = '+14155550199', 'formats a US number');
   perform pg_temp.silence_assert(public.fizz_us_phone('415-055-0199') is null, 'rejects an invalid exchange');
 
@@ -267,9 +272,10 @@ begin
   -- The scan records that a scheduler is running.
   perform pg_temp.silence_assert((public.fizz_list_alerts(a.session_token)->>'silence_scheduler_active')::boolean, 'list_alerts reports a recent scan');
 
-  -- MCP may only reuse a number that is on an active alert.
+  -- A paired number can be used even when older alerts are paused. An unpaired number cannot.
   update public.fizz_alert_rules set enabled = false where customer_id = a.customer_id;
-  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0100'))->>'error' = 'invalid_arguments', 'MCP cannot reuse a number from a paused alert');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'silence_minutes', 15, 'call_phone', '(415) 555-0100'))->'result'->>'created' = 'true', 'MCP can call a paired number after older alerts are paused');
+  perform pg_temp.silence_assert(public.fizz_agent_call(a.agent_token, '127.0.0.1', 'create_alert', jsonb_build_object('sensor_id', a.sensor_id, 'kind', 'silence', 'call_phone', '(415) 555-0198'))->>'error' = 'invalid_arguments', 'MCP cannot call a number that is not paired');
 end $$;
 
 -- Clients cannot run the scanner or read another account's silence rule.

@@ -98,7 +98,7 @@
       <h3>When you use Fizzlayer</h3>
       <ul>
         <li><strong>Sensor data:</strong> sensor names and types, and the readings your sensors and devices send.</li>
-        <li><strong>Alerts:</strong> the rules you create and when they trigger. If you ask Fizzlayer to call you, we store that US phone number with the alert.</li>
+        <li><strong>Alerts:</strong> the rules you create and when they trigger. If you pair a number for calls, we store that US phone number on your workspace. The pairing code is stored only as a hash, expires in about 10 minutes, and works once.</li>
         <li><strong>Connected agents:</strong> the name you give each agent and what it is allowed to do. Agent tokens and sensor keys are stored only as hashes.</li>
         <li><strong>Paired devices:</strong> the device name and platform shown during pairing.</li>
       </ul>
@@ -142,7 +142,7 @@
         <li><strong>Vercel:</strong> hosts the website and API, counts page views with Vercel Web Analytics, and routes chat requests to AI model providers through Vercel AI Gateway.</li>
         <li><strong>AI model providers</strong> (such as OpenAI), through Vercel AI Gateway: receive your chat messages and the readings needed to answer.</li>
         <li><strong>ElevenLabs:</strong> turns voice recordings into text and Fizzlayer’s replies into speech.</li>
-        <li><strong>AgentPhone:</strong> places alert calls to the phone number you choose.</li>
+        <li><strong>AgentPhone:</strong> places alert calls, and the pairing call that reads your code, to a number you asked us to call. Recording is off.</li>
         <li><strong>Stripe:</strong> processes payments for paid plans and stores your payment details.</li>
         <li><strong>Google:</strong> handles Google sign-in, and serves the pixel font used on our pages, which shares your IP address with Google.</li>
         <li><strong>GitHub:</strong> handles GitHub sign-in, and hosts downloads of the <code>fizz</code> command-line tool.</li>

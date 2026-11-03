@@ -112,9 +112,84 @@
     return `${sensor.name} ${rule.comparator === 'gt' ? 'above' : 'below'} ${kinds.formatValue(rule.threshold, kinds.get(sensor.kind).unit)}`;
   }
 
-  function callPreview(event) {
-    $('call-transcript').textContent = `“Hi, this is Fizz from your Harbor & Pine demo workspace. ${event.name} is reading ${event.value}. Your alert is set for ${event.description}. Please check the sensor and the space.”`;
+  function showCall(eyebrow, title, transcript, footnote) {
+    $('call-eyebrow').textContent = eyebrow;
+    $('call-title').textContent = title;
+    $('call-transcript').textContent = transcript;
+    $('call-footnote').textContent = footnote;
     $('call-dialog').showModal();
+  }
+
+  function callPreview(event) {
+    showCall(
+      'SIMULATED PHONE ALERT',
+      'Fizz is calling the shift lead.',
+      `“Hi, this is Fizz from your Harbor & Pine demo workspace. ${event.name} is reading ${event.value}. Your alert is set for ${event.description}. Please check the sensor and the space.”`,
+      'This is a call preview. No phone number is used and no real call is placed.',
+    );
+  }
+
+  const digitWords = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  let pairedPhones = [];
+  let pendingPair = null;
+  function demoPhone(input) {
+    const digits = String(input || '').replace(/\D/g, '');
+    const national = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+    if (national.length !== 10 || national[0] < '2' || national[3] < '2') return null;
+    return `+1${national}`;
+  }
+  function spokenCode(code) {
+    return [...code].map((digit) => digitWords[Number(digit)]).join('. ');
+  }
+  function formatDemoPhone(phone) {
+    const match = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(phone || '');
+    return match ? `(${match[1]}) ${match[2]}-${match[3]}` : phone;
+  }
+  function renderPhones() {
+    const list = $('demo-phones');
+    list.replaceChildren();
+    $('demo-phones-empty').hidden = pairedPhones.length > 0;
+    for (const phone of pairedPhones) {
+      const item = el('li', 'phone-row');
+      item.append(el('strong', '', formatDemoPhone(phone)));
+      const remove = el('button', 'secondary', 'Remove');
+      remove.type = 'button';
+      remove.addEventListener('click', () => {
+        pairedPhones = pairedPhones.filter((item) => item !== phone);
+        $('demo-phone-message').textContent = `${formatDemoPhone(phone)} was removed. New call previews need a paired number.`;
+        renderPhones();
+      });
+      item.append(remove);
+      list.append(item);
+    }
+  }
+  function startDemoPair(raw) {
+    const phone = demoPhone(raw);
+    if (!phone) {
+      $('demo-phone-message').textContent = 'Enter a valid US phone number. This demo will not call it.';
+      return;
+    }
+    if (pairedPhones.includes(phone)) {
+      $('demo-phone-message').textContent = `${formatDemoPhone(phone)} is already paired in this demo.`;
+      return;
+    }
+    if (pendingPair && pendingPair.phone === phone && Date.now() < pendingPair.resendAt) {
+      $('demo-phone-message').textContent = 'Wait a few seconds before calling this number again. In the app, the wait is one minute.';
+      return;
+    }
+    const code = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+    const spoken = spokenCode(code);
+    pendingPair = { phone, code, attempts: 0, expires: Date.now() + 10 * 60 * 1000, resendAt: Date.now() + 8000 };
+    $('demo-confirm-form').hidden = false;
+    $('demo-code').value = '';
+    $('demo-phone-message').textContent = `Simulated call to ${formatDemoPhone(phone)}. Listen for the code, then enter it. It expires in 10 minutes.`;
+    showCall(
+      'SIMULATED PAIRING CALL',
+      `Fizzlayer is calling ${formatDemoPhone(phone)}.`,
+      `“This is Fizzlayer, calling to pair your phone. Your pairing code is: ${spoken}. I will repeat the code. Your pairing code is: ${spoken}. Enter this code in the dashboard. Goodbye.”`,
+      'Simulated pairing call. The real app places this call and does not show the code on screen.',
+    );
+    $('demo-code').focus();
   }
 
   function ruleStatus(rule) {
@@ -307,9 +382,13 @@
       if (!sensor) return missingSensorReply(subject && !vague ? subject : '');
       const comparator = /below|under/.test(match[1]) ? 'lt' : 'gt';
       const threshold = Number(match[2]);
-      const notification = /call|phone/.test(text) ? 'call' : 'dashboard';
+      const wantsCall = /call|phone/.test(text);
+      if (wantsCall && !pairedPhones.length) {
+        return `I can watch ${sensor.name}, but a call needs a paired number. Use Phones above: the demo shows the code the real app would read aloud. Or ask for a dashboard alert, which does not call.`;
+      }
+      const notification = wantsCall ? 'call' : 'dashboard';
       const created = addRule(sensor.id, comparator, threshold, notification);
-      return `${created ? 'Demo alert created' : 'That demo alert is already watching'}: ${sensor.name} ${comparator === 'gt' ? 'above' : 'below'} ${kinds.formatValue(threshold, kinds.get(sensor.kind).unit)}. ${notification === 'call' ? 'It will show a simulated phone alert.' : 'It will appear in Alerts & activity.'}`;
+      return `${created ? 'Demo alert created' : 'That demo alert is already watching'}: ${sensor.name} ${comparator === 'gt' ? 'above' : 'below'} ${kinds.formatValue(threshold, kinds.get(sensor.kind).unit)}. ${notification === 'call' ? `It will preview a call to ${formatDemoPhone(pairedPhones[0])}.` : 'It will appear in Alerts & activity.'}`;
     }
     if (/alert|watch list|watching|threshold/.test(text)) return rules.length ? `Your sample watch list: ${rules.map((rule) => `${ruleDescription(rule)} (${rule.enabled ? breached(rule) ? 'triggered' : 'watching' : 'paused'})`).join('; ')}. Use “Simulate temperature spike” to try the cold room alert.` : 'Your sample watch list is empty. Create a threshold alert below to try it.';
     if (/cold|spike|warm/.test(text)) return `Cold Room is ${valueText(cold)} in the sample workspace. ${incident ? 'The temperature spike is active. Check Alerts & activity for any thresholds crossed; you can also preview the sample phone call.' : 'It is below the default 8 °C alert threshold. Its recent sample readings are steady. Try simulating a spike to see what happens.'}`;
@@ -377,6 +456,13 @@
     arrowLabel($('simulate-spike'), 'Simulate temperature spike');
     $('scenario-result').hidden = true;
     document.querySelector('.demo-scenario').classList.remove('incident');
+    pairedPhones = [];
+    pendingPair = null;
+    $('demo-phone-message').textContent = '';
+    $('demo-phone').value = '';
+    $('demo-code').value = '';
+    $('demo-confirm-form').hidden = true;
+    renderPhones();
     $('rule-message').textContent = '';
     $('demo-alert-form').reset();
     $('alert-builder').open = false;
@@ -421,8 +507,50 @@
     event.preventDefault();
     const threshold = Number($('rule-threshold').value);
     if (!Number.isFinite(threshold)) return;
-    const created = addRule($('rule-sensor').value, $('rule-comparator').value, threshold, $('rule-notification').value);
-    $('rule-message').textContent = created ? 'Demo alert created. Try a temperature spike to see it trigger.' : 'That demo alert already exists in your watch list.';
+    const notification = $('rule-notification').value;
+    if (notification === 'call' && !pairedPhones.length) {
+      $('rule-message').textContent = 'Pair a number above before a call preview can use one. Dashboard-only alerts do not need a phone.';
+      return;
+    }
+    const created = addRule($('rule-sensor').value, $('rule-comparator').value, threshold, notification);
+    $('rule-message').textContent = created
+      ? (notification === 'call' ? `Demo alert created. A trigger will preview a call to ${formatDemoPhone(pairedPhones[0])}.` : 'Demo alert created. Try a temperature spike to see it trigger.')
+      : 'That demo alert already exists in your watch list.';
+  });
+  $('demo-pair-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    startDemoPair($('demo-phone').value);
+  });
+  $('demo-resend').addEventListener('click', () => startDemoPair($('demo-phone').value || pendingPair?.phone));
+  $('demo-confirm-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!pendingPair) {
+      $('demo-phone-message').textContent = 'Call the number first to hear a simulated code.';
+      return;
+    }
+    if (Date.now() > pendingPair.expires) {
+      pendingPair = null;
+      $('demo-phone-message').textContent = 'That code expired. Call the number again for a new one.';
+      return;
+    }
+    const entered = $('demo-code').value.replace(/\D/g, '');
+    if (entered !== pendingPair.code) {
+      pendingPair.attempts += 1;
+      if (pendingPair.attempts >= 5) {
+        pendingPair = null;
+        $('demo-confirm-form').hidden = true;
+        $('demo-phone-message').textContent = 'Too many tries for this code. Call the number again.';
+        return;
+      }
+      $('demo-phone-message').textContent = `That code doesn't match. ${5 - pendingPair.attempts} tries left.`;
+      return;
+    }
+    pairedPhones.push(pendingPair.phone);
+    $('demo-phone-message').textContent = `${formatDemoPhone(pendingPair.phone)} is paired in this demo. A real workspace would now allow alerts to call it.`;
+    pendingPair = null;
+    $('demo-code').value = '';
+    $('demo-confirm-form').hidden = true;
+    renderPhones();
   });
   for (const button of document.querySelectorAll('[data-close-dialog]')) button.addEventListener('click', () => button.closest('dialog').close());
   for (const link of document.querySelectorAll('.dashboard-bar nav a')) link.addEventListener('click', () => {
