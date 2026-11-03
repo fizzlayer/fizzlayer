@@ -113,7 +113,30 @@ select pg_temp.security_assert((select count(*) from public.fizz_customers where
 select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.7')->>'username' = 'opensignup', 'second sign-in reuses the customer');
 select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f2', 'anon-signup@example.invalid', '198.51.100.7')->>'error' = 'unavailable', 'anonymous users cannot sign up');
 select pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.8')->>'ok' = 'true', 'sign-up limit allows a new network');
-select pg_temp.security_assert(to_regproc('public.fizz_join_waitlist') is null and to_regproc('public.fizz_check_invite') is null, 'waitlist and invite functions are removed');
+-- The invite-era functions stay until the new code is deployed, so a rollout cannot break sign-in.
+select pg_temp.security_assert(to_regprocedure('public.fizz_oauth_sign_in(uuid,text,text,text)') is not null
+  and to_regprocedure('public.fizz_check_invite(text,text)') is not null, 'old sign-in functions remain during deploy');
+
+-- Each account counts once: email sign-ups at sign_up, Google sign-ups when the customer is created.
+do $$ declare i integer; begin
+  for i in 1..10 loop
+    perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.20')->>'ok' = 'true', 'email sign-up within limit ' || i);
+  end loop;
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.20')->>'error' = 'rate_limited', 'eleventh email sign-up from one network');
+  insert into auth.users(id, email, encrypted_password, is_anonymous, raw_app_meta_data)
+  values ('00000000-0000-4000-8000-0000000000f3', 'email-user@example.invalid', 'hash', false, '{"provider":"email"}');
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f3', 'email-user@example.invalid', '198.51.100.20') ? 'token',
+    'a confirmed email user is not charged a second time on first sign-in');
+  for i in 1..11 loop
+    insert into auth.users(id, email, encrypted_password, is_anonymous, raw_app_meta_data)
+    values (('00000000-0000-4000-8000-0000000001' || lpad(i::text, 2, '0'))::uuid, 'google-' || i || '@example.invalid', 'hash', false, '{"provider":"google"}');
+  end loop;
+  for i in 1..10 loop
+    perform pg_temp.security_assert(public.fizz_oauth_sign_in(('00000000-0000-4000-8000-0000000001' || lpad(i::text, 2, '0'))::uuid, 'google-' || i || '@example.invalid', '198.51.100.21') ? 'token', 'Google sign-up within limit ' || i);
+  end loop;
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-000000000111', 'google-11@example.invalid', '198.51.100.21')->>'error' = 'rate_limited', 'eleventh Google sign-up from one network');
+  perform pg_temp.security_assert(pg_get_functiondef('public.fizz_sign_up_allowed(text)'::regprocedure) ilike '%sign_up_all%', 'sign-up has a global limit');
+end $$;
 select pg_temp.security_assert(s.api_key_hash is null and s.status='paused', 'ban revokes sensor keys') from security_ids i join public.fizz_sensors s on s.id=i.sensor_id where n=2;
 select pg_temp.security_assert(d.revoked_at is not null, 'ban revokes phone devices') from security_ids i join public.fizz_phone_devices d on d.sensor_id=i.phone_id where n=2;
 select pg_temp.security_assert(a.revoked_at is not null, 'ban revokes agents') from security_ids i join public.fizz_agent_connections a on a.id=i.agent_id where n=2;

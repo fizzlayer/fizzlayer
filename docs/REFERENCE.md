@@ -4,11 +4,11 @@ Account flows, plans, sensor APIs, alerts, voice, and agent connections. For set
 
 ## Customer onboarding
 
-Anyone can create an account from `/app.html` with email and password or Google. New accounts start on the free Hobbyist plan. New sign-ups are limited to 10 per client IP per hour. IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`.
+Anyone can create an account from `/app.html` with email and password or Google. New accounts start on the free Hobbyist plan. Each new account counts once against two limits: 10 per client IP per hour and 500 across the service per hour. An email sign-up counts when the confirmation email is requested (`fizz_sign_up_allowed`); a Google sign-up counts when its customer is created (`fizz_oauth_sign_in`). IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`.
 
 Businesses use the Enterprise form on the landing page, which posts to `POST /api/contact` with an email, a company name (up to 120 characters), and an optional note (up to 500). Entries go to `fizz_business_interest`, one row per email; submitting again updates the company and note. That form allows 10 submissions per client IP per hour and 1,000 overall per hour.
 
-Sign-up used to need an invite code, and the landing page collected a waitlist. Both are retired: `fizz_waitlist` and `fizz_invite_codes` are kept for their existing rows (to email the people on the list, and to keep redemption history), but nothing writes to them.
+Sign-up used to need an invite code, and the landing page collected a waitlist. Both are retired: `fizz_waitlist` and `fizz_invite_codes` are kept for their existing rows (to email the people on the list, and to keep redemption history), but nothing writes to them. `POST /api/waitlist` is rewritten to `/api/contact`, which answers a waitlist sign-up with `410 waitlist_closed` so cached pages and agents get a clear answer. The invite-era functions (the 4-argument `fizz_oauth_sign_in`, `fizz_check_invite`, `fizz_join_waitlist`, `fizz_create_invites`, `fizz_normalize_invite`) stay in the database so the old code keeps working while a deploy rolls out; drop them in a later migration once every deployment runs the new code.
 
 ### Sign-in through Supabase Auth
 
@@ -42,7 +42,7 @@ The following Supabase Auth settings describe the hosted service. For your own d
 
 The core account flows require `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. See [self-hosting](SELF_HOSTING.md) for deployment settings and optional integrations.
 
-Link the project with `supabase link --project-ref <project-ref>`, then apply migrations with `supabase db push --linked` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel. The browser calls only Fizzlayer's `/api/waitlist`, `/api/auth`, `/api/session` (sign out), and `/api/me` endpoints for accounts; it never receives a Supabase key.
+Link the project with `supabase link --project-ref <project-ref>`, then apply migrations with `supabase db push --linked` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel. The browser calls only Fizzlayer's `/api/contact`, `/api/auth`, `/api/session` (sign out), and `/api/me` endpoints for accounts; it never receives a Supabase key.
 
 All 13 customer-owned tables have separate RLS policies for SELECT, INSERT, UPDATE, and DELETE, restricted to the `authenticated` role. Ownership resolves `auth.uid()` through `fizz_customers.auth_user_id`; Supabase anonymous sign-ins are rejected. Writes must preserve ownership and reference the same customer's sensors, readings, rules, devices, and agents. Invite ownership uses `fizz_invite_codes.created_by`; unowned invites and unclaimed device pairings are inaccessible to clients. Waitlist submissions, business leads, and rate limits remain server-only.
 
@@ -66,9 +66,9 @@ Each account has a plan that caps its connected devices and its monthly Fizz cre
 | Enterprise | Custom | Unlimited | Unlimited |
 
 - **Connected devices** are API sensors (including CLI-paired devices) and phone sensors that have not been deleted. Sample sensors are free and unlimited. The limit is checked when a sensor is created as, or switched to, API or phone mode; when a phone link is created for a sample Phone sensor; when a pairing code is claimed from the dashboard, chat, or MCP; and again when the device approves. Over the limit, the API returns `403` with code `device_limit`. Existing devices keep working after a downgrade, but no more can be added until the count is below the limit.
-- **Fizz credits** pay for the workspace chat. Each `POST /api/chat` spends one credit after the rate limits pass, so a spoken turn costs one credit too. Speech requests (`/api/voice`) don't spend credits but stop when none remain. Credits reset at the start of each UTC calendar month. When they run out, chat returns `402` with code `credits_exhausted`.
+- **Fizz credits** pay for the workspace chat. Each `POST /api/chat` spends one credit after the rate limits pass, so a spoken turn costs one credit too. Speech requests (`/api/voice`) don't spend credits but stop when none remain. Credits reset at the start of each UTC calendar month. When they run out, chat returns `402` with code `credits_exhausted`. A chat request that fails with a server error after spending its credit gets it back (`fizz_refund_credit`).
 
-Limits live in `fizz_plans`, which is the single source for enforcement; the landing page's pricing table repeats the numbers. Accounts without a `fizz_subscriptions` row are on Hobbyist. Usage is stored in `fizz_credit_usage`, and `GET /api/account` returns the plan and current usage, which Settings displays.
+Limits live in `fizz_plans`, read through `fizz_monthly_credits`, which is the single source for enforcement. When the allowances were cut (November 2026), existing customers kept their previous allowance in `fizz_credit_grandfather`: paid subscribers until the end of the billing period they had paid for, everyone else until the next monthly reset. A grandfathered allowance applies only while the customer stays on the plan it was recorded for; the landing page's pricing table repeats the numbers. Accounts without a `fizz_subscriptions` row are on Hobbyist. Usage is stored in `fizz_credit_usage`, and `GET /api/account` returns the plan and current usage, which Settings displays.
 
 Run `supabase db query --linked --file supabase/tests/plan_limits.sql` to verify device limits, credit spending, monthly resets, and client grants.
 

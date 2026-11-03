@@ -82,6 +82,26 @@ do $$ declare a record; b record; result jsonb; sample uuid; phone uuid; api uui
     = 'hobbyist=10,tinkerer=100,pro=1000', 'plan credit allowances');
   update public.fizz_credit_usage set period_start = period_start - interval '1 month' where customer_id = b.customer_id;
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'credits reset each month');
+
+  -- Customers who had a larger allowance keep it until their recorded date, on the same plan only.
+  insert into public.fizz_credit_grandfather(customer_id, plan, monthly_credits, until) values (b.customer_id, 'hobbyist', 100, now() + interval '1 day');
+  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'monthly_credits')::int = 100, 'grandfathered allowance is reported');
+  update public.fizz_credit_usage set used = 50 where customer_id = b.customer_id and period_start = public.fizz_credit_period();
+  perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'grandfathered allowance is spendable');
+  update public.fizz_credit_grandfather set plan = 'pro' where customer_id = b.customer_id;
+  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'monthly_credits')::int = 10, 'grandfathering applies only to the recorded plan');
+  update public.fizz_credit_grandfather set plan = 'hobbyist', until = now() - interval '1 second' where customer_id = b.customer_id;
+  perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'error' = 'credits_exhausted', 'grandfathering ends on its date');
+  delete from public.fizz_credit_grandfather where customer_id = b.customer_id;
+
+  -- A failed chat gets its credit back, never below zero.
+  update public.fizz_credit_usage set used = 5 where customer_id = b.customer_id and period_start = public.fizz_credit_period();
+  perform pg_temp.plan_assert(public.fizz_refund_credit(b.token)->>'ok' = 'true', 'refund succeeds');
+  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'credits_used')::int = 4, 'refund returns one credit');
+  update public.fizz_credit_usage set used = 0 where customer_id = b.customer_id and period_start = public.fizz_credit_period();
+  perform public.fizz_refund_credit(b.token);
+  perform pg_temp.plan_assert((public.fizz_session_account(b.token)->'plan'->>'credits_used')::int = 0, 'refund never goes below zero');
+  perform pg_temp.plan_assert(public.fizz_refund_credit('junk')->>'error' = 'unauthorized', 'refund needs a session');
   insert into public.fizz_subscriptions(customer_id, plan) values (b.customer_id, 'enterprise');
   update public.fizz_credit_usage set used = 1000000 where customer_id = b.customer_id;
   perform pg_temp.plan_assert(public.fizz_request_budget(b.token, 'chat')->>'ok' = 'true', 'Enterprise credits are unlimited');

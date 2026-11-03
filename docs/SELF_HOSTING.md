@@ -26,6 +26,8 @@ supabase db push --linked
 
 Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, sign-up flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
 
+> **Upgrading an invite-only instance:** `20261105000000_open_sign_up.sql` removes the invite requirement, so anyone who can reach your deployment can create an account once it is applied. To stay private, turn off **Allow new users to sign up** in Supabase Auth settings first. The migration only adds functions, so apply it before or after deploying the matching code; the old invite functions stay until a later cleanup migration.
+
 Use a separate Supabase project for development or staging. Preview deployments pointing at the production database can write production data. Review migrations and backups before updating an existing instance; do not use `db reset` against production.
 
 ## 2. Configure Supabase Auth
@@ -149,7 +151,7 @@ For a local Supabase database, install Docker and run:
 scripts/dev.sh --local-db
 ```
 
-This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an invite in local Studio at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
+This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an account at the app URL; Studio is at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
 
 The local `supabase/config.toml` disables Google sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
 

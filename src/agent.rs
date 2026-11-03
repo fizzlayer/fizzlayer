@@ -19,8 +19,10 @@ pub const MAX_CHAT_HISTORY_ENTRY_CHARS: usize = 3000;
 pub const MAX_CHAT_CONVERSATION_CHARS: usize = 12_000;
 /// Room for the conversation cap in multi-byte text plus JSON escaping.
 const MAX_CHAT_BODY_BYTES: usize = 64 * 1024;
+/// Alert rules are a few small fields.
+const MAX_ALERT_BODY_BYTES: usize = 32 * 1024;
 
-async fn body(request: Request) -> Result<Value, Response<ResponseBody>> {
+async fn body(request: Request, limit: usize) -> Result<Value, Response<ResponseBody>> {
     if !request
         .headers()
         .get("content-type")
@@ -29,7 +31,7 @@ async fn body(request: Request) -> Result<Value, Response<ResponseBody>> {
     {
         return Err(error(415, "unsupported_media_type", "Send JSON."));
     }
-    let bytes = Limited::new(request.into_body(), MAX_CHAT_BODY_BYTES)
+    let bytes = Limited::new(request.into_body(), limit)
         .collect()
         .await
         .map_err(|_| error(413, "invalid_request", "Request is too large."))?
@@ -198,7 +200,7 @@ pub async fn alerts(request: Request) -> Response<ResponseBody> {
     let payload = match method.as_str() {
         "GET" => json!({"p_token":token}),
         "POST" | "PATCH" | "DELETE" => {
-            let data = match body(request).await {
+            let data = match body(request, MAX_ALERT_BODY_BYTES).await {
                 Ok(v) => v,
                 Err(e) => return e,
             };
@@ -326,38 +328,33 @@ fn chat_message(data: &Value) -> Option<&str> {
         .filter(|s| !s.is_empty() && s.chars().count() <= MAX_CHAT_MESSAGE_CHARS)
 }
 
-fn chat_history(data: &Value) -> Option<Vec<Value>> {
+/// The earlier messages sent with a chat request, and how many characters they hold.
+fn chat_history(data: &Value) -> Option<(Vec<Value>, usize)> {
     let Some(history) = data.get("history") else {
-        return Some(Vec::new());
+        return Some((Vec::new(), 0));
     };
     let history = history.as_array()?;
     if history.len() > MAX_CHAT_HISTORY_MESSAGES {
         return None;
     }
-    history
+    let mut chars = 0;
+    let entries = history
         .iter()
         .map(|entry| {
             let role = entry.get("role")?.as_str()?;
             let content = entry.get("content")?.as_str()?;
+            let length = content.chars().count();
             if !matches!(role, "user" | "assistant")
-                || content.is_empty()
-                || content.chars().count() > MAX_CHAT_HISTORY_ENTRY_CHARS
+                || length == 0
+                || length > MAX_CHAT_HISTORY_ENTRY_CHARS
             {
                 return None;
             }
+            chars += length;
             Some(json!({"role":role,"content":content}))
         })
-        .collect()
-}
-
-/// Characters in the new message plus every history entry.
-fn conversation_chars(message: &str, history: &[Value]) -> usize {
-    message.chars().count()
-        + history
-            .iter()
-            .filter_map(|entry| entry["content"].as_str())
-            .map(|content| content.chars().count())
-            .sum::<usize>()
+        .collect::<Option<Vec<_>>>()?;
+    Some((entries, chars))
 }
 
 fn supplied_phone(phone: &str, message: &str, history: &[Value]) -> bool {
@@ -716,7 +713,7 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
     let Some(token) = session_token(&request) else {
         return error(401, "unauthorized", "Sign in to continue.");
     };
-    let data = match body(request).await {
+    let data = match body(request, MAX_CHAT_BODY_BYTES).await {
         Ok(v) => v,
         Err(e) => return e,
     };
@@ -727,14 +724,14 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
             "Write a message up to 1,000 characters.",
         );
     };
-    let Some(history) = chat_history(&data) else {
+    let Some((history, history_chars)) = chat_history(&data) else {
         return error(
             400,
             "invalid_history",
             "Send up to 12 recent conversation messages.",
         );
     };
-    if conversation_chars(message, &history) > MAX_CHAT_CONVERSATION_CHARS {
+    if message.chars().count() + history_chars > MAX_CHAT_CONVERSATION_CHARS {
         return error(
             413,
             "conversation_too_large",
@@ -751,6 +748,25 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
     if let Err(response) = crate::security::paid_request_budget(&store, &token, "chat").await {
         return response;
     }
+    let response = answer(&store, &token, message, &history).await;
+    // The credit is spent before Fizz answers. Give it back when no answer came.
+    if response.status().is_server_error()
+        && let Err(problem) = store
+            .rpc("fizz_refund_credit", json!({"p_token": token}))
+            .await
+    {
+        eprintln!("Fizz chat credit could not be refunded: {problem:?}");
+    }
+    response
+}
+
+/// Everything after the credit is spent: gather context, ask the model, and act on it.
+async fn answer(
+    store: &Supabase,
+    token: &str,
+    message: &str,
+    history: &[Value],
+) -> Response<ResponseBody> {
     let mut context = match store
         .rpc("fizz_chat_context", json!({"p_token":token}))
         .await
@@ -857,9 +873,9 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
             action["type"].as_str(),
             Some("create_sensor" | "pair_device")
         ) {
-            return setup_action(&store, &token, action, &context, message, &history).await;
+            return setup_action(store, token, action, &context, message, history).await;
         }
-        let Some(mut payload) = alert_payload(action, &context, message, &history) else {
+        let Some(mut payload) = alert_payload(action, &context, message, history) else {
             return reply(
                 200,
                 json!({"reply":"I couldn't create that alert. Tell me which sensor to watch, and either a numeric limit or how many minutes of silence. For calls, include your US phone number.","clips":clips}),
@@ -904,6 +920,18 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
 mod tests {
     use super::*;
     #[test]
+    fn dashboard_chat_limits_match_the_server() {
+        let dashboard = include_str!("../public/dashboard.js");
+        let expected = format!(
+            "const CHAT_LIMITS = {{ messages: {MAX_CHAT_HISTORY_MESSAGES}, entryChars: {MAX_CHAT_HISTORY_ENTRY_CHARS}, totalChars: {MAX_CHAT_CONVERSATION_CHARS} }};"
+        );
+        assert!(
+            dashboard.contains(&expected),
+            "public/dashboard.js must declare: {expected}"
+        );
+    }
+
+    #[test]
     fn chat_limits_count_characters_and_cap_the_whole_conversation() {
         let message = |text: String| chat_message(&json!({ "message": text })).map(str::to_owned);
         assert_eq!(message("é".repeat(1000)), Some("é".repeat(1000)));
@@ -912,13 +940,16 @@ mod tests {
         let entry = |chars: usize| json!({"role":"assistant","content":"x".repeat(chars)});
         assert!(chat_history(&json!({"history": [entry(3000)]})).is_some());
         assert!(chat_history(&json!({"history": [entry(3001)]})).is_none());
+        assert!(chat_history(&json!({"history": [entry(0)]})).is_none());
         assert!(chat_history(&json!({"history": vec![entry(1); 13]})).is_none());
         assert!(chat_history(&json!({"history": [{"role":"system","content":"x"}]})).is_none());
-        let history = chat_history(&json!({"history": vec![entry(1000); 11]})).unwrap();
-        assert_eq!(conversation_chars("hi", &history), 11_002);
-        assert!(conversation_chars("hi", &history) <= MAX_CHAT_CONVERSATION_CHARS);
-        let history = chat_history(&json!({"history": vec![entry(3000); 4]})).unwrap();
-        assert!(conversation_chars("hi", &history) > MAX_CHAT_CONVERSATION_CHARS);
+        let (entries, chars) = chat_history(&json!({"history": vec![entry(1000); 11]})).unwrap();
+        assert_eq!((entries.len(), chars), (11, 11_000));
+        let (_, chars) =
+            chat_history(&json!({"history": [{"role":"user","content":"é".repeat(3000)}]}))
+                .unwrap();
+        assert_eq!(chars, 3000);
+        assert_eq!(chat_history(&json!({})).unwrap().1, 0);
     }
     #[test]
     fn silence_reply_uses_the_singular_for_one_minute() {

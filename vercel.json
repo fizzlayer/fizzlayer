@@ -22,6 +22,10 @@
     {
       "source": "/.well-known/webmcp",
       "destination": "/.well-known/webmcp.json"
+    },
+    {
+      "source": "/api/waitlist",
+      "destination": "/api/contact"
     }
   ],
   "headers": [

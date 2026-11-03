@@ -175,17 +175,25 @@
     }
   }
 
-  // The server accepts 12 earlier messages of up to 3,000 characters each, and 12,000
-  // characters for the whole conversation. Send the newest messages that fit.
+  // Must match MAX_CHAT_* in src/agent.rs; a Rust test checks this line.
+  const CHAT_LIMITS = { messages: 12, entryChars: 3000, totalChars: 12000 };
+
+  // Send the newest earlier messages that fit the server's limits, a question and its
+  // reply at a time, so the history never starts with a reply whose question was cut.
   function historyFor(message) {
     const chars = (text) => [...(text || '')].length;
-    let budget = 12000 - chars(message);
+    let budget = CHAT_LIMITS.totalChars - chars(message);
     const kept = [];
-    for (const entry of chatHistory.slice(-12).reverse()) {
-      const size = chars(entry.content);
-      if (!size || size > 3000 || size > budget) break;
+    const recent = chatHistory.slice(-CHAT_LIMITS.messages);
+    for (let end = recent.length; end >= 2; end -= 2) {
+      const pair = recent.slice(end - 2, end);
+      const sizes = pair.map((entry) => chars(entry.content));
+      // Skip a turn that the server would reject, such as an empty reply, and keep going.
+      if (pair[0].role !== 'user' || sizes.some((size) => !size || size > CHAT_LIMITS.entryChars)) continue;
+      const size = sizes[0] + sizes[1];
+      if (size > budget) break;
       budget -= size;
-      kept.unshift(entry);
+      kept.unshift(...pair);
     }
     return kept;
   }

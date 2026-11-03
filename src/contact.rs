@@ -32,6 +32,16 @@ pub async fn contact(request: Request) -> Response<ResponseBody> {
     else {
         return error(400, "invalid_email", "Enter a valid email address.");
     };
+    // Cached copies of the old landing page and WebMCP tools still post waitlist sign-ups
+    // here (through the /api/waitlist rewrite). Tell them the waitlist is closed.
+    if data.get("company").is_none() && data.get("kind").and_then(Value::as_str) != Some("business")
+    {
+        return error(
+            410,
+            "waitlist_closed",
+            "The waitlist is closed. Anyone can create an account at /app.html.",
+        );
+    }
     let Some(company) = clean_text(data.get("company"), 120, false).filter(|c| !c.is_empty())
     else {
         return error(400, "invalid_details", "Enter your company name.");

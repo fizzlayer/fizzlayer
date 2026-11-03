@@ -300,8 +300,9 @@ pub async fn readings(request: Request) -> Response<ResponseBody> {
     }
 }
 
-/// Ingest payload limits. The request body is capped at `MAX_INGEST_BYTES` before parsing,
-/// and the database enforces the same metric count and text length again.
+/// Ingest payload limits. The request body is capped at `MAX_INGEST_BYTES` before parsing.
+/// The database checks the metric count again, and caps text at 512 characters; the
+/// 512-byte check here is the stricter of the two for non-ASCII text.
 pub const MAX_INGEST_BYTES: usize = 16 * 1024;
 pub const MAX_METRICS_PER_READING: usize = 16;
 pub const MAX_METRIC_NAME_BYTES: usize = 40;
@@ -309,7 +310,8 @@ pub const MAX_TEXT_VALUE_BYTES: usize = 512;
 pub const MAX_EVENT_ID_BYTES: usize = 128;
 
 fn valid_metric_name(metric: &str) -> bool {
-    metric.len() <= MAX_METRIC_NAME_BYTES
+    !metric.is_empty()
+        && metric.len() <= MAX_METRIC_NAME_BYTES
         && metric.bytes().enumerate().all(|(i, c)| {
             if i == 0 {
                 c.is_ascii_lowercase()
@@ -319,9 +321,16 @@ fn valid_metric_name(metric: &str) -> bool {
         })
 }
 
+/// A validated ingest body.
+struct Reading<'a> {
+    sensor_id: &'a str,
+    event_id: &'a str,
+    metrics: &'a serde_json::Map<String, Value>,
+}
+
 /// Check one ingest body: the sensor and event IDs, 1 to 16 metrics with valid names, and
 /// values that are numbers, booleans, or text up to 512 bytes.
-fn check_reading(data: &Value) -> Result<(), &'static str> {
+fn check_reading(data: &Value) -> Result<Reading<'_>, &'static str> {
     let id = data.get("sensor_id").and_then(Value::as_str).unwrap_or("");
     let event = data.get("event_id").and_then(Value::as_str).unwrap_or("");
     let Some(metrics) = data.get("metrics").and_then(Value::as_object) else {
@@ -345,7 +354,11 @@ fn check_reading(data: &Value) -> Result<(), &'static str> {
             return Err("Metric values must be numbers, booleans, or short text.");
         }
     }
-    Ok(())
+    Ok(Reading {
+        sensor_id: id,
+        event_id: event,
+        metrics,
+    })
 }
 
 pub async fn ingest(request: Request) -> Response<ResponseBody> {
@@ -366,13 +379,15 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
         Ok(v) => v,
         Err(r) => return r,
     };
-    if let Err(message) = check_reading(&data) {
-        return error(400, "invalid_request", message);
-    }
-    let id = data["sensor_id"].as_str().unwrap_or("");
-    let event = data["event_id"].as_str().unwrap_or("");
+    let Reading {
+        sensor_id: id,
+        event_id: event,
+        metrics,
+    } = match check_reading(&data) {
+        Ok(reading) => reading,
+        Err(message) => return error(400, "invalid_request", message),
+    };
     let observed = data.get("observed_at").and_then(Value::as_str);
-    let metrics = &data["metrics"];
     let Ok(store) = db() else {
         return error(
             503,
@@ -442,6 +457,10 @@ mod tests {
             check_reading(&reading(json!({"a".repeat(MAX_METRIC_NAME_BYTES + 1): 1}))).is_err()
         );
         assert!(check_reading(&reading(json!({"Temp": 1}))).is_err());
+        assert!(check_reading(&reading(json!({"": 1}))).is_err());
+        let checked = reading(json!({"t": 1}));
+        let parsed = check_reading(&checked).unwrap();
+        assert_eq!((parsed.event_id, parsed.metrics.len()), ("e1", 1));
         assert!(check_reading(&reading(json!({"nested": {"a": 1}}))).is_err());
         assert!(check_reading(&reading(json!({"list": [1, 2]}))).is_err());
         let mut long_event = reading(json!({"t": 1}));
