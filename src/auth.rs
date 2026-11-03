@@ -1,10 +1,10 @@
-//! Sign-in through Supabase Auth: Google, email and password, and passkeys.
+//! Sign-in through Supabase Auth: Google, GitHub, email and password, and passkeys.
 //!
 //! Supabase verifies who the person is. Fizzlayer then links that Supabase user to a customer and
 //! issues its usual `fizz_session` cookie, so every other endpoint is unchanged. All Supabase calls
 //! happen here on the server, and the browser never receives a Supabase key.
 //!
-//! - `GET /api/auth?provider=google` starts Google sign-in with PKCE, and
+//! - `GET /api/auth?provider=google` (or `github`) starts sign-in with PKCE, and
 //!   `GET /api/auth?code=...` finishes it.
 //! - `POST /api/auth` with `{"action": ...}` handles email and password, links from Supabase
 //!   emails (which arrive in `/app.html#access_token=...`), and passkeys.
@@ -34,9 +34,12 @@ const FLOW_COOKIE: &str = "fizz_oauth";
 const CLEAR_FLOW_COOKIE: &str =
     "fizz_oauth=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0";
 
-// ---- Google ------------------------------------------------------------------------------------
+// ---- Google and GitHub ---------------------------------------------------------------------------
 
-pub async fn google(request: Request) -> Response<ResponseBody> {
+/// The Supabase providers offered on the sign-in page.
+const OAUTH_PROVIDERS: [&str; 2] = ["google", "github"];
+
+pub async fn oauth(request: Request) -> Response<ResponseBody> {
     let query = Url::parse(&format!(
         "http://fizz.invalid/?{}",
         request.uri().query().unwrap_or("")
@@ -51,23 +54,27 @@ pub async fn google(request: Request) -> Response<ResponseBody> {
     };
 
     if let Some(code) = find("code") {
-        finish_google(&request, code).await
+        finish_oauth(&request, code).await
     } else if let Some(reason) = find("error") {
-        // Supabase reports a cancelled Google consent screen as access_denied.
+        // Supabase reports a cancelled consent screen as access_denied.
         let code = if reason == "access_denied" {
             "cancelled"
         } else {
             "failed"
         };
         back_to_app(Some(code), &[CLEAR_FLOW_COOKIE])
-    } else if find("provider") == Some("google") {
-        start_google(&request)
+    } else if let Some(provider) = find("provider").filter(|p| OAUTH_PROVIDERS.contains(p)) {
+        start_oauth(&request, provider)
     } else {
-        error(400, "invalid_request", "Use provider=google.")
+        error(
+            400,
+            "invalid_request",
+            "Use provider=google or provider=github.",
+        )
     }
 }
 
-fn start_google(request: &Request) -> Response<ResponseBody> {
+fn start_oauth(request: &Request, provider: &str) -> Response<ResponseBody> {
     let (Ok(store), Some(origin)) = (Supabase::from_env(), request_origin(request)) else {
         return back_to_app(Some("failed"), &[]);
     };
@@ -82,13 +89,13 @@ fn start_google(request: &Request) -> Response<ResponseBody> {
     );
     redirect(
         store
-            .authorize_url("google", &format!("{origin}/api/auth"), &challenge)
+            .authorize_url(provider, &format!("{origin}/api/auth"), &challenge)
             .as_str(),
         &[&flow],
     )
 }
 
-async fn finish_google(request: &Request, code: &str) -> Response<ResponseBody> {
+async fn finish_oauth(request: &Request, code: &str) -> Response<ResponseBody> {
     // The verifier lives only in this browser's cookie, so a code from someone else's sign-in
     // (or a forged callback link) cannot be exchanged here.
     // Flow cookies set before invites were removed end in ".<invite>"; the verifier is

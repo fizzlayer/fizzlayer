@@ -48,6 +48,8 @@ Configure an email rate limit appropriate to your expected traffic. Supabase's b
 
 **Google sign-in (optional).** Create a Google Cloud OAuth client of type **Web application**. Set its authorized redirect URI to `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`, then enable Google in Supabase Auth with the client ID and secret. These credentials belong in Supabase, not in the browser or Vercel environment.
 
+**GitHub sign-in (optional).** Create a GitHub OAuth App (GitHub → Settings → Developer settings → OAuth Apps). Set its authorization callback URL to `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`, then enable GitHub in Supabase Auth with the client ID and secret. Like Google's, these credentials belong only in Supabase.
+
 **Passkeys (optional).** Enable passkeys and set the relying party ID to `sensors.example.com`, allowed origin to `https://sensors.example.com`, and display name to `Fizzlayer`. Customers register passkeys from Settings after signing in. Choose the domain before enrollment: changing the relying party ID invalidates existing passkeys. A passkey for your production domain does not work on unrelated preview domains.
 
 The app does not provide a TOTP/MFA challenge flow. Do not enable an enrollment flow that users cannot complete through this UI.
@@ -153,7 +155,7 @@ scripts/dev.sh --local-db
 
 This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an account at the app URL; Studio is at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
 
-The local `supabase/config.toml` disables Google sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
+The local `supabase/config.toml` disables Google and GitHub sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. GitHub works the same way with `SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET`, and `[auth.external.github]`, using a separate GitHub OAuth App whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
 
 ## Verify and operate
 

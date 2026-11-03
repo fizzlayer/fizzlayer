@@ -1,4 +1,4 @@
-use fizz::auth::{action, google};
+use fizz::auth::{action, oauth};
 use fizz::customer::error;
 use vercel_runtime::{Error, Request, Response, ResponseBody, run, service_fn};
 
@@ -12,7 +12,7 @@ async fn handler(request: Request) -> Result<Response<ResponseBody>, Error> {
         return Ok(response);
     }
     Ok(match request.method().as_str() {
-        "GET" => google(request).await,
+        "GET" => oauth(request).await,
         "POST" => action(request).await,
         _ => error(405, "method_not_allowed", "Use GET or POST."),
     })

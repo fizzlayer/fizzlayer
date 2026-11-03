@@ -34,9 +34,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .error, .setup-error { font-size: 15px; line-height: 1.6; color: #b34545; border-color: #d48888; }
 .oauth-divider { margin: 24px 0 16px; color: #647c8d; font-size: 13px; }
 .oauth-divider::before, .oauth-divider::after { border-top: 1px solid var(--line); }
-.google-logo { width: 21px; height: 21px; box-shadow: none; }
-.google-logo svg { width: 16px; height: 16px; }
-.google-button, .passkey-button { height: 43px; }
+.oauth-logo { width: 21px; height: 21px; box-shadow: none; }
+.oauth-logo svg { width: 16px; height: 16px; }
+.oauth-button, .passkey-button { height: 43px; }
 .legal-note { margin-top: 22px; color: #647c8d; font-size: 13px; line-height: 1.7; text-align: center; }
 .shell.setup-active { width: min(100% - 40px, 990px); }
 .setup-screen { padding: 28px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: 0 12px 40px #163a4b05; }

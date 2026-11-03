@@ -42,17 +42,18 @@ input::placeholder { color: #7b9daa; }
 .secondary:hover { background: #18394a; }
 .oauth-divider { display: flex; align-items: center; gap: .75rem; color: #7b9daa; font-size: 1.2rem; text-transform: uppercase; letter-spacing: .12em; margin: 1.8rem 0 1rem; }
 .oauth-divider::before, .oauth-divider::after { content: ""; flex: 1; border-top: 2px solid #31546a; }
-/* Matches the pixel buttons; Google's "G" keeps its standard colors on a white tile. */
-.google-button { display: flex; align-items: center; justify-content: center; gap: .7rem; width: 100%; }
-.google-logo { display: grid; place-items: center; flex: none; width: 1.9rem; height: 1.9rem; background: #fff; box-shadow: 2px 2px 0 #071018; }
-.google-logo svg { display: block; width: 1.3rem; height: 1.3rem; }
+/* Matches the pixel buttons; Google's "G" and GitHub's mark keep their standard colors on a white tile. */
+.oauth-button { display: flex; align-items: center; justify-content: center; gap: .7rem; width: 100%; }
+.oauth-button + .oauth-button { margin-top: .75rem; }
+.oauth-logo { display: grid; place-items: center; flex: none; width: 1.9rem; height: 1.9rem; background: #fff; box-shadow: 2px 2px 0 #071018; }
+.oauth-logo svg { display: block; width: 1.3rem; height: 1.3rem; }
 #email-wrap { margin-bottom: 1.6rem; }
 .text-button { margin-right: auto; padding: 0; border: 0; background: none; color: #a9eaf7; text-decoration: underline; text-underline-offset: 4px; font-size: 1.35rem; }
 .text-button:hover { color: #fff; }
 .email-sent { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.4rem; }
 .email-sent .text-button { margin-right: 0; }
 .passkey-button { width: 100%; margin-top: .75rem; }
-.google-button, .passkey-button { height: 3.2rem; padding-block: 0; }
+.oauth-button, .passkey-button { height: 3.2rem; padding-block: 0; }
 .legal-note { margin: 1.4rem 0 0; color: #9fbfc8; font-size: 1.2rem; }
 .legal-note a { color: #a9eaf7; }
 @media (max-width: 420px) { .panel { padding: 1.25rem; } .mode-switch button { font-size: 1.2rem; } }

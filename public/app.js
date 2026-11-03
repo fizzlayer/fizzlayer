@@ -7,17 +7,17 @@ const sensorNames = {
 let chosenKinds = [];
 let signedInUsername = '';
 
-// Sign-in goes through Supabase Auth via /api/auth: email and password, Google, or a passkey.
+// Sign-in goes through Supabase Auth via /api/auth: email and password, Google, GitHub, or a passkey.
 // Anyone can create an account. Passkeys are added on the Settings page once signed in.
 const passkeysSupported = window.fizzPasskey.supported;
 const modes = {
   create: {
     label: 'NEW ACCOUNT', title: 'Create your account', intro: 'Enter your email and choose a password.',
-    submit: 'Create account', fields: ['email', 'password'], google: 'Sign up with Google',
+    submit: 'Create account', fields: ['email', 'password'], google: 'Sign up with Google', github: 'Sign up with GitHub',
   },
   'sign-in': {
-    label: 'SIGN IN', title: 'Welcome back', intro: 'Sign in with your email and password, Google, or a passkey.',
-    submit: 'Sign in', fields: ['email', 'password'], google: 'Sign in with Google', passkey: true,
+    label: 'SIGN IN', title: 'Welcome back', intro: 'Sign in with your email and password, Google, GitHub, or a passkey.',
+    submit: 'Sign in', fields: ['email', 'password'], google: 'Sign in with Google', github: 'Sign in with GitHub', passkey: true,
   },
   forgot: {
     label: 'RESET', title: 'Reset your password', intro: 'Enter your email and we will send you a link to choose a new password.',
@@ -52,6 +52,7 @@ function render(intro) {
   $('email-sent').hidden = mode !== 'check-email';
   $('oauth').hidden = !choosing;
   $('google-label').textContent = current.google || 'Continue with Google';
+  $('github-label').textContent = current.github || 'Continue with GitHub';
   $('passkey').hidden = !(current.passkey && passkeysSupported);
   $('forgot').hidden = mode !== 'sign-in' && mode !== 'forgot';
   $('forgot').textContent = mode === 'forgot' ? 'Back to sign in' : 'Forgot password?';
@@ -252,10 +253,10 @@ $('create-mode').addEventListener('click', () => setMode('create'));
 $('sign-in-mode').addEventListener('click', () => setMode('sign-in'));
 $('forgot').addEventListener('click', () => setMode(mode === 'forgot' ? 'sign-in' : 'forgot'));
 $('back-to-sign-in').addEventListener('click', () => setMode('sign-in'));
-// Google sign-in leaves the page. A new Google account gets a Fizzlayer account on return.
-$('google').addEventListener('click', () => {
-  location.assign('/api/auth?provider=google');
-});
+// Google and GitHub sign-in leave the page. A new account gets a Fizzlayer account on return.
+for (const provider of ['google', 'github']) {
+  $(provider).addEventListener('click', () => location.assign(`/api/auth?provider=${provider}`));
+}
 
 document.querySelectorAll('.sensor-card').forEach((card) => {
   const info = window.fizzKinds.get(card.dataset.kind);
@@ -331,16 +332,16 @@ $('dashboard-sign-out').addEventListener('click', signOut);
 
 // Arriving here can carry state in the URL fragment:
 // - #sign-in from the landing page's Sign in link.
-// - #auth_error=<code> when Google sign-in fails in /api/auth.
+// - #auth_error=<code> when Google or GitHub sign-in fails in /api/auth.
 // - #access_token=...&type=signup|recovery from a Supabase email link, or #error=... if it expired.
 const hash = new URLSearchParams(location.hash.slice(1));
 const authErrors = {
   mfa_required: 'Complete multi-factor authentication before signing in.',
   rate_limited: 'Too many attempts. Try again in an hour.',
   sign_up_closed: "This instance isn't accepting new accounts.",
-  cancelled: 'Google sign-in was cancelled.',
-  expired: 'Google sign-in took too long or was interrupted. Try again.',
-  failed: 'Google sign-in is temporarily unavailable. Try again.',
+  cancelled: 'Sign-in was cancelled.',
+  expired: 'Sign-in took too long or was interrupted. Try again.',
+  failed: 'Sign-in is temporarily unavailable. Try again.',
 };
 const linkToken = hash.get('access_token');
 const authError = hash.get('auth_error');
