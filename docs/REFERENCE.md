@@ -4,7 +4,7 @@ Account flows, plans, sensor APIs, alerts, voice, and agent connections. For set
 
 ## Customer onboarding
 
-Anyone can create an account from `/app.html` with email and password or Google. New accounts start on the free Hobbyist plan. Sign-up is limited at two steps, each with its own buckets: when a confirmation email is requested (`fizz_sign_up_allowed`), and when a Fizzlayer account is created on first sign-in (`fizz_oauth_sign_in`, for every provider, including email users created outside the app). Each step allows 10 an hour per network, 50 an hour per IPv6 /48, and 5,000 an hour across the service as a circuit breaker. A network is an IPv4 address or an IPv6 /64 block. IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`; every IP-based limit in the API groups IPv6 by /64 the same way.
+Anyone can create an account from `/app.html` with email and password, Google, or GitHub. New accounts start on the free Hobbyist plan. Sign-up is limited at two steps, each with its own buckets: when a confirmation email is requested (`fizz_sign_up_allowed`), and when a Fizzlayer account is created on first sign-in (`fizz_oauth_sign_in`, for every provider, including email users created outside the app). Each step allows 10 an hour per network, 50 an hour per IPv6 /48, and 5,000 an hour across the service as a circuit breaker. A network is an IPv4 address or an IPv6 /64 block. IPs come from Vercel's `x-real-ip` header and are stored only as SHA-256 hashes in `fizz_rate_limits`; every IP-based limit in the API groups IPv6 by /64 the same way.
 
 A self-hosted instance can stop new accounts with `update public.fizz_instance_settings set sign_up_open = false;`. Sign-up and first sign-ins then answer `403 sign_up_closed`; existing accounts still sign in.
 
@@ -14,7 +14,7 @@ Sign-up used to need an invite code, and the landing page collected a waitlist. 
 
 ### Sign-in through Supabase Auth
 
-Every customer is a Supabase Auth user (`fizz_customers.auth_user_id`, required). Customers sign in with **email and password**, **Google**, or a **passkey**. Supabase verifies who they are, then Fizzlayer issues its own session: a random token stored only as a hash and sent in a 12 hour HttpOnly, Secure, SameSite=Lax `fizz_session` cookie. Authenticated web app endpoints use that cookie; ingestion, MCP, and paired devices use their own scoped credentials. All Supabase Auth calls run in `src/auth.rs`, so the browser never receives a Supabase key.
+Every customer is a Supabase Auth user (`fizz_customers.auth_user_id`, required). Customers sign in with **email and password**, **Google**, **GitHub**, or a **passkey**. Supabase verifies who they are, then Fizzlayer issues its own session: a random token stored only as a hash and sent in a 12 hour HttpOnly, Secure, SameSite=Lax `fizz_session` cookie. Authenticated web app endpoints use that cookie; ingestion, MCP, and paired devices use their own scoped credentials. All Supabase Auth calls run in `src/auth.rs`, so the browser never receives a Supabase key.
 
 `fizz_oauth_sign_in` links a verified Supabase user to its customer. A new customer is created on first sign-in and gets a username derived from the email address, such as `janedoe` or `janedoe_4821`. Deleting the Supabase user (for example from the Supabase dashboard, to honor a deletion request) deletes the customer and everything it owns.
 
@@ -31,7 +31,7 @@ New and reset passwords require at least 12 characters and at most 72 bytes; Sup
 
 **Passkeys.** Supabase only lets an existing, signed-in user register a passkey, so passkeys are a way back in rather than a way to sign up. After any sign-in, the Supabase access token is kept for up to an hour in an HttpOnly `fizz_supabase` cookie (`Path=/api`). The **+** button on the Settings page (`/settings.html`) uses it: `passkey_add_options` → `navigator.credentials.create()` → `passkey_add`, which also labels the passkey with the browser and device, such as "Chrome on Mac". Settings lists passkeys and removes them through `GET` and `DELETE /api/account`, which use Supabase's admin API, so they work for the whole session. **Sign in with a passkey** runs `passkey_options` → `navigator.credentials.get()` → `passkey_sign_in`, with no email needed. WebAuthn JSON passes through unchanged. Signing out revokes the Supabase session and clears both cookies.
 
-**Google.** **Continue with Google** opens `GET /api/auth?provider=google`. The function stores a PKCE verifier in a 10 minute HttpOnly `fizz_oauth` cookie, then redirects to Supabase's `/auth/v1/authorize`. Supabase returns to `GET /api/auth?code=...`, where the code is exchanged using the verifier, so a code minted for a different browser fails. Failures come back as `/app.html#auth_error=<code>` (`rate_limited`, `cancelled`, `expired`, or `failed`). A Google account with no Fizzlayer account yet gets one on its first sign-in.
+**Google and GitHub.** The sign-in page asks `GET /api/auth?providers` which of them are turned on in Supabase (from `/auth/v1/settings`) and hides the other buttons. **Continue with Google** opens `GET /api/auth?provider=google`, and **Continue with GitHub** opens `GET /api/auth?provider=github`. Any other provider gets a 400, and a provider turned off in Supabase goes back with `auth_error=unavailable` instead of reaching Supabase's error page. The function stores a PKCE verifier in a 10 minute HttpOnly `fizz_oauth` cookie, then redirects to Supabase's `/auth/v1/authorize`. Supabase returns to `GET /api/auth?code=...`, where the code is exchanged using the verifier, so a code minted for a different browser fails. Failures come back as `/app.html#auth_error=<code>`: `rate_limited`, `cancelled`, `expired`, `failed`, `unavailable`, `no_email` (the provider gave no verified email, for example a GitHub account with none, so retrying will not help), or `verify_email` (Supabase emailed a confirmation link for an unverified provider address). A Google or GitHub account with no Fizzlayer account yet gets one on its first sign-in.
 
 Supabase sees every Auth request coming from Vercel. The client IP is forwarded in `X-Forwarded-For`, but if Supabase ignores it, its per-IP Auth rate limits apply to all customers together.
 
@@ -39,8 +39,9 @@ The following Supabase Auth settings describe the hosted service. For your own d
 
 1. **Email:** under **Authentication → Sign In / Providers → Email**, keep email sign-ups and **Confirm email** on. Configure custom SMTP under **Authentication → Emails → SMTP Settings**. Supabase's built-in sender only delivers to project team members, about 2 emails an hour.
 2. **Google:** create a Google Cloud OAuth client ID of type **Web application** with `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI, then turn on **Google** under **Sign In / Providers** with that client ID and secret.
-3. **Passkeys:** turn on passkeys and set the relying party ID to `fizzlayer.com`, the origin to `https://fizzlayer.com`, and the display name to `Fizzlayer`. Changing the relying party ID later invalidates every existing passkey. Passkeys only work on that domain, not on Vercel preview URLs.
-4. **URL configuration:** set **Site URL** to `https://fizzlayer.com`, and add `https://fizzlayer.com/api/auth` and `https://fizzlayer.com/app.html` to **Redirect URLs**. For local development, also add `http://localhost:3000/api/auth` and `http://localhost:3000/app.html`.
+3. **GitHub:** create a GitHub OAuth App with `https://<project-ref>.supabase.co/auth/v1/callback` as its authorization callback URL, then turn on **GitHub** under **Sign In / Providers** with that client ID and secret. A GitHub OAuth App allows one callback URL, so local development needs a second app pointing at `http://127.0.0.1:54321/auth/v1/callback`.
+4. **Passkeys:** turn on passkeys and set the relying party ID to `fizzlayer.com`, the origin to `https://fizzlayer.com`, and the display name to `Fizzlayer`. Changing the relying party ID later invalidates every existing passkey. Passkeys only work on that domain, not on Vercel preview URLs.
+5. **URL configuration:** set **Site URL** to `https://fizzlayer.com`, and add `https://fizzlayer.com/api/auth` and `https://fizzlayer.com/app.html` to **Redirect URLs**. For local development, also add `http://localhost:3000/api/auth` and `http://localhost:3000/app.html`.
 
 The core account flows require `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. See [self-hosting](SELF_HOSTING.md) for deployment settings and optional integrations.
 
@@ -228,7 +229,7 @@ Tools that change accounts, credentials, money, or data that can't be recovered 
 
 - **Accounts:** anyone can sign up, but email confirmation is still required. `create_account` asks the agent to use a password the person chose.
 - **Payments:** `start_checkout` creates a Stripe Checkout session for Tinkerer or Pro and opens it in the same tab. The person enters payment details on Stripe's page; the webhook updates the plan as usual. `open_billing_portal` opens the Stripe portal the same way.
-- **Device presence:** passkeys, Google sign-in, voice, and phone sensor permissions need the person at the device.
+- **Device presence:** passkeys, Google and GitHub sign-in, voice, and phone sensor permissions need the person at the device.
 
 WebMCP is in a Chrome origin trial. To test locally, enable `chrome://flags/#enable-webmcp-testing`, or launch Chromium with `--enable-features=WebMCP`, then list and run the tools from DevTools:
 

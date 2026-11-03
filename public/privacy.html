@@ -46,7 +46,7 @@
           <li><a href="#collect"><span>02</span> What we collect</a></li>
           <li><a href="#use"><span>03</span> How we use it</a></li>
           <li><a href="#providers"><span>04</span> Who helps us</a></li>
-          <li><a href="#google"><span>05</span> Google sign-in</a></li>
+          <li><a href="#google"><span>05</span> Google and GitHub sign-in</a></li>
           <li><a href="#cookies"><span>06</span> Cookies</a></li>
           <li><a href="#retention"><span>07</span> How long we keep it</a></li>
           <li><a href="#choices"><span>08</span> Your choices</a></li>
@@ -84,6 +84,7 @@
       <ul>
         <li><strong>With email:</strong> your email address and password. The password is stored only as a secure hash, never the password itself.</li>
         <li><strong>With Google:</strong> your Google account ID, email address, name, and profile picture link. We use your email address to suggest your Fizzlayer username.</li>
+        <li><strong>With GitHub:</strong> your GitHub account ID, username, email address, name, and profile picture link. We use your email address to suggest your Fizzlayer username.</li>
         <li><strong>Passkeys:</strong> if you add one, we store only its public key. Your fingerprint, face, or device PIN never leaves your device.</li>
         <li>If you signed up with an invite code before sign-up opened, the code you used.</li>
       </ul>
@@ -144,20 +145,21 @@
         <li><strong>AgentPhone:</strong> places alert calls to the phone number you choose.</li>
         <li><strong>Stripe:</strong> processes payments for paid plans and stores your payment details.</li>
         <li><strong>Google:</strong> handles Google sign-in, and serves the pixel font used on our pages, which shares your IP address with Google.</li>
-        <li><strong>GitHub:</strong> hosts downloads of the <code>fizz</code> command-line tool.</li>
+        <li><strong>GitHub:</strong> handles GitHub sign-in, and hosts downloads of the <code>fizz</code> command-line tool.</li>
       </ul>
       <p>Each provider handles data under its own privacy policy. We may also share information if the law requires it, to protect people’s safety, or as part of a sale or transfer of Fizzlayer. If that happens, this policy will continue to apply to your data.</p>
       <p><strong>AI agents you connect</strong> can read your sensor data with the token you gave them. What they do with it is governed by whoever runs that agent. You can revoke a token at any time on the Agents page.</p>
 
-      <h2 id="google"><span class="num">05</span>Google sign-in</h2>
+      <h2 id="google"><span class="num">05</span>Google and GitHub sign-in</h2>
       <p>If you sign in with Google, we receive only your basic profile: your Google account ID, email address, name, and profile picture link. We use it only to sign you in and to name your account. We do not access your Gmail, contacts, files, or any other Google data.</p>
       <p>Fizzlayer’s use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+      <p id="github">If you sign in with GitHub, we receive only your public profile and email address: your GitHub account ID, username, email address, name, and profile picture link. We use it only to sign you in and to name your account. We do not access your repositories, organizations, or any other GitHub data.</p>
 
       <h2 id="cookies"><span class="num">06</span>Cookies</h2>
       <p>Fizzlayer uses only the cookies it needs to work, and none for analytics:</p>
       <ul>
         <li><strong>fizz_session</strong> keeps you signed in for up to 12 hours.</li>
-        <li><strong>fizz_oauth</strong> protects Google sign-in and lasts at most 10 minutes.</li>
+        <li><strong>fizz_oauth</strong> protects Google and GitHub sign-in and lasts at most 10 minutes.</li>
         <li><strong>fizz_supabase</strong> holds your sign-in for up to 1 hour after you sign in, so you can add a passkey.</li>
       </ul>
       <p>A paired phone also saves its device key in the browser’s local storage so it stays connected.</p>

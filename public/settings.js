@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const passkey = window.fizzPasskey;
-  const providerNames = { email: 'Email and password', google: 'Google' };
+  const providerNames = { email: 'Email and password', google: 'Google', github: 'GitHub' };
   let canAddPasskey = false;
 
   async function api(path, method = 'GET', body) {
