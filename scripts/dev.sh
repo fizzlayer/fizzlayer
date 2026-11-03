@@ -131,8 +131,7 @@ status_pid=$!
 
 if [[ $local_db -eq 1 ]]; then
   info "Supabase Studio: http://127.0.0.1:54323 · Email inbox: http://127.0.0.1:54324"
-  info "Create an invite in Studio's SQL editor:"
-  printf "      select * from public.fizz_create_invites(1, 'Local development', interval '14 days');\n"
+  info "Create an account at the app URL, then confirm it from the email inbox."
   info "Supabase keeps running after you exit; stop it with: supabase stop"
 fi
 info "Starting Fizzlayer at $origin (the first request compiles the API)"

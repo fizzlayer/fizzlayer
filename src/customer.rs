@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 
 use http_body_util::{BodyExt, Limited};
 use reqwest::Method;
@@ -48,6 +48,15 @@ pub fn error(status: u16, code: &str, message: &str) -> Response<ResponseBody> {
 }
 
 pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response<ResponseBody>> {
+    json_body_with(request, limit, "invalid_request").await
+}
+
+/// `json_body` with the error code to return when the body is over `limit`.
+pub async fn json_body_with(
+    request: Request,
+    limit: usize,
+    too_large: &'static str,
+) -> Result<Value, Response<ResponseBody>> {
     let is_json = request
         .headers()
         .get("content-type")
@@ -59,7 +68,7 @@ pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response
     let bytes = Limited::new(request.into_body(), limit)
         .collect()
         .await
-        .map_err(|_| error(413, "invalid_request", "Request is too large."))?
+        .map_err(|_| error(413, too_large, "Request is too large."))?
         .to_bytes();
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| error(400, "invalid_request", "Send a JSON object."))?;
@@ -69,8 +78,10 @@ pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response
     Ok(value)
 }
 
-/// The caller's IP for rate limiting. Vercel sets `x-real-ip` and overwrites
-/// `x-forwarded-for`, so clients cannot choose these values in production.
+/// The caller's network for rate limiting. Vercel sets `x-real-ip` and overwrites
+/// `x-forwarded-for`, so clients cannot choose these values in production. An IPv6
+/// address is reduced to its /64 block, the smallest one a single subscriber is usually
+/// given, so rotating through one block counts as one caller.
 pub fn client_ip(request: &Request) -> Option<String> {
     ip_from_headers(|name| request.headers().get(name).and_then(|v| v.to_str().ok()))
 }
@@ -79,20 +90,32 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
     header("x-real-ip")
         .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
         .and_then(|v| v.trim().parse::<IpAddr>().ok())
-        .map(|ip| ip.to_string())
+        .map(|ip| match ip {
+            IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+                Some(v4) => v4.to_string(),
+                None => {
+                    let [a, b, c, d, ..] = v6.segments();
+                    format!("{}/64", Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
+                }
+            },
+            IpAddr::V4(v4) => v4.to_string(),
+        })
 }
 
-/// Invite codes look like FIZZ-ABCD-EFGH-JKMN. The database normalizes and checks them;
-/// this only rejects input that cannot possibly be a code.
-pub fn invite_code(invite: &str) -> Option<String> {
-    let invite = invite.trim();
-    let symbols = invite.bytes().filter(u8::is_ascii_alphanumeric).count();
-    ((12..=16).contains(&symbols)
-        && invite.len() <= 32
-        && invite
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b' '))
-    .then(|| invite.to_owned())
+/// A plausible address: one @, a dotted domain, no spaces or control characters.
+/// Delivery is the real test; this keeps obvious junk out of the list.
+pub fn normalize_email(value: &str) -> Option<String> {
+    let email = value.trim().to_ascii_lowercase();
+    let (local, domain) = email.split_once('@')?;
+    let valid = email.len() <= 254
+        && !local.is_empty()
+        && local.len() <= 64
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !domain.contains('@')
+        && email.chars().all(|c| !c.is_whitespace() && !c.is_control());
+    valid.then_some(email)
 }
 
 pub fn cookie<'a>(request: &'a Request, name: &str) -> Option<&'a str> {
@@ -292,16 +315,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn invite_codes_accept_typed_variants_and_reject_junk() {
+    fn emails_are_trimmed_lowercased_and_sanity_checked() {
         assert_eq!(
-            invite_code(" FIZZ-ABCD-EFGH-JKMN "),
-            Some("FIZZ-ABCD-EFGH-JKMN".into())
+            normalize_email("  Ann@Example.COM "),
+            Some("ann@example.com".into())
         );
-        assert!(invite_code("abcd efgh jkmn").is_some());
-        assert!(invite_code("FIZZ-ABCD").is_none());
-        assert!(invite_code("FIZZ-ABCD-EFGH-JKMN-PQRS").is_none());
-        assert!(invite_code("FIZZ_ABCD_EFGH_JKMN").is_none());
-        assert!(invite_code("").is_none());
+        assert_eq!(
+            normalize_email("a.b+fizz@mail.co.uk"),
+            Some("a.b+fizz@mail.co.uk".into())
+        );
+        for bad in [
+            "",
+            "ann",
+            "ann@",
+            "@example.com",
+            "ann@example",
+            "ann@.com",
+            "ann@example.",
+            "a@b@c.com",
+            "an n@example.com",
+            "ann@exa\u{7}mple.com",
+        ] {
+            assert_eq!(normalize_email(bad), None, "{bad:?}");
+        }
+        assert_eq!(
+            normalize_email(&format!("{}@example.com", "a".repeat(65))),
+            None
+        );
     }
 
     #[test]
@@ -319,7 +359,19 @@ mod tests {
         );
         assert_eq!(
             ip(&[("x-forwarded-for", "2001:db8::1, 10.0.0.1")]),
-            Some("2001:db8::1".into())
+            Some("2001:db8::/64".into())
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "2001:db8:1:2:aaaa:bbbb:cccc:dddd")]),
+            ip(&[("x-real-ip", "2001:db8:1:2::9")])
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "2001:db8:1:2:aaaa::1")]),
+            Some("2001:db8:1:2::/64".into())
+        );
+        assert_eq!(
+            ip(&[("x-real-ip", "::ffff:203.0.113.9")]),
+            Some("203.0.113.9".into())
         );
         assert_eq!(ip(&[("x-real-ip", "not-an-ip")]), None);
         assert_eq!(ip(&[]), None);

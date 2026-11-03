@@ -24,7 +24,9 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase db push --linked
 ```
 
-Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, invite flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
+Apply all files in `supabase/migrations/` in their recorded order. They contain the schema, server RPCs, sign-up flow, storage configuration, ownership policies, and security changes. SQL migrations do not configure SMTP, OAuth providers, or all Auth dashboard settings.
+
+> **Upgrading an invite-only instance:** `20261105000000_open_sign_up.sql` removes the invite requirement. Apply the migration first, then deploy the matching code: the new code calls functions the migration adds, so deploying it first breaks sign-in. The old code keeps working, and keeps requiring invites, until the new code is live, because the invite functions stay until a later cleanup migration. Once the new code is deployed, anyone who can reach your deployment can create an account, including people who already have a Supabase Auth user from an earlier sign-in that was turned away. To stay private, run `update public.fizz_instance_settings set sign_up_open = false;` after applying the migration and before deploying the code.
 
 Use a separate Supabase project for development or staging. Preview deployments pointing at the production database can write production data. Review migrations and backups before updating an existing instance; do not use `db reset` against production.
 
@@ -118,13 +120,7 @@ curl --fail https://sensors.example.com/api/status
 
 Expect `"status":"ok"` and `"database":"connected"`. A database failure still returns a JSON response with HTTP 200, so monitoring must inspect those fields. `unconfigured` means the Supabase variables are missing; `unavailable` means configuration or the connection failed. `invalid_host` means the request host was not allowed by the configuration described above.
 
-Accounts require invitations. In your Supabase SQL editor, create your initial codes:
-
-```sql
-select * from public.fizz_create_invites(5, 'Initial users', interval '14 days');
-```
-
-Copy the returned codes when created: the database stores only their hashes. Open `https://sensors.example.com/app.html`, sign up with an invite, confirm the email, and complete onboarding. Invite codes are single-use and expire after the requested interval.
+Anyone who can reach your deployment can create an account. Open `https://sensors.example.com/app.html`, create an account, confirm the email, and complete onboarding. New sign-ups are limited to 10 an hour per network. To keep a private instance closed after creating your own accounts, run `update public.fizz_instance_settings set sign_up_open = false;` in the Supabase SQL editor; existing accounts can still sign in. This also covers Supabase Auth users that have no Fizzlayer account yet, which turning off **Allow new users to sign up** in Supabase Auth settings does not.
 
 ## 5. Connect devices and agents
 
@@ -155,13 +151,13 @@ For a local Supabase database, install Docker and run:
 scripts/dev.sh --local-db
 ```
 
-This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an invite in local Studio at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
+This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an account at the app URL; Studio is at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
 
 The local `supabase/config.toml` disables Google sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
 
 ## Verify and operate
 
-Before opening access, exercise one complete flow: invite sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/passkey, speech, and call integrations separately with accounts and numbers you control.
+Before opening access, exercise one complete flow: sign-up and confirmation, sign-in and recovery, sensor creation, one ingested reading, a threshold alert, CLI pairing and revocation, and a read through MCP. Test enabled Google/passkey, speech, and call integrations separately with accounts and numbers you control.
 
 The database regression suites use transactions and roll back their fixtures. Run linked commands sequentially because they share a temporary database login:
 
@@ -173,7 +169,7 @@ supabase db query --linked --file supabase/tests/billing.sql
 supabase db query --linked --file supabase/tests/silence_alerts.sql
 ```
 
-New accounts start on the Hobbyist plan: 3 connected devices and 100 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
+New accounts start on the Hobbyist plan: 3 connected devices and 10 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:
 
 ```sql
 update public.fizz_plans set device_limit = null, monthly_credits = null where id = 'hobbyist';
@@ -186,7 +182,7 @@ Use a recent Supabase CLI with `db query` support; the repository's security aud
 - Monitor Vercel function errors, the status response, Supabase storage/database growth, and provider usage. Configure backups and test restoration for your own instance.
 - Sample sensors advance on authenticated dashboard/Sensors reads, at most once every 15 seconds per sensor. They are not a scheduled background stream.
 - Numeric readings evaluate threshold alerts in the database. A silence alert fires when a sensor has sent no reading for the rule's window (default 10 minutes, minimum 1). `GET /api/cron`, authorized with `CRON_SECRET`, scans for silence and sends queued calls, including retries, for up to about 36 seconds. The request that stored a reading still sends up to three queued calls, and the claim is locked so the two paths cannot double-call. A blank `CRON_SECRET` is treated as unset. Ambiguous provider outcomes stop for review.
-- `vercel.json` does not register the cron. An every-minute schedule is rejected on the Vercel Hobby plan and fails the deployment. On Pro, add a cron of `* * * * *` for `/api/cron` and set `api/cron.rs` `maxDuration` to 60. On Hobby, or on any host without Vercel Cron, run the same request yourself once a minute: `curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://sensors.example.com/api/cron`. Apply `supabase/migrations/20261104000000_silence_alerts.sql` before relying on the route. That migration builds an index on `fizz_sensor_readings (sensor_id, received_at desc)` inside the migration transaction, which locks reading writes until the build finishes. On a large table, create that index with `CREATE INDEX CONCURRENTLY` before `db push`; the migration then finds the index already present.
+- `vercel.json` registers a `* * * * *` cron for `/api/cron` and gives `api/cron.rs` a `maxDuration` of 60 seconds. That needs Vercel Pro: an every-minute schedule is rejected on the Hobby plan and fails the deployment. On Hobby, remove the `crons` entry from `vercel.json`. Then, on Hobby or on any host without Vercel Cron, run the same request yourself once a minute: `curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://sensors.example.com/api/cron`. Apply `supabase/migrations/20261104000000_silence_alerts.sql` before relying on the route. That migration builds an index on `fizz_sensor_readings (sensor_id, received_at desc)` inside the migration transaction, which locks reading writes until the build finishes. On a large table, create that index with `CREATE INDEX CONCURRENTLY` before `db push`; the migration then finds the index already present.
 - An MCP token can attach a phone number to an alert only when that number is already saved on an active alert in the workspace. The owner adds the number from the dashboard or by asking Fizz.
 - Phone notifications currently support US voice calls. SMS and physical actuator control are not implemented.
 - Phone sensor collection requires an open browser page and device permissions. HTTPS is required for production browser sensor and microphone features.

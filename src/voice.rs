@@ -236,7 +236,10 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     }
     let (mime, extension) = audio.expect("validated audio content type");
     match provider.transcribe(bytes.to_vec(), mime, extension).await {
-        Ok(text) if !text.is_empty() && text.len() <= 1000 => {
+        // A transcript becomes a chat message, so it has the same character limit.
+        Ok(text)
+            if !text.is_empty() && text.chars().count() <= crate::agent::MAX_CHAT_MESSAGE_CHARS =>
+        {
             reply(200, json!({"text":text}), None)
         }
         Ok(text) if text.is_empty() => error(

@@ -13,7 +13,7 @@
   "tags": [
     { "name": "Readings", "description": "Send readings from devices, scripts, and microcontrollers." },
     { "name": "Agents", "description": "The remote MCP server for AI agents." },
-    { "name": "Service", "description": "Service status and the waitlist." }
+    { "name": "Service", "description": "Service status and sales contact." }
   ],
   "paths": {
     "/api/ingest": {
@@ -107,45 +107,34 @@
         }
       }
     },
-    "/api/waitlist": {
+    "/api/contact": {
       "post": {
         "tags": ["Service"],
-        "operationId": "joinWaitlist",
-        "summary": "Join the waitlist or contact sales",
-        "description": "Fizzlayer accounts are invite-only. Send an email address to join the waitlist, or kind \"business\" with a company name to contact the team about Enterprise. Limited per network to stop abuse.",
+        "operationId": "contactSales",
+        "summary": "Contact sales",
+        "description": "Ask the Fizzlayer team about the Enterprise plan or a business deployment. Anyone can create an account in the app; this endpoint is only for sales inquiries. Limited per network to stop abuse.",
         "security": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
-                    "title": "Waitlist",
-                    "type": "object",
-                    "properties": { "email": { "type": "string", "format": "email" } },
-                    "required": ["email"]
-                  },
-                  {
-                    "title": "Business interest",
-                    "type": "object",
-                    "properties": {
-                      "kind": { "type": "string", "const": "business" },
-                      "email": { "type": "string", "format": "email" },
-                      "company": { "type": "string", "minLength": 1, "maxLength": 120 },
-                      "interest": { "type": "string", "maxLength": 500, "description": "What they want to monitor." }
-                    },
-                    "required": ["kind", "email", "company"]
-                  }
-                ]
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "company": { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "interest": { "type": "string", "maxLength": 500, "description": "What they want to monitor." }
+                },
+                "required": ["email", "company"]
               },
-              "example": { "email": "ada@example.com" }
+              "example": { "email": "ada@example.com", "company": "Example Labs", "interest": "Water leaks across three warehouses" }
             }
           }
         },
         "responses": {
-          "200": { "description": "Added.", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "const": true } }, "required": ["ok"] } } } },
+          "200": { "description": "Sent.", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "const": true } }, "required": ["ok"] } } } },
           "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "410": { "description": "The request has no company. The waitlist this endpoint used to accept is closed (code waitlist_closed); create an account in the app instead.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "429": { "$ref": "#/components/responses/RateLimited" },
           "503": { "$ref": "#/components/responses/Unavailable" }
         }

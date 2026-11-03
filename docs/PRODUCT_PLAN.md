@@ -27,7 +27,7 @@ A unique `event_id` makes ingestion retries idempotent for each sensor. Keys can
 
 ## Identity and access
 
-Supabase Auth verifies email/password, Google, and passkey sign-ins. New customers need an invite code. Fizzlayer then issues its own 12-hour session in an HttpOnly, Secure, SameSite=Lax cookie. Session and device credentials are stored as hashes.
+Supabase Auth verifies email/password, Google, and passkey sign-ins. Anyone can sign up; a new customer is created on first sign-in. Fizzlayer then issues its own 12-hour session in an HttpOnly, Secure, SameSite=Lax cookie. Session and device credentials are stored as hashes.
 
 The browser talks to the Fizzlayer API. The server-side Supabase client in [`src/store/mod.rs`](../src/store/mod.rs) uses a service-role credential, which is never sent to the browser. Database RLS policies restrict authenticated customer ownership, while server-side authorization remains essential because service-role requests bypass RLS. The [security audit](SECURITY_AUDIT.md) documents protections and validation.
 

@@ -37,6 +37,9 @@ select pairing_id, extensions.digest(token, 'sha256'), extensions.digest(second_
 insert into public.fizz_phone_pairings(token_hash, customer_id, sensor_id, expires_at)
 select extensions.digest(token, 'sha256'), customer_id, phone_id, now() + interval '1 hour' from security_ids;
 
+-- Owner 1 is on Pro so the per-minute chat limit, not the monthly credits, is what the budget checks below hit.
+insert into public.fizz_subscriptions(customer_id, plan) select customer_id, 'pro' from security_ids where n=1;
+
 -- Exercise service-role RPCs through their real permission boundary.
 grant execute on function pg_temp.security_assert(boolean,text) to service_role;
 grant select on security_ids to service_role;
@@ -100,7 +103,66 @@ select pg_temp.security_assert(public.fizz_session_customer(token) is null, 'ema
 
 update auth.users set banned_until = now() + interval '1 day' where id = (select auth_id from security_ids where n=2);
 select pg_temp.security_assert(public.fizz_session_customer(token) is null, 'ban invalidates session') from security_ids where n=2;
-select pg_temp.security_assert(public.fizz_oauth_sign_in(auth_id, 'audit@example.invalid', null, '127.0.0.1')->>'error' = 'unavailable', 'ban prevents new Fizz session') from security_ids where n=2;
+select pg_temp.security_assert(public.fizz_oauth_sign_in(auth_id, 'audit@example.invalid', '127.0.0.1')->>'error' = 'unavailable', 'ban prevents new Fizz session') from security_ids where n=2;
+-- Sign-up is open: a confirmed Supabase user with no customer gets one on first sign-in, without an invite.
+insert into auth.users(id, email, encrypted_password, is_anonymous)
+values ('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', 'hash', false),
+  ('00000000-0000-4000-8000-0000000000f2', 'anon-signup@example.invalid', 'hash', true);
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.7') ? 'token', 'new user signs up without an invite');
+select pg_temp.security_assert((select count(*) from public.fizz_customers where auth_user_id = '00000000-0000-4000-8000-0000000000f1') = 1, 'first sign-in creates one customer');
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.7')->>'username' = 'opensignup', 'second sign-in reuses the customer');
+select pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f2', 'anon-signup@example.invalid', '198.51.100.7')->>'error' = 'unavailable', 'anonymous users cannot sign up');
+select pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.8')->>'ok' = 'true', 'sign-up limit allows a new network');
+-- The invite-era functions stay until the new code is deployed, so a rollout cannot break sign-in.
+select pg_temp.security_assert(to_regprocedure('public.fizz_oauth_sign_in(uuid,text,text,text)') is not null
+  and to_regprocedure('public.fizz_check_invite(text,text)') is not null, 'old sign-in functions remain during deploy');
+
+-- Sign-up is limited at two steps with separate buckets: the confirmation email and
+-- account creation. Each allows 10 an hour per network.
+do $$ declare i integer; begin
+  for i in 1..10 loop
+    perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.20')->>'ok' = 'true', 'email sign-up within limit ' || i);
+  end loop;
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.20')->>'error' = 'rate_limited', 'eleventh email sign-up from one network');
+  insert into auth.users(id, email, encrypted_password, is_anonymous, raw_app_meta_data)
+  values ('00000000-0000-4000-8000-0000000000f3', 'email-user@example.invalid', 'hash', false, '{"provider":"email"}');
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f3', 'email-user@example.invalid', '198.51.100.20') ? 'token',
+    'confirmation emails and account creation use separate buckets');
+  for i in 1..11 loop
+    insert into auth.users(id, email, encrypted_password, is_anonymous, raw_app_meta_data)
+    values (('00000000-0000-4000-8000-0000000001' || lpad(i::text, 2, '0'))::uuid, 'google-' || i || '@example.invalid', 'hash', false, '{"provider":"google"}');
+  end loop;
+  for i in 1..10 loop
+    perform pg_temp.security_assert(public.fizz_oauth_sign_in(('00000000-0000-4000-8000-0000000001' || lpad(i::text, 2, '0'))::uuid, 'google-' || i || '@example.invalid', '198.51.100.21') ? 'token', 'Google sign-up within limit ' || i);
+  end loop;
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-000000000111', 'google-11@example.invalid', '198.51.100.21')->>'error' = 'rate_limited', 'eleventh Google sign-up from one network');
+  -- An email user created outside the app (never through fizz_sign_up_allowed) still counts.
+  insert into auth.users(id, email, encrypted_password, is_anonymous, raw_app_meta_data)
+  values ('00000000-0000-4000-8000-0000000000f4', 'outside@example.invalid', 'hash', false, '{"provider":"email"}');
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f4', 'outside@example.invalid', '198.51.100.21')->>'error' = 'rate_limited',
+    'email accounts created outside the app are limited when the customer is created');
+  -- IPv6 callers arrive grouped by /64 and also share 50 an hour per /48.
+  for i in 1..50 loop
+    perform pg_temp.security_assert(public.fizz_sign_up_allowed('2001:db8:5:' || to_hex(i) || '::/64')->>'ok' = 'true', 'IPv6 sign-up within the /48 limit ' || i);
+  end loop;
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('2001:db8:5:ff::/64')->>'error' = 'rate_limited', 'a new /64 in a busy /48 is limited');
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('2001:db8:6:1::/64')->>'ok' = 'true', 'another /48 is not affected');
+  -- The global limit is a circuit breaker: a full window turns away every network.
+  insert into public.fizz_rate_limits(bucket, subject_hash, window_start, hits)
+  values ('sign_up_email_all', extensions.digest('all', 'sha256'), to_timestamp(floor(extract(epoch from now()) / 3600) * 3600), 5000)
+  on conflict (bucket, subject_hash, window_start) do update set hits = 5000;
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.30')->>'error' = 'rate_limited', 'sign-up stops at the global limit');
+  delete from public.fizz_rate_limits where bucket = 'sign_up_email_all';
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('not an address')->>'ok' = 'true', 'an unparseable subject is still limited per network');
+  -- A self-hosted instance can close sign-up; existing accounts still sign in.
+  update public.fizz_instance_settings set sign_up_open = false;
+  perform pg_temp.security_assert(public.fizz_sign_up_allowed('198.51.100.31')->>'error' = 'sign_up_closed', 'closed instance refuses confirmation emails');
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f4', 'outside@example.invalid', '198.51.100.31')->>'error' = 'sign_up_closed', 'closed instance creates no new customers');
+  perform pg_temp.security_assert(public.fizz_oauth_sign_in('00000000-0000-4000-8000-0000000000f1', 'open-signup@example.invalid', '198.51.100.31') ? 'token', 'closed instance still signs in existing customers');
+  update public.fizz_instance_settings set sign_up_open = true;
+end $$;
+select pg_temp.security_assert(not has_table_privilege('anon', 'public.fizz_instance_settings', 'select')
+  and not has_function_privilege('anon', 'public.fizz_sign_up_hit(text,text)', 'execute'), 'sign-up settings and counters are server-only');
 select pg_temp.security_assert(s.api_key_hash is null and s.status='paused', 'ban revokes sensor keys') from security_ids i join public.fizz_sensors s on s.id=i.sensor_id where n=2;
 select pg_temp.security_assert(d.revoked_at is not null, 'ban revokes phone devices') from security_ids i join public.fizz_phone_devices d on d.sensor_id=i.phone_id where n=2;
 select pg_temp.security_assert(a.revoked_at is not null, 'ban revokes agents') from security_ids i join public.fizz_agent_connections a on a.id=i.agent_id where n=2;

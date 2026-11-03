@@ -11,7 +11,7 @@ Every main page of https://fizzlayer.com registers WebMCP tools (`document.model
 Onboarding, in order:
 
 1. `get_started` - what Fizzlayer is, sign-in state, plans, next steps.
-2. `create_account` with the person's invite code, email, and a password they choose (at least 12 characters). Without an invite: `join_waitlist`. Businesses: `contact_sales`.
+2. `create_account` with the person's email and a password they choose (at least 12 characters). Anyone can sign up, and new accounts start on the free Hobbyist plan. Businesses: `contact_sales`.
 3. The person opens the confirmation link Fizzlayer emails them (`resend_confirmation` resends it). Then `sign_in`.
 4. `start_with_sample_data` with sensor types to explore with simulated data, and/or `add_sensor` with `source: "real"` to connect real hardware right away (returns a one-time API key and curl example, or a phone pairing link).
 5. Optional: `create_alert`, `pair_device` for a Linux device (`get_device_setup` has the install commands), `create_agent_connection` for an MCP token, `start_checkout` to upgrade.
@@ -24,7 +24,7 @@ Tools return JSON text. Failures return `{"ok": false, "error": "..."}` with a m
 
 ## Payments
 
-Plans: Hobbyist (free, 3 devices, 100 Fizz credits a month), Tinkerer ($10/month, 10 devices, 1,000 credits), Pro ($25/month, 50 devices, 5,000 credits), Enterprise (contact us). Sample sensors do not count as devices; one credit is one message to Fizz.
+Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month), Tinkerer ($10/month, 10 devices, 100 credits), Pro ($25/month, 50 devices, 1,000 credits), Enterprise (contact us). Sample sensors do not count as devices; one credit is one message to Fizz.
 
 `start_checkout` with `plan: "tinkerer"` or `"pro"` opens Stripe Checkout in the same tab. The person enters their own payment details and confirms; do not enter card details for them. The plan updates within seconds, and `get_account` shows it. `open_billing_portal` handles plan changes, payment methods, invoices, and cancellation.
 
@@ -40,14 +40,14 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 
 ## Limits
 
-- Accounts are invite-only, and a person must confirm their email; an agent cannot skip either step.
+- A person must confirm their email before signing in; an agent cannot skip that step.
 - Passkeys, Google sign-in, voice chat, and phone sensor permissions need the person at the device.
 - Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`.
 - `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must already be saved on an active alert in this workspace; the owner adds it from the dashboard or by asking Fizz. Asking again for the same alert returns the existing one.
 
 ## Machine-readable descriptions
 
-- OpenAPI 3.1: https://fizzlayer.com/openapi.json (readings ingest, MCP endpoint, status, waitlist)
+- OpenAPI 3.1: https://fizzlayer.com/openapi.json (readings ingest, MCP endpoint, status, sales contact)
 - Plugin manifest: https://fizzlayer.com/.well-known/ai-plugin.json
 - WebMCP card: https://fizzlayer.com/.well-known/webmcp
 - MCP server card: https://fizzlayer.com/.well-known/mcp/server-card.json

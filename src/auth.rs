@@ -4,7 +4,7 @@
 //! issues its usual `fizz_session` cookie, so every other endpoint is unchanged. All Supabase calls
 //! happen here on the server, and the browser never receives a Supabase key.
 //!
-//! - `GET /api/auth?provider=google[&invite=...]` starts Google sign-in with PKCE, and
+//! - `GET /api/auth?provider=google` starts Google sign-in with PKCE, and
 //!   `GET /api/auth?code=...` finishes it.
 //! - `POST /api/auth` with `{"action": ...}` handles email and password, links from Supabase
 //!   emails (which arrive in `/app.html#access_token=...`), and passkeys.
@@ -22,13 +22,13 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::customer::{
-    SUPABASE_COOKIE, client_ip, cookie, error, invite_code, json_body, reply_with, session_cookie,
+    SUPABASE_COOKIE, client_ip, cookie, error, json_body, normalize_email, reply_with,
+    session_cookie,
 };
 use crate::security::request_origin;
 #[cfg(test)]
 use crate::security::site_origin;
 use crate::store::Supabase;
-use crate::waitlist::normalize_email;
 
 const FLOW_COOKIE: &str = "fizz_oauth";
 const CLEAR_FLOW_COOKIE: &str =
@@ -61,22 +61,13 @@ pub async fn google(request: Request) -> Response<ResponseBody> {
         };
         back_to_app(Some(code), &[CLEAR_FLOW_COOKIE])
     } else if find("provider") == Some("google") {
-        start_google(&request, find("invite"))
+        start_google(&request)
     } else {
         error(400, "invalid_request", "Use provider=google.")
     }
 }
 
-fn start_google(request: &Request, invite: Option<&str>) -> Response<ResponseBody> {
-    // The invite rides along in the flow cookie with only its letters and digits, which the
-    // database normalizes the same way as a typed code.
-    let invite = match invite.filter(|v| !v.trim().is_empty()) {
-        None => String::new(),
-        Some(raw) => match invite_code(raw) {
-            Some(code) => code.chars().filter(char::is_ascii_alphanumeric).collect(),
-            None => return back_to_app(Some("invalid_invite"), &[]),
-        },
-    };
+fn start_google(request: &Request) -> Response<ResponseBody> {
     let (Ok(store), Some(origin)) = (Supabase::from_env(), request_origin(request)) else {
         return back_to_app(Some("failed"), &[]);
     };
@@ -87,7 +78,7 @@ fn start_google(request: &Request, invite: Option<&str>) -> Response<ResponseBod
     let verifier = URL_SAFE_NO_PAD.encode(bytes);
     let challenge = pkce_challenge(&verifier);
     let flow = format!(
-        "{FLOW_COOKIE}={verifier}.{invite}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=600"
+        "{FLOW_COOKIE}={verifier}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=600"
     );
     redirect(
         store
@@ -100,7 +91,11 @@ fn start_google(request: &Request, invite: Option<&str>) -> Response<ResponseBod
 async fn finish_google(request: &Request, code: &str) -> Response<ResponseBody> {
     // The verifier lives only in this browser's cookie, so a code from someone else's sign-in
     // (or a forged callback link) cannot be exchanged here.
-    let Some((verifier, invite)) = cookie(request, FLOW_COOKIE).and_then(|v| v.split_once('.'))
+    // Flow cookies set before invites were removed end in ".<invite>"; the verifier is
+    // everything before the dot.
+    let Some(verifier) = cookie(request, FLOW_COOKIE)
+        .map(|v| v.split_once('.').map_or(v, |(verifier, _)| verifier))
+        .filter(|v| !v.is_empty())
     else {
         return back_to_app(Some("expired"), &[CLEAR_FLOW_COOKIE]);
     };
@@ -122,7 +117,7 @@ async fn finish_google(request: &Request, code: &str) -> Response<ResponseBody> 
         Ok((status, session)) if status.is_success() => session,
         _ => return back_to_app(Some("expired"), &[CLEAR_FLOW_COOKIE]),
     };
-    match signed_in(&store, ip.as_deref(), &session, Some(invite)).await {
+    match signed_in(&store, ip.as_deref(), &session).await {
         Ok(account) => {
             let mut cookies: Vec<&str> = account.cookies.iter().map(String::as_str).collect();
             cookies.push(CLEAR_FLOW_COOKIE);
@@ -153,7 +148,7 @@ pub async fn action(request: Request) -> Response<ResponseBody> {
     };
     let text = |key: &str| data.get(key).and_then(Value::as_str).unwrap_or("");
     match text("action") {
-        "sign_up" => sign_up(&ctx, text("email"), text("password"), text("invite")).await,
+        "sign_up" => sign_up(&ctx, text("email"), text("password")).await,
         "sign_in" => sign_in_with_password(&ctx, text("email"), text("password")).await,
         "resend" => send_email(&ctx, "resend", text("email")).await,
         "recover" => send_email(&ctx, "recover", text("email")).await,
@@ -197,29 +192,18 @@ impl Ctx {
     }
 }
 
-async fn sign_up(ctx: &Ctx, email: &str, password: &str, invite: &str) -> Response<ResponseBody> {
+async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBody> {
     if let Err(response) = check_new_password(password) {
         return response;
     }
-    let Some(invite) = invite_code(invite) else {
-        return error(
-            400,
-            "invalid_invite",
-            "Enter the invite code from your Fizzlayer invitation.",
-        );
-    };
     let (email, password) = match credentials(email, password) {
         Ok(value) => value,
         Err(response) => return response,
     };
-    // Check the invite before Supabase creates the user. It is consumed later, when the
-    // confirmed account is first used, so an unconfirmed sign-up does not waste it.
+    // Limit sign-ups per network before Supabase sends a confirmation email.
     match ctx
         .store
-        .rpc(
-            "fizz_check_invite",
-            json!({"p_invite": invite, "p_ip": ctx.ip}),
-        )
+        .rpc("fizz_sign_up_allowed", json!({"p_ip": ctx.ip}))
         .await
     {
         Ok(value) if value.get("ok") == Some(&json!(true)) => {}
@@ -230,14 +214,10 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str, invite: &str) -> Respon
                 "Too many attempts. Try again in an hour.",
             );
         }
-        Ok(_) => {
-            return error(
-                403,
-                "invalid_invite",
-                "That invite code is not valid or has already been used.",
-            );
+        Ok(value) if value.get("error").and_then(Value::as_str) == Some("sign_up_closed") => {
+            return sign_up_closed();
         }
-        Err(_) => return unavailable(),
+        Ok(_) | Err(_) => return unavailable(),
     }
     let (status, body) = match ctx
         .auth(
@@ -245,8 +225,7 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str, invite: &str) -> Respon
             "signup",
             &[("redirect_to", &ctx.app_url)],
             None,
-            // The invite is stored on the Supabase user and redeemed when the account is first used.
-            Some(json!({"email": email, "password": password, "data": {"invite": invite}})),
+            Some(json!({"email": email, "password": password})),
         )
         .await
     {
@@ -261,7 +240,7 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str, invite: &str) -> Respon
     if body.get("access_token").is_none() {
         return reply_with(200, json!({"ok": true, "confirm_email": true}), &[]);
     }
-    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &body, None).await)
+    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &body).await)
 }
 
 async fn sign_in_with_password(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBody> {
@@ -292,7 +271,7 @@ async fn sign_in_with_password(ctx: &Ctx, email: &str, password: &str) -> Respon
     if !status.is_success() {
         return auth_failure(status, &session);
     }
-    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session, None).await)
+    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session).await)
 }
 
 /// Resend a sign-up confirmation or send a password reset link. The reply is the same whether
@@ -364,7 +343,7 @@ async fn open_email_link(
         };
     }
     let session = json!({"user": user, "access_token": access_token, "expires_in": 3600});
-    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session, None).await)
+    account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session).await)
 }
 
 /// Start a passkey ceremony. Without a token this is sign-in, where the browser lets the person
@@ -408,7 +387,7 @@ async fn passkey_sign_in(ctx: &Ctx, data: &Value) -> Response<ResponseBody> {
         .await
     {
         Ok((status, session)) if status.is_success() => {
-            account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session, None).await)
+            account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session).await)
         }
         Ok((status, body)) => auth_failure(status, &body),
         Err(response) => response,
@@ -480,14 +459,12 @@ struct Account {
     cookies: Vec<String>,
 }
 
-/// Link a verified Supabase session to its customer and return the cookies that sign them in.
-/// New customers need an invite, from Google's flow cookie or stored on the Supabase user at
-/// email sign-up.
+/// Link a verified Supabase session to its customer, creating the customer on first sign-in,
+/// and return the cookies that sign them in.
 async fn signed_in(
     store: &Supabase,
     ip: Option<&str>,
     session: &Value,
-    invite: Option<&str>,
 ) -> Result<Account, &'static str> {
     // Supabase can issue AAL1 tokens after a password step even when a user has MFA.
     // Do not turn that partial authentication into an unrestricted Fizz session.
@@ -498,18 +475,10 @@ async fn signed_in(
     let Some(user_id) = user["id"].as_str() else {
         return Err("failed");
     };
-    let invite = invite
-        .filter(|v| !v.is_empty())
-        .map(str::to_owned)
-        .or_else(|| {
-            user["user_metadata"]["invite"]
-                .as_str()
-                .and_then(invite_code)
-        });
     let value = store
         .rpc(
             "fizz_oauth_sign_in",
-            json!({"p_user_id": user_id, "p_email": user["email"], "p_invite": invite, "p_ip": ip}),
+            json!({"p_user_id": user_id, "p_email": user["email"], "p_ip": ip}),
         )
         .await
         .map_err(|_| "failed")?;
@@ -534,9 +503,8 @@ async fn signed_in(
                 cookies,
             })
         }
-        (_, _, Some("no_account")) => Err("no_account"),
-        (_, _, Some("invalid_invite")) => Err("invalid_invite"),
         (_, _, Some("rate_limited")) => Err("rate_limited"),
+        (_, _, Some("sign_up_closed")) => Err("sign_up_closed"),
         _ => Err("failed"),
     }
 }
@@ -573,23 +541,22 @@ fn account_reply(result: Result<Account, &'static str>) -> Response<ResponseBody
             "mfa_required",
             "Complete multi-factor authentication before signing in.",
         ),
-        Err("no_account") => error(
-            404,
-            "no_account",
-            "No Fizzlayer account uses this sign-in yet. Create one with your invite code.",
-        ),
-        Err("invalid_invite") => error(
-            403,
-            "invalid_invite",
-            "That invite code is not valid or has already been used.",
-        ),
         Err("rate_limited") => error(
             429,
             "rate_limited",
             "Too many attempts. Try again in an hour.",
         ),
+        Err("sign_up_closed") => sign_up_closed(),
         Err(_) => unavailable(),
     }
+}
+
+fn sign_up_closed() -> Response<ResponseBody> {
+    error(
+        403,
+        "sign_up_closed",
+        "This instance isn't accepting new accounts.",
+    )
 }
 
 // ---- Errors and checks -------------------------------------------------------------------------

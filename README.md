@@ -21,7 +21,7 @@ Fizzlayer includes a static web app, a Rust API deployed as Vercel Functions, a 
 
 Try the [interactive demo](https://fizzlayer.com/demo.html) without an account. It uses simulated sensors and local example replies to show the dashboard, alerts, and call previews.
 
-The hosted service is invite-only. With an invite, [create an account](https://fizzlayer.com/app.html), start with sample data, then connect a device from the **Sensors** or **Agents** page. You can also [deploy your own instance](docs/SELF_HOSTING.md) and issue your own invitations.
+[Create a free account](https://fizzlayer.com/app.html), start with sample data, then connect a device from the **Sensors** or **Agents** page. You can also [deploy your own instance](docs/SELF_HOSTING.md).
 
 ## Fizzlayer CLI
 
@@ -70,13 +70,9 @@ Deploy Fizzlayer into your own **Vercel and Supabase accounts**. The current API
 
 3. Import the repository into Vercel using the **Other** framework preset and the repository root. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as server-side environment variables.
 4. Configure Supabase Auth, email delivery, and redirects for your deployment's domain. Deploy the app and verify that `/api/status` reports `database: "connected"`.
-5. Create an invitation in the Supabase SQL editor, then use it to register your first account:
+5. Open `/app.html` on your deployment and create your first account. Anyone who can reach the deployment can sign up; to close a private instance afterwards, run `update public.fizz_instance_settings set sign_up_open = false;` in the Supabase SQL editor.
 
-   ```sql
-   select * from public.fizz_create_invites(1, 'Initial administrator', interval '14 days');
-   ```
-
-An invitation creates a customer account; it does not grant a separate administrator role. Keep the service-role key on the server and out of browser assets.
+Every account is a customer account; there is no separate administrator role. Keep the service-role key on the server and out of browser assets.
 
 Follow the [complete self-hosting guide](docs/SELF_HOSTING.md) for domain configuration, local development, email and optional Google/passkey setup, environment variables, and production checks. Chat, speech, outbound calls, and paid plans (Stripe) require their respective provider configuration; the core sensor and dashboard flows work independently.
 
@@ -129,7 +125,7 @@ STRIPE_PRICE_TINKERER=price_... STRIPE_PRICE_PRO=price_... \
 scripts/dev.sh --local-db                                      # in another
 ```
 
-`stripe listen --print-secret` prints the webhook secret. Create an invite in local Studio (`http://127.0.0.1:54323`), sign up at `http://localhost:3000`, confirm the email in the local inbox (`http://127.0.0.1:54324`), then upgrade in **Settings** with the test card `4242 4242 4242 4242`. The script refuses live Stripe keys. See [billing with Stripe](docs/REFERENCE.md#billing-with-stripe) for details.
+`stripe listen --print-secret` prints the webhook secret. Sign up at `http://localhost:3000`, confirm the email in the local inbox (`http://127.0.0.1:54324`), then upgrade in **Settings** with the test card `4242 4242 4242 4242`. The script refuses live Stripe keys. See [billing with Stripe](docs/REFERENCE.md#billing-with-stripe) for details.
 
 Run the Rust test suites:
 

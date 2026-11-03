@@ -7,9 +7,9 @@
 
   const origin = location.origin;
   const PLANS = [
-    { id: 'hobbyist', name: 'Hobbyist', price: 'Free', devices: 3, monthly_credits: 100 },
-    { id: 'tinkerer', name: 'Tinkerer', price: '$10/month', devices: 10, monthly_credits: 1000 },
-    { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 5000 },
+    { id: 'hobbyist', name: 'Hobbyist', price: 'Free', devices: 3, monthly_credits: 10 },
+    { id: 'tinkerer', name: 'Tinkerer', price: '$10/month', devices: 10, monthly_credits: 100 },
+    { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 1000 },
     { id: 'enterprise', name: 'Enterprise', price: 'Contact us', devices: 'Custom', monthly_credits: 'Custom' },
   ];
   const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz.';
@@ -91,9 +91,9 @@
           return text({
             about, signed_in: false, page: location.pathname,
             onboarding: [
-              'Fizzlayer is invite-only. If the person has an invite code, call create_account with the invite code, their email, and a password of at least 12 characters that they choose.',
+              'Anyone can sign up. Call create_account with their email and a password of at least 12 characters that they choose. New accounts start on the free Hobbyist plan.',
               'They must open the confirmation link Fizzlayer emails them. Then call sign_in with the same email and password.',
-              'Without an invite, call join_waitlist with their email. Businesses can call contact_sales.',
+              'Businesses that want the Enterprise plan can call contact_sales.',
               'Existing customers: call sign_in.',
             ],
             plans: PLANS, plan_note: PLAN_NOTE,
@@ -126,15 +126,6 @@
       async execute() { return text({ plans: PLANS, note: PLAN_NOTE }); },
     },
     {
-      name: 'join_waitlist',
-      description: 'Add an email address to the Fizzlayer waitlist for people without an invite code.',
-      inputSchema: { type: 'object', properties: { email: { type: 'string', format: 'email', description: 'The person\'s email address.' } }, required: ['email'] },
-      async execute({ email }) {
-        await api('/api/waitlist', 'POST', { email: required(email, 'Provide an email address.') });
-        return text({ ok: true, message: 'Added to the waitlist. Fizzlayer will email an invite when a spot opens.' });
-      },
-    },
-    {
       name: 'contact_sales',
       description: 'Ask the Fizzlayer team about the Enterprise plan or a business deployment.',
       inputSchema: {
@@ -147,25 +138,24 @@
         required: ['email', 'company'],
       },
       async execute({ email, company, note }) {
-        await api('/api/waitlist', 'POST', { kind: 'business', email: required(email, 'Provide a work email.'), company: required(company, 'Provide the company name.'), interest: note || undefined });
+        await api('/api/contact', 'POST', { email: required(email, 'Provide a work email.'), company: required(company, 'Provide the company name.'), interest: note || undefined });
         return text({ ok: true, message: 'Sent. The Fizzlayer team will reply by email.' });
       },
     },
     {
       name: 'create_account',
-      description: 'Create a Fizzlayer account with an invite code. Use a password the person chose, never one you invented without telling them. Fizzlayer then emails a confirmation link the person must open before sign_in works.',
+      description: 'Create a free Fizzlayer account. Use a password the person chose, never one you invented without telling them. Fizzlayer then emails a confirmation link the person must open before sign_in works.',
       inputSchema: {
         type: 'object',
         properties: {
-          invite_code: { type: 'string', description: 'Invite code such as FIZZ-ABCD-EFGH-JKMN.' },
           email: { type: 'string', format: 'email' },
           password: { type: 'string', minLength: 12, description: 'At least 12 characters.' },
         },
-        required: ['invite_code', 'email', 'password'],
+        required: ['email', 'password'],
       },
       annotations: { consequentialHint: true },
-      async execute({ invite_code: invite, email, password }) {
-        const result = await api('/api/auth', 'POST', { action: 'sign_up', invite: required(invite, 'Provide the invite code.'), email: required(email, 'Provide an email address.'), password: required(password, 'Provide a password.') });
+      async execute({ email, password }) {
+        const result = await api('/api/auth', 'POST', { action: 'sign_up', email: required(email, 'Provide an email address.'), password: required(password, 'Provide a password.') });
         if (result.username) {
           changed('session');
           if (location.pathname === '/app.html') reloadSoon();

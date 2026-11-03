@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#fcfdfd">
     <title>Fizzlayer | The physical layer for AI agents</title>
-    <meta name="description" content="Fizzlayer is the physical layer for AI agents. Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Join the waitlist.">
+    <meta name="description" content="Fizzlayer is the physical layer for AI agents. Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Start free.">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Fizzlayer">
     <meta property="og:url" content="https://fizzlayer.com/">
     <meta property="og:title" content="Fizzlayer | The physical layer for AI agents">
-    <meta property="og:description" content="Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Join the waitlist.">
+    <meta property="og:description" content="Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Start free.">
     <meta property="og:image" content="https://fizzlayer.com/og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -79,7 +79,7 @@
                 "name": "Hobbyist",
                 "price": "0",
                 "priceCurrency": "USD",
-                "description": "3 devices and 100 Fizz credits a month.",
+                "description": "3 devices and 10 Fizz credits a month.",
                 "url": "https://fizzlayer.com/#pricing"
               },
               {
@@ -87,7 +87,7 @@
                 "name": "Tinkerer",
                 "price": "10",
                 "priceCurrency": "USD",
-                "description": "10 devices and 1,000 Fizz credits a month.",
+                "description": "10 devices and 100 Fizz credits a month.",
                 "url": "https://fizzlayer.com/#pricing",
                 "priceSpecification": {
                   "@type": "UnitPriceSpecification",
@@ -101,7 +101,7 @@
                 "name": "Pro",
                 "price": "25",
                 "priceCurrency": "USD",
-                "description": "50 devices and 5,000 Fizz credits a month.",
+                "description": "50 devices and 1,000 Fizz credits a month.",
                 "url": "https://fizzlayer.com/#pricing",
                 "priceSpecification": {
                   "@type": "UnitPriceSpecification",
@@ -142,7 +142,7 @@
           <li><a href="#pricing">Pricing</a></li>
           <li><a href="#enterprise">Enterprise</a></li>
           <li><a class="nav-sign-in" href="/app.html#sign-in">Sign in</a></li>
-          <li><a class="button button-dark nav-cta" href="#join">Get early access <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></li>
+          <li><a class="button button-dark nav-cta" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></li>
         </ul>
       </nav>
     </header>
@@ -153,13 +153,10 @@
             <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> The physical layer for AI agents</p>
             <h1 id="hero-title">Your AI.<br>Connected to<br><span>the real world.</span></h1>
             <p class="hero-description">Give your agents a sense of what's happening.<br>Connect sensors, understand your environment, and <strong>act on what matters.</strong> Meet Fizzlayer.</p>
-            <form class="waitlist" id="waitlist" novalidate>
-              <label class="visually-hidden" for="waitlist-email">Email address</label>
-              <input id="waitlist-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="Enter your email">
-              <button class="button button-dark" type="submit">Join the waitlist <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></button>
-            </form>
-            <p class="waitlist-status" id="waitlist-status" role="status" aria-live="polite"></p>
-            <p class="invite">Currently invite-only. Already have an invite? <a href="/app.html">Get started</a></p>
+            <div class="hero-actions">
+              <a class="button button-dark" href="/app.html">Create a free account <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a>
+            </div>
+            <p class="invite">Free to start with 3 devices. Already have an account? <a href="/app.html#sign-in">Sign in</a></p>
             <a class="hero-secondary" href="/demo.html"><span class="play-icon" aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span> Try the live dashboard demo <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a>
             <p class="demo-invite">Populated sample workspace. No sign-in needed. <a href="#demo">Watch the video instead</a></p>
           </div>
@@ -218,22 +215,22 @@
               <th scope="row"><span class="plan-name">Hobbyist</span><span class="plan-tag">For your first sensors</span></th>
               <td data-label="Price"><span><span class="plan-price">$0</span></span></td>
               <td data-label="Connected devices">3</td>
-              <td data-label="Fizz credits">100 / month</td>
-              <td class="plan-action"><a class="button button-light" href="#join">Join the waitlist <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
+              <td data-label="Fizz credits">10 / month</td>
+              <td class="plan-action"><a class="button button-light" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
             </tr>
             <tr class="plan-featured">
               <th scope="row"><span class="plan-name">Tinkerer</span><span class="plan-tag">For the home lab</span></th>
               <td data-label="Price"><span><span class="plan-price">$10</span><span class="plan-period">/ month</span></span></td>
               <td data-label="Connected devices">10</td>
-              <td data-label="Fizz credits">1,000 / month</td>
-              <td class="plan-action"><a class="button button-dark" href="#join">Join the waitlist <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
+              <td data-label="Fizz credits">100 / month</td>
+              <td class="plan-action"><a class="button button-dark" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
             </tr>
             <tr>
               <th scope="row"><span class="plan-name">Pro</span><span class="plan-tag">For serious setups</span></th>
               <td data-label="Price"><span><span class="plan-price">$25</span><span class="plan-period">/ month</span></span></td>
               <td data-label="Connected devices">50</td>
-              <td data-label="Fizz credits">5,000 / month</td>
-              <td class="plan-action"><a class="button button-light" href="#join">Join the waitlist <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
+              <td data-label="Fizz credits">1,000 / month</td>
+              <td class="plan-action"><a class="button button-light" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
             </tr>
             <tr>
               <th scope="row"><span class="plan-name">Enterprise</span><span class="plan-tag">For teams and sites</span></th>
@@ -249,7 +246,7 @@
       </section>
       <section class="section enterprise" id="enterprise" aria-labelledby="enterprise-title"><div class="container enterprise-layout">
         <div><p class="eyebrow-label">Built for your next chapter</p><h2 id="enterprise-title">Every sensor on site.<br>One agent watching.</h2><p class="lede">Cold storage, logistics, or the factory floor. Bring your signals into one workspace and get the right person on the phone when a threshold is crossed.</p><ul class="ent-points"><li><strong>Control access, device by device.</strong>Separate, revocable keys for your sensors and tokens for your agents.</li><li><strong>Start before install day.</strong>Explore with simulated sensor streams while your hardware is on its way.</li><li><strong>Reach the right person.</strong>Choose a phone number for each alert rule. Fizz makes the call.</li></ul></div>
-        <div class="business" id="business"><h3>Bring Fizzlayer to your team.</h3><p>Tell us what you need to watch. We'll be in touch about early access.</p><form id="business-form" novalidate>
+        <div class="business" id="business"><h3>Bring Fizzlayer to your team.</h3><p>Tell us what you need to watch. We'll be in touch about Enterprise.</p><form id="business-form" novalidate>
             <div>
               <label for="business-email">Work email</label>
               <input id="business-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@company.com">
@@ -262,11 +259,11 @@
               <label for="business-interest">What would you like Fizz to watch? <span class="dim">(optional)</span></label>
               <textarea id="business-interest" name="interest" maxlength="500" rows="3" placeholder="e.g. Cold room temperatures across 3 warehouses"></textarea>
             </div>
-            <button class="button button-cyan" type="submit">Request early access <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></button>
+            <button class="button button-cyan" type="submit">Contact sales <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></button>
             <p class="form-status wide" id="business-status" role="status" aria-live="polite"></p>
           </form></div>
       </div></section>
-      <section class="section closing container" aria-labelledby="closing-title"><img src="/fizz-agent.svg" alt="" width="58" height="58"><h2 id="closing-title">The world has a lot to say.<br>Give your AI a way to listen.</h2><p>Your sensors. Your agents. A little Fizz in between.</p><a class="button button-dark" href="#join">Join the waitlist <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></section>
+      <section class="section closing container" aria-labelledby="closing-title"><img src="/fizz-agent.svg" alt="" width="58" height="58"><h2 id="closing-title">The world has a lot to say.<br>Give your AI a way to listen.</h2><p>Your sensors. Your agents. A little Fizz in between.</p><a class="button button-dark" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></section>
     </main>
     <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html">Docs</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
   </body>
