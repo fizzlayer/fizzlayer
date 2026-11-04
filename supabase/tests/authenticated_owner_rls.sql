@@ -7,7 +7,7 @@ select n as owner_index, gen_random_uuid() as auth_id, gen_random_uuid() as cust
   gen_random_uuid() as sensor_id, gen_random_uuid() as reading_id,
   gen_random_uuid() as rule_id, gen_random_uuid() as agent_id,
   gen_random_uuid() as choice_id, gen_random_uuid() as clip_id,
-  gen_random_uuid() as event_id, gen_random_uuid() as pairing_id,
+  gen_random_uuid() as event_id, gen_random_uuid() as pairing_id, gen_random_uuid() as ha_id,
   decode(md5(gen_random_uuid()::text), 'hex') as device_hash,
   decode(md5(gen_random_uuid()::text), 'hex') as session_hash,
   decode(md5(gen_random_uuid()::text), 'hex') as phone_pairing_hash,
@@ -50,6 +50,9 @@ insert into public.fizz_device_pairings(id, code_hash, poll_hash, device_name,
   customer_id, sensor_id, agent_id, expires_at)
 select pairing_id, decode(md5(pairing_id::text), 'hex'), decode(md5(sensor_id::text), 'hex'),
   'RLS test device', customer_id, sensor_id, agent_id, now() + interval '1 hour'
+from rls_ids where owner_index <= 2;
+insert into public.fizz_ha_connections(id, customer_id, name, pairing_id)
+select ha_id, customer_id, 'RLS Home Assistant', pairing_id
 from rls_ids where owner_index <= 2;
 insert into public.fizz_invite_codes(code_hash, created_by, note)
 select invite_hash, customer_id, 'RLS test invite' from rls_ids where owner_index <= 2;
@@ -108,6 +111,9 @@ insert into rls_cases values
       select decode(md5(gen_random_uuid()::text), 'hex'), decode(md5(gen_random_uuid()::text), 'hex'),
         'RLS inserted device', customer_id, sensor_id, agent_id, now() + interval '1 hour'
       from pg_temp.rls_ids where owner_index = %s$sql$),
+  ('fizz_ha_connections', 'id', 'ha_id', 'name = name', 'customer_id', 'customer_id',
+    $sql$insert into public.fizz_ha_connections(customer_id, name)
+      select customer_id, 'RLS inserted HA' from pg_temp.rls_ids where owner_index = %s$sql$),
   ('fizz_invite_codes', 'code_hash', 'invite_hash', 'note = note', 'created_by', 'customer_id',
     $sql$insert into public.fizz_invite_codes(code_hash, created_by, note)
       select decode(md5(gen_random_uuid()::text), 'hex'), customer_id, 'RLS inserted invite'
@@ -210,7 +216,9 @@ begin
     ('fizz_alert_events', 'id', 'event_id', 'reading_id', 'reading_id'),
     ('fizz_alert_events', 'id', 'event_id', 'rule_id', 'rule_id'),
     ('fizz_device_pairings', 'id', 'pairing_id', 'sensor_id', 'sensor_id'),
-    ('fizz_device_pairings', 'id', 'pairing_id', 'agent_id', 'agent_id')
+    ('fizz_device_pairings', 'id', 'pairing_id', 'agent_id', 'agent_id'),
+    ('fizz_sensors', 'id', 'sensor_id', 'ha_connection_id', 'ha_id'),
+    ('fizz_ha_connections', 'id', 'ha_id', 'pairing_id', 'pairing_id')
   ) as links(table_name, key_column, fixture_key, reference_column, foreign_key) loop
     execute format('select %I::text from pg_temp.rls_ids where owner_index = 1', v.fixture_key) into v_key;
     execute format('select %I::text from pg_temp.rls_ids where owner_index = 2', v.foreign_key) into v_foreign_key;

@@ -369,6 +369,41 @@
       },
     },
     {
+      name: 'connect_home_assistant',
+      description: 'Open My Home Assistant so the person can link an existing Home Assistant install. Fizzlayer does not return a token. The person allows the link in this browser, then picks sensor and binary_sensor entities in Home Assistant. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { consequentialHint: true },
+      async execute() {
+        const redirect = 'https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer';
+        window.open(redirect, '_blank', 'noopener');
+        return text({
+          ok: true,
+          redirect_url: redirect,
+          next: 'Home Assistant opens the Fizzlayer allow page. The person must be signed in, choose Allow, then pick entities. Temperature, humidity, power, door, and leak sensors start selected. Revoke the connection later with revoke_home_assistant.',
+        });
+      },
+    },
+    {
+      name: 'list_home_assistant',
+      description: 'List Home Assistant connections on this account, including how many sensors each one shares.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      async execute() {
+        return text(await api('/api/devices', 'POST', { action: 'ha_list' }));
+      },
+    },
+    {
+      name: 'revoke_home_assistant',
+      description: 'Revoke a Home Assistant connection. Its sensors stop and their device slots are freed. The id comes from list_home_assistant.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      annotations: { consequentialHint: true },
+      async execute({ id }) {
+        await api('/api/devices', 'POST', { action: 'ha_revoke', id: required(id, 'Provide the connection id.') });
+        changed('sensors');
+        return text({ ok: true, message: 'Home Assistant connection revoked.' });
+      },
+    },
+    {
       name: 'pair_device',
       description: 'Claim the pairing code printed by `fizz pair` on a Linux device. The person must then approve the request in the device terminal.',
       inputSchema: {

@@ -375,6 +375,46 @@
       }
     },
     {
+      "name": "connect_home_assistant",
+      "description": "Open My Home Assistant so the person can link an existing Home Assistant install. Fizzlayer does not return a token. The person allows the link in this browser, then picks sensor and binary_sensor entities in Home Assistant. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "consequentialHint": true
+      }
+    },
+    {
+      "name": "list_home_assistant",
+      "description": "List Home Assistant connections on this account, including how many sensors each one shares.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "revoke_home_assistant",
+      "description": "Revoke a Home Assistant connection. Its sensors stop and their device slots are freed. The id comes from list_home_assistant.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "consequentialHint": true
+      }
+    },
+    {
       "name": "pair_device",
       "description": "Claim the pairing code printed by `fizz pair` on a Linux device. The person must then approve the request in the device terminal.",
       "inputSchema": {

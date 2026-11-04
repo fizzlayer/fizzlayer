@@ -29,6 +29,7 @@
 .live-card-title span { color: var(--sensor-color); font-size: 1rem; letter-spacing: .05em; }
 .mode-pill { margin-left: auto; border: 1px solid #69bed0; color: #a9eaf7; padding: .1rem .3rem; font-size: .9rem; white-space: nowrap; }
 .mode-pill.simulated { border-color: #eecb96; color: #eecb96; }
+.mode-pill.homeassistant { border-color: #8fd18a; color: #b6e7b0; }
 .live-metric { color: #9db8c2; font-size: 1.05rem; margin: .65rem 0 0; }
 .live-value { font-size: 2rem; line-height: 1; margin: .15rem 0; color: var(--sensor-color); overflow-wrap: anywhere; }
 .live-foot { color: #9db8c2; font-size: 1rem; margin: .45rem 0 0; }
