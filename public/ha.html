@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f9fb">
+  <title>Connect Home Assistant · Fizzlayer</title>
+  <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/design.css">
+  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+  <main class="shell legal-layout" style="max-width: 40rem; margin: 3rem auto; padding: 0 1.25rem;">
+    <a class="dashboard-logo" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="32" height="32">Fizzlayer<span>.</span></a>
+    <h1 id="ha-title" style="font-size: 2.4rem; margin: 1.5rem 0 .75rem;">Connect Home Assistant</h1>
+    <p id="ha-message">Checking your Fizzlayer account…</p>
+    <p><button class="primary" type="button" id="ha-allow" hidden>Allow</button></p>
+    <p id="ha-next" hidden><a id="ha-signin" href="/app.html">Sign in</a> <button class="secondary" type="button" id="ha-retry">I've signed in</button></p>
+  </main>
+  <script src="/ha.js"></script>
+</body>
+</html>

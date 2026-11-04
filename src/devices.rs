@@ -81,7 +81,8 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let ip = client_ip(&request);
     let session = session_token(&request);
     let key = sensor_key(&request);
-    let data = match json_body(request, 2048).await {
+    // Home Assistant entity sync posts a list of sensors, so this body is larger than a pairing.
+    let data = match json_body(request, 16 * 1024).await {
         Ok(value) => value,
         Err(response) => return response,
     };
@@ -96,7 +97,20 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         .get("poll_secret")
         .and_then(Value::as_str)
         .filter(|s| valid_secret(s));
-    match data.get("action").and_then(Value::as_str).unwrap_or("") {
+    let action = data.get("action").and_then(Value::as_str).unwrap_or("");
+    if let Some(response) = crate::homeassistant::dispatch(
+        &store,
+        action,
+        &data,
+        session.as_deref(),
+        key.as_deref(),
+        ip.as_deref(),
+    )
+    .await
+    {
+        return response;
+    }
+    match action {
         "start" => {
             let (Some(name), Some(platform)) = (
                 label(data.get("name").or(Some(&json!(""))), 80),

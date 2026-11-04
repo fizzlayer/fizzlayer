@@ -9,7 +9,7 @@ Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings t
 ## What you can do
 
 - **See your devices in one place.** Stream real readings or explore the dashboard with sample sensors.
-- **Connect the hardware you have.** Pair a Linux device with the CLI, share phone sensors from a browser, or send readings over HTTP.
+- **Connect the hardware you have.** Pair a Linux device with the CLI, share phone sensors from a browser, push entities from Home Assistant, or send readings over HTTP.
 - **Give agents access through MCP.** Issue revocable tokens to read sensor data and optionally create dashboard alerts.
 - **Let a browser agent do it for you.** Every page exposes [WebMCP](docs/REFERENCE.md#webmcp-browser-agents) tools, so an agent pointed at the site can onboard, manage sensors and alerts, and start a plan checkout. Agents that read first can start at [`/llms.txt`](https://fizzlayer.com/llms.txt).
 - **Ask Fizz about your readings.** Use typed chat or optional voice conversations to understand measurements and create threshold alerts.
@@ -90,6 +90,12 @@ claude mcp add --transport http fizz https://fizzlayer.com/api/mcp \
 A browser agent can also create the token itself with the `create_agent_connection` WebMCP tool; see [WebMCP](docs/REFERENCE.md#webmcp-browser-agents).
 
 Replace the origin for a self-hosted instance. Supported tools include `list_sensors`, `get_readings`, `list_alerts`, `create_alert`, and `pair_device`. See the [agent connection reference](docs/REFERENCE.md#agent-connections-mcp) for protocol details and additional client configuration.
+
+## Home Assistant
+
+Fizzlayer sits on an existing Home Assistant install. Home Assistant pushes `sensor` and `binary_sensor` entities out, so the install does not need to be reachable from the internet. On the Sensors page, **Connect Home Assistant** opens [My Home Assistant](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer), which starts the integration. The person allows the link in the browser and picks entities. Temperature, humidity, power, door, and leak sensors start selected. Each entity becomes a Fizzlayer sensor and counts toward the plan's device limit. A heartbeat about every 30 seconds keeps silence alerts working. Revoke the connection from the Sensors page or by removing the integration.
+
+The integration lives in `custom_components/fizzlayer` and can be installed with [HACS](https://www.hacs.xyz/) as a custom repository (category: Integration). A separate repository is not required. HACS downloads this whole repository. See [Home Assistant in the docs](https://fizzlayer.com/docs.html#home-assistant).
 
 ## Send readings over HTTP
 

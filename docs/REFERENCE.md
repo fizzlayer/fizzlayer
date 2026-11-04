@@ -144,11 +144,13 @@ Every limit below is checked before any database or model call. Request bodies a
 
 | Request | Limits |
 | --- | --- |
-| `POST /api/ingest` | Body up to 16 KB (`413` beyond). 1 to 16 metrics per reading, metric names up to 40 characters (lowercase letters, digits, underscores), text values up to 512 bytes, `event_id` up to 128 characters. Numbers, booleans, and text only; objects and arrays are rejected. The database enforces the metric count and text length again. |
+| `POST /api/ingest` | Body up to 16 KB (`413` beyond). One reading has 1 to 16 metrics, or a Home Assistant connection key sends `{"readings": [ ... ]}` with 1 to 40 readings. Metric names up to 40 characters (lowercase letters, digits, underscores), text values up to 512 bytes, `event_id` up to 128 characters. Numbers, booleans, and text only; objects and arrays are rejected inside a metric value. The database enforces the metric count and text length again. |
 | Phone readings and transcripts | Body up to 360 KB. Audio clips up to about 256 KB, transcripts up to 500 bytes, event IDs up to 100 characters. |
 | `POST /api/chat` | Body up to 64 KB. The new message is up to 1,000 characters. Up to 12 earlier messages of up to 3,000 characters each. The new message and history together are capped at 12,000 characters: the server keeps the newest earlier messages that fit, starting from a user message, and drops the rest. The dashboard sends only the newest messages that fit. Fizz's replies are at most 3,000 characters. |
 | `POST /api/voice` | Recordings up to 2 MB and 30 seconds; transcripts up to 1,000 characters; text to speak up to 3,000 characters. |
 | `POST /api/mcp` | Body up to 64 KB. |
+
+Home Assistant uses the same ingest path. The Sensors page opens My Home Assistant (`config_flow_start?domain=fizzlayer`). The integration polls `POST /api/devices` with `action: "ha_exchange"` until the signed-in owner allows that state on `/ha.html`. The device key is returned once. `ha_sync` maps each chosen `sensor` or `binary_sensor` entity to an API-mode sensor labeled `source: "homeassistant"`. `ha_revoke` is owner-only and also accepts the connection key when the integration is removed. Readings from that key are stored with source `homeassistant`. A batch body is `{"readings":[{sensor_id, event_id, metrics, observed_at}, ...]}` with at most 40 items. There are no new environment variables. Apply `supabase/migrations/20261107000000_home_assistant.sql` with `supabase db push` before using the endpoints.
 
 Phone pairing links expire after 15 minutes and can be claimed once. A claimed phone can share motion and orientation while its page is open, and can optionally share location, a short audio clip, or a transcript after separate consent. Browser support and permissions vary by phone. Owners can revoke paired phones from the Sensors page.
 

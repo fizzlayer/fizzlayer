@@ -134,8 +134,9 @@
       open.setAttribute('aria-label', `Open details for ${sensorName(sensor)}`);
       open.addEventListener('click', () => detail.open(sensor, open));
       title.append(node('h3', '', sensorName(sensor)), node('span', '', info.label.toUpperCase()));
-      const mode = node('span', `mode-pill ${sensor.mode}`, sensor.mode === 'simulated' ? 'SAMPLE' : sensor.mode === 'phone' ? 'PHONE' : 'API');
-      mode.title = sensor.mode === 'simulated' ? 'Simulated sample data' : sensor.mode === 'phone' ? 'Paired phone sensor' : 'API sensor';
+      const homeAssistant = sensor.source === 'homeassistant';
+      const mode = node('span', `mode-pill ${homeAssistant ? 'homeassistant' : sensor.mode}`, homeAssistant ? 'HOME ASSISTANT' : sensor.mode === 'simulated' ? 'SAMPLE' : sensor.mode === 'phone' ? 'PHONE' : 'API');
+      mode.title = homeAssistant ? 'Pushed from Home Assistant' : sensor.mode === 'simulated' ? 'Simulated sample data' : sensor.mode === 'phone' ? 'Paired phone sensor' : 'API sensor';
       top.append(kinds.badge(sensor.kind), title, mode);
       const latest = sensor.latest_reading;
       const foot = node('p', 'live-foot');

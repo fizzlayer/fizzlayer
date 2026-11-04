@@ -49,12 +49,15 @@
       card.style.setProperty('--sensor-color', info.color);
       const head = node('div', 'sensor-manage-head');
       const title = node('div', 'sensor-manage-title');
-      title.append(node('span', 'sensor-type', `${info.label.toUpperCase()} / ${sensor.mode === 'simulated' ? 'SIMULATED' : sensor.mode === 'phone' ? 'PHONE' : 'LIVE API'}`), node('h3', '', sensor.name || info.label));
+      const sourceLabel = sensor.source === 'homeassistant' ? 'HOME ASSISTANT' : sensor.mode === 'simulated' ? 'SIMULATED' : sensor.mode === 'phone' ? 'PHONE' : 'LIVE API';
+      title.append(node('span', 'sensor-type', `${info.label.toUpperCase()} / ${sourceLabel}`), node('h3', '', sensor.name || info.label));
       head.append(kinds.badge(sensor.kind, 'kind-badge sensor-manage-badge'), title, node('span', 'sensor-live-value', kinds.formatReading(sensor.latest_reading)));
       const detail = node('p', 'sensor-detail-line', sensor.latest_reading ? `${kinds.metricLabel(sensor.latest_reading.metric)} · ${new Date(sensor.latest_reading.observed_at || sensor.latest_reading.received_at).toLocaleString()}` : 'Awaiting first reading');
       const actions = node('div', 'sensor-actions');
       const secret = node('div', 'sensor-secret');
-      if (sensor.mode === 'simulated') {
+      if (sensor.source === 'homeassistant') {
+        if (sensor.ha_entity_id) detail.textContent = `${sensor.ha_entity_id}${sensor.device_class ? ` · ${sensor.device_class}` : ''}${sensor.latest_reading ? ` · ${detail.textContent}` : ''}`;
+      } else if (sensor.mode === 'simulated') {
         actions.append(button('Connect API', 'secondary', async () => {
           const result = await api('/api/sensors', 'PATCH', { id: sensor.id, mode: 'api' });
           await refresh();

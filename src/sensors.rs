@@ -295,6 +295,7 @@ pub const MAX_METRICS_PER_READING: usize = 16;
 pub const MAX_METRIC_NAME_BYTES: usize = 40;
 pub const MAX_TEXT_VALUE_BYTES: usize = 512;
 pub const MAX_EVENT_ID_BYTES: usize = 128;
+pub const MAX_INGEST_BATCH: usize = 40;
 
 fn valid_metric_name(metric: &str) -> bool {
     !metric.is_empty()
@@ -366,6 +367,9 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
         Ok(v) => v,
         Err(r) => return r,
     };
+    if data.get("readings").is_some() {
+        return ingest_batch(key, data).await;
+    }
     let Reading {
         sensor_id: id,
         event_id: event,
@@ -393,9 +397,65 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
         Ok(v) if v.get("error").and_then(Value::as_str) == Some("unauthorized") => {
             error(401, "unauthorized", "Sensor key is invalid or revoked.")
         }
+        Ok(v) if v.get("error").and_then(Value::as_str) == Some("paused") => {
+            error(409, "paused", "This sensor is paused.")
+        }
         Ok(v) if v.get("error").is_some() => outcome(v, 202),
         Ok(v) => {
             notify::dispatch(&store).await;
+            reply(202, v, None)
+        }
+        Err(_) => error(
+            503,
+            "database_unavailable",
+            "Ingestion is temporarily unavailable.",
+        ),
+    }
+}
+
+fn check_batch(data: &Value) -> Result<(), &'static str> {
+    let Some(readings) = data.get("readings").and_then(Value::as_array) else {
+        return Err("Send a readings array.");
+    };
+    if readings.is_empty() || readings.len() > MAX_INGEST_BATCH {
+        return Err("Send 1 to 40 readings.");
+    }
+    for reading in readings {
+        check_reading(reading)?;
+    }
+    Ok(())
+}
+
+async fn ingest_batch(key: String, data: Value) -> Response<ResponseBody> {
+    if let Err(message) = check_batch(&data) {
+        return error(400, "invalid_request", message);
+    }
+    let Ok(store) = db() else {
+        return error(
+            503,
+            "database_unavailable",
+            "Ingestion is temporarily unavailable.",
+        );
+    };
+    match store
+        .rpc(
+            "fizz_ingest_batch",
+            json!({"p_key": key, "p_readings": data.get("readings")}),
+        )
+        .await
+    {
+        Ok(v) if v.get("error").and_then(Value::as_str) == Some("unauthorized") => {
+            error(401, "unauthorized", "Sensor key is invalid or revoked.")
+        }
+        Ok(v) if v.get("error").is_some() => outcome(v, 202),
+        Ok(v) => {
+            let stored = v
+                .get("results")
+                .and_then(Value::as_array)
+                .is_some_and(|items| items.iter().any(|item| item.get("error").is_none()));
+            if stored {
+                notify::dispatch(&store).await;
+            }
             reply(202, v, None)
         }
         Err(_) => error(
@@ -448,6 +508,16 @@ mod tests {
         let checked = reading(json!({"t": 1}));
         let parsed = check_reading(&checked).unwrap();
         assert_eq!((parsed.event_id, parsed.metrics.len()), ("e1", 1));
+        let batch: Vec<Value> = (0..MAX_INGEST_BATCH)
+            .map(|i| reading(json!({"value": i})))
+            .collect();
+        assert!(check_batch(&json!({"readings": batch})).is_ok());
+        let oversized: Vec<Value> = (0..=MAX_INGEST_BATCH)
+            .map(|i| reading(json!({"value": i})))
+            .collect();
+        assert!(check_batch(&json!({"readings": oversized})).is_err());
+        assert!(check_batch(&json!({"readings": []})).is_err());
+        assert!(check_batch(&json!({"readings": [{"sensor_id": "nope"}]})).is_err());
         assert!(check_reading(&reading(json!({"nested": {"a": 1}}))).is_err());
         assert!(check_reading(&reading(json!({"list": [1, 2]}))).is_err());
         let mut long_event = reading(json!({"t": 1}));
