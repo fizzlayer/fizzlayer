@@ -28,20 +28,31 @@ do $$
 declare
   a record; b record; result jsonb;   synced jsonb; sensor uuid; door uuid; other uuid;
   linux jsonb; reading jsonb; spec jsonb; due timestamptz;
+  kept uuid; paused uuid; prepared text; preview jsonb;
 begin
   select * into a from pg_temp.ha_ids where n = 1;
   select * into b from pg_temp.ha_ids where n = 2;
 
   perform pg_temp.ha_assert(public.fizz_ha_prepare(null)->>'error' = 'unauthorized', 'prepare requires a session');
-  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, 'abcd', null)->>'error' = 'invalid_request', 'state must be 64 hex characters');
-  perform pg_temp.ha_assert(public.fizz_ha_exchange(a.state, 'ha-test')->>'status' = 'pending', 'exchange waits until the owner allows it');
-  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, 'Cabin')->>'ok' = 'true', 'the signed-in owner allows the link');
-  perform pg_temp.ha_assert(public.fizz_ha_authorize(b.token, a.state, 'Stolen')->>'error' = 'invalid_request', 'another account cannot take the state');
-  result := public.fizz_ha_exchange(a.state, 'ha-test');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, 'abcd', '482913')->>'error' = 'invalid_request', 'state must be 64 hex characters');
+  perform pg_temp.ha_assert(public.fizz_ha_exchange(a.state, 'ha-test', null, 'Cabin', '2026.11.0')->>'error' = 'invalid_request', 'a poll without the screen code is rejected');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, '482913')->>'error' = 'not_ready', 'approval waits until Home Assistant has registered');
+  perform pg_temp.ha_assert(public.fizz_ha_exchange(a.state, 'ha-test', '482913', 'Cabin', '2026.11.0')->>'status' = 'pending', 'Home Assistant registers its code');
+  preview := public.fizz_ha_preview(a.state, 'ha-test');
+  perform pg_temp.ha_assert(preview->>'name' = 'Cabin' and preview->>'ha_version' = '2026.11.0'
+    and preview::text not like '%482913%', 'the allow page can see the install but not the code');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, null)->>'error' = 'invalid_code', 'approval without the code fails');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, '000000')->>'error' = 'invalid_code', 'the wrong code fails');
+  prepared := public.fizz_ha_prepare(a.token)->>'code';
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, prepared)->>'error' = 'invalid_code', 'a pairing code is not the screen code');
+  perform pg_temp.ha_assert(public.fizz_ha_exchange_code('482913', 'ha-test')->>'error' = 'invalid_code', 'the screen code is not a pairing code');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(a.token, a.state, '482913')->>'ok' = 'true', 'the signed-in owner allows the matching code');
+  perform pg_temp.ha_assert(public.fizz_ha_authorize(b.token, a.state, '482913')->>'error' = 'invalid_request', 'another account cannot take the link');
+  result := public.fizz_ha_exchange(a.state, 'ha-test', '482913', 'Cabin', '2026.11.0');
   perform pg_temp.ha_assert(result->>'connection_id' is not null and result->>'api_key' like 'fizz_%'
-    and result->>'account' like 'ha_%', 'exchange returns the device key once');
+    and result->>'account' like 'ha_%' and result->>'device_name' = 'Cabin', 'exchange returns the device key once');
   perform pg_temp.ha_assert((result->>'devices_used')::int = 0, 'linking alone does not spend a device slot');
-  perform pg_temp.ha_assert(public.fizz_ha_exchange(a.state, 'ha-test')->>'error' = 'already_linked', 'the device key is not returned again');
+  perform pg_temp.ha_assert(public.fizz_ha_exchange(a.state, 'ha-test', '000000', 'Cabin', '2026.11.0')->>'error' = 'already_linked', 'the device key is not returned again');
   perform pg_temp.ha_assert(public.fizz_ha_list(a.token)->'connections'->0->>'name' = 'Cabin', 'the owner sees the connection');
   perform pg_temp.ha_assert(jsonb_array_length(public.fizz_ha_list(b.token)->'connections') = 0, 'connections are not visible to other accounts');
 
@@ -110,6 +121,24 @@ begin
   perform pg_temp.ha_assert(public.fizz_update_sensor(a.token, sensor, null, null, 'paused')->>'error' is null, 'the owner can pause it');
   perform pg_temp.ha_assert(public.fizz_ingest_event(sensor, synced->>'api_key', 'while-paused', now(), '{"temperature_c": 20}'::jsonb)->>'error' = 'paused', 'a paused sensor is not a revoked key');
   perform pg_temp.ha_assert(public.fizz_update_sensor(a.token, sensor, null, null, 'active')->>'error' is null, 'resume');
+
+  kept := (select id from public.fizz_alert_rules where sensor_id = sensor and kind = 'silence');
+  paused := (public.fizz_save_alert_rule(a.customer_id, sensor, 'threshold', 'temperature_c', 'gt', 80, '°C', 'none', null, null, false, null)->'rule'->>'id')::uuid;
+  perform pg_temp.ha_assert(public.fizz_update_alert(a.token, paused, false, false)->>'rule' is not null, 'the owner turns one alert off');
+  perform pg_temp.ha_assert(public.fizz_ha_sync(synced->>'api_key', jsonb_build_array(
+    jsonb_build_object('entity_id', 'binary_sensor.closet_door', 'name', 'Closet door', 'device_class', 'door'),
+    jsonb_build_object('entity_id', 'sensor.ups_power', 'name', 'UPS power', 'device_class', 'power')
+  ), null, null, true)->>'shared' = '2', 'removing the entity soft-deletes its sensor');
+  perform pg_temp.ha_assert((select not enabled and resume_enabled from public.fizz_alert_rules where id = kept), 'an active alert is suspended with the sensor');
+  perform pg_temp.ha_assert((select not enabled and not resume_enabled from public.fizz_alert_rules where id = paused), 'an alert the owner turned off stays marked off');
+  perform pg_temp.ha_assert(public.fizz_ha_sync(synced->>'api_key', jsonb_build_array(
+    jsonb_build_object('entity_id', 'sensor.rack_temp', 'name', 'Rack temperature', 'device_class', 'temperature'),
+    jsonb_build_object('entity_id', 'binary_sensor.closet_door', 'name', 'Closet door', 'device_class', 'door'),
+    jsonb_build_object('entity_id', 'sensor.ups_power', 'name', 'UPS power', 'device_class', 'power')
+  ), null, null, true)->'sensors'->0->>'sensor_id' = sensor::text, 'adding the entity back reuses its sensor');
+  perform pg_temp.ha_assert((select enabled and resume_enabled is null and silence_due_at > now()
+    from public.fizz_alert_rules where id = kept), 'the alert that was on comes back, with a fresh silence window');
+  perform pg_temp.ha_assert((select not enabled from public.fizz_alert_rules where id = paused), 'the alert that was off stays off');
 
   perform pg_temp.ha_assert(public.fizz_ha_revoke(b.token, other)->>'error' = 'not_found', 'another account cannot revoke the connection');
   result := public.fizz_ha_sync(synced->>'api_key', jsonb_build_array(

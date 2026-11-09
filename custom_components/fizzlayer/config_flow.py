@@ -122,12 +122,13 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_link(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
         if user_input is None:
             self._state = secrets.token_hex(32)
+            self._confirm_code = f"{secrets.randbelow(1_000_000):06d}"
             url = f"{self._base_url}/ha.html?state={self._state}"
             self._poll_task = self.hass.async_create_task(self._poll())
             return self.async_external_step(
                 step_id="link",
                 url=url,
-                description_placeholders={"url": url},
+                description_placeholders={"url": url, "code": self._confirm_code},
             )
         # Home Assistant only allows an external step to move to "external step done".
         # The following step (the entity picker, or an abort) runs after that.
@@ -162,7 +163,13 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                 data = await post_json(
                     self.hass,
                     f"{self._base_url}/api/devices",
-                    {"action": "ha_exchange", "state": self._state},
+                    {
+                        "action": "ha_exchange",
+                        "state": self._state,
+                        "confirm_code": self._confirm_code,
+                        "name": getattr(self.hass.config, "location_name", None) or "Home Assistant",
+                        "ha_version": getattr(self.hass.config, "version", None),
+                    },
                 )
             except FizzlayerConnectionError:
                 continue

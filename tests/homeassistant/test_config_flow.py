@@ -62,9 +62,14 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
         "skipped": [],
     }
 
+    expected = {}
+
     async def fake_post(_hass, url, payload, api_key=None, timeout=30):
         if payload.get("action") == "ha_exchange":
             assert payload["state"] and len(payload["state"]) == 64
+            assert payload["confirm_code"] == expected["code"]
+            assert payload["confirm_code"].isdigit() and len(payload["confirm_code"]) == 6
+            assert payload.get("name")
             assert url.endswith("/api/devices")
             return _linked()
         assert payload.get("action") == "ha_sync"
@@ -81,7 +86,9 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["type"] is FlowResultType.EXTERNAL_STEP
         assert "ha.html?state=" in result["url"]
+        assert "code=" not in result["url"]
         assert "fizzlayer.com" in result["url"]
+        expected["code"] = result["description_placeholders"]["code"]
         flow_id = result["flow_id"]
         await hass.async_block_till_done()
         result = await hass.config_entries.flow.async_configure(flow_id)

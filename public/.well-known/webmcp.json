@@ -376,7 +376,7 @@
     },
     {
       "name": "connect_home_assistant",
-      "description": "Open My Home Assistant so the person can link an existing Home Assistant install. Fizzlayer does not return a token. The person allows the link in this browser, then picks sensor and binary_sensor entities in Home Assistant. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.",
+      "description": "Open My Home Assistant so the person can link an existing Home Assistant install. Home Assistant shows a 6-digit code. The person types that code on the Fizzlayer page, which also names the install. Fizzlayer does not return a token, and a code from a message is not enough. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.",
       "inputSchema": {
         "type": "object",
         "properties": {}

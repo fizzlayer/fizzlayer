@@ -21,6 +21,12 @@ fn valid_state(value: &str) -> bool {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
+/// The code Home Assistant shows on its own screen. Spaces are ignored so "482 913" matches.
+fn confirm_code(value: &str) -> Option<String> {
+    let compact: String = value.chars().filter(|c| !c.is_whitespace()).collect();
+    (compact.len() == 6 && compact.bytes().all(|c| c.is_ascii_digit())).then_some(compact)
+}
+
 fn clean_label(value: Option<&Value>, max_chars: usize) -> Option<String> {
     let text = value.and_then(Value::as_str)?.trim();
     if text.is_empty() || text.chars().count() > max_chars || text.chars().any(char::is_control) {
@@ -69,9 +75,14 @@ fn outcome(value: Value) -> Response<ResponseBody> {
             error(400, "invalid_request", "Check the Home Assistant request.")
         }
         Some("invalid_code") => error(
-            404,
+            400,
             "invalid_code",
-            "That pairing code is not valid or has expired.",
+            "That code does not match this Home Assistant.",
+        ),
+        Some("not_ready") => error(
+            409,
+            "not_ready",
+            "Home Assistant has not shown a code yet. Open it and try again.",
         ),
         Some("expired") => error(
             410,
@@ -147,23 +158,37 @@ pub async fn dispatch(
                     "The Home Assistant link is not valid.",
                 ));
             }
-            let name = match data.get("name") {
-                None => None,
-                Some(value) => match clean_label(Some(value), 80) {
-                    Some(name) => Some(name),
-                    None => {
-                        return Some(error(
-                            400,
-                            "invalid_request",
-                            "Use a name under 80 characters.",
-                        ));
-                    }
-                },
+            let Some(code) = data
+                .get("code")
+                .and_then(Value::as_str)
+                .and_then(confirm_code)
+            else {
+                return Some(error(
+                    400,
+                    "invalid_code",
+                    "Type the 6-digit code shown in Home Assistant.",
+                ));
             };
             rpc(
                 store,
                 "fizz_ha_authorize",
-                json!({"p_token": session, "p_state": state, "p_name": name}),
+                json!({"p_token": session, "p_state": state, "p_code": code}),
+            )
+            .await
+        }
+        "ha_preview" => {
+            let state = data.get("state").and_then(Value::as_str).unwrap_or("");
+            if !valid_state(state) {
+                return Some(error(
+                    400,
+                    "invalid_request",
+                    "The Home Assistant link is not valid.",
+                ));
+            }
+            rpc(
+                store,
+                "fizz_ha_preview",
+                json!({"p_state": state, "p_ip": ip}),
             )
             .await
         }
@@ -176,10 +201,53 @@ pub async fn dispatch(
                     "The Home Assistant link is not valid.",
                 ));
             }
+            let Some(code) = data
+                .get("confirm_code")
+                .and_then(Value::as_str)
+                .and_then(confirm_code)
+            else {
+                return Some(error(
+                    400,
+                    "invalid_request",
+                    "Home Assistant must send the code it is showing.",
+                ));
+            };
+            let name = match data.get("name").filter(|value| !value.is_null()) {
+                None => None,
+                Some(value) => match clean_label(Some(value), 80) {
+                    Some(name) => Some(name),
+                    None => {
+                        return Some(error(
+                            400,
+                            "invalid_request",
+                            "Use a name under 80 characters.",
+                        ));
+                    }
+                },
+            };
+            let version = match data.get("ha_version").filter(|value| !value.is_null()) {
+                None => None,
+                Some(value) => match clean_label(Some(value), 40) {
+                    Some(version) => Some(version),
+                    None => {
+                        return Some(error(
+                            400,
+                            "invalid_request",
+                            "The Home Assistant version is not valid.",
+                        ));
+                    }
+                },
+            };
             rpc(
                 store,
                 "fizz_ha_exchange",
-                json!({"p_state": state, "p_ip": ip}),
+                json!({
+                    "p_state": state,
+                    "p_ip": ip,
+                    "p_code": code,
+                    "p_name": name,
+                    "p_ha_version": version
+                }),
             )
             .await
         }
@@ -309,6 +377,11 @@ mod tests {
         assert!(!valid_state("abc"));
         assert!(redirect_url().contains("domain=fizzlayer"));
         assert!(!redirect_url().contains("code="));
+        assert_eq!(confirm_code("482913").as_deref(), Some("482913"));
+        assert_eq!(confirm_code("482 913").as_deref(), Some("482913"));
+        assert_eq!(confirm_code("48291"), None);
+        assert_eq!(confirm_code("ABCDEF"), None);
+        assert_eq!(confirm_code(""), None);
     }
 
     #[test]

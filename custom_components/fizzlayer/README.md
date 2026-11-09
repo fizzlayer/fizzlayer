@@ -16,7 +16,7 @@ You can also copy `custom_components/fizzlayer` into your Home Assistant `config
 
 ## Connect
 
-On the Fizzlayer Sensors page, choose **Connect Home Assistant**. That opens My Home Assistant, which starts this integration. Allow the link in the browser tab that opens, then pick the entities to share. You do not copy a token.
+On the Fizzlayer Sensors page, choose **Connect Home Assistant**. That opens My Home Assistant, which starts this integration. Home Assistant shows a 6-digit code. Type that code on the Fizzlayer page. The page also shows this install's name and version. You do not copy a device token, and a code from a message is not accepted unless it is the one on this screen.
 
 The first time, My Home Assistant asks you to confirm your instance URL. If the browser blocks the window, use the link in the Home Assistant dialog.
 

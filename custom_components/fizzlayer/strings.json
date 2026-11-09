@@ -3,7 +3,7 @@
     "step": {
       "advanced": {
         "title": "Fizzlayer server",
-        "description": "Use https://fizzlayer.com, or the URL of a self-hosted Fizzlayer. A pairing code is only needed when this browser is not signed in to Fizzlayer.",
+        "description": "Use https://fizzlayer.com, or the URL of a self-hosted Fizzlayer. A pairing code is created while you are signed in on the Fizzlayer Sensors page and typed into this Home Assistant. A code from a message is not yours.",
         "data": {
           "base_url": "Fizzlayer URL",
           "code": "Pairing code"
@@ -11,7 +11,7 @@
       },
       "link": {
         "title": "Link Fizzlayer",
-        "description": "Allow this Home Assistant to send sensor readings. If a window did not open, [open Fizzlayer]({url}) and choose Allow. You do not copy a token."
+        "description": "On the Fizzlayer page, type this code: {code}. It is shown only on this screen, so Fizzlayer knows you are looking at this Home Assistant. If a window did not open, [open Fizzlayer]({url})."
       },
       "reauth_confirm": {
         "title": "Fizzlayer connection expired",
