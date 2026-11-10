@@ -21,7 +21,14 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 
 from .client import FizzlayerConnectionError, error_code, post_json
-from .const import DEFAULT_BASE_URL, DEFAULT_DEVICE_CLASSES, DOMAIN, POLL_ATTEMPTS, POLL_INTERVAL
+from .const import (
+    DEFAULT_BASE_URL,
+    DEFAULT_DEVICE_CLASSES,
+    DOMAIN,
+    INTEGRATION_VERSION,
+    POLL_ATTEMPTS,
+    POLL_INTERVAL,
+)
 from .mapping import normalize_base_url, plan_entity
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,9 +88,12 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
         return FizzlayerOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Cloud installs start immediately. Advanced Mode asks for a self-hosted URL."""
-        if self.show_advanced_options:
-            return await self.async_step_advanced()
+        """Show the 6-digit code, including when Advanced Mode is on.
+
+        Advanced Mode used to open a base_url and code form first. People who
+        install with HACS almost always have that mode on, so Home Assistant
+        never displayed a code. This screen always shows the code and waits.
+        """
         self._base_url = DEFAULT_BASE_URL
         return await self.async_step_link()
 
@@ -97,6 +107,11 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_link()
 
     async def async_step_advanced(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Optional server URL or a pairing code created on the Fizzlayer page.
+
+        Add integration does not open this step. The first screen is the
+        6-digit code, even when Advanced Mode is on.
+        """
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
@@ -129,7 +144,12 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_external_step(
                 step_id="link",
                 url=url,
-                description_placeholders={"url": url, "code": self._confirm_code},
+                description_placeholders={
+                    "url": url,
+                    "code": self._confirm_code,
+                    "version": INTEGRATION_VERSION,
+                    "base_url": self._base_url,
+                },
             )
         # Home Assistant only allows an external step to move to "external step done".
         # The following step (the entity picker, or an abort) runs after that.

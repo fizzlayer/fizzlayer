@@ -1,6 +1,14 @@
 """Constants for the Fizzlayer Home Assistant integration."""
 
+import json
+from pathlib import Path
+
 DOMAIN = "fizzlayer"
+# Shown on the code step and in the log, and it matches manifest.json so a
+# running install can be told apart from the 1.0.0 build.
+INTEGRATION_VERSION = json.loads(
+    (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+)["version"]
 DEFAULT_BASE_URL = "https://fizzlayer.com"
 MY_HOME_ASSISTANT_URL = (
     "https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer"

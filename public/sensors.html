@@ -77,14 +77,13 @@ cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/</code></p
 docker exec homeassistant mkdir -p /config/custom_components
 docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer
 docker restart homeassistant</code></pre><button class="secondary" type="button" data-copy-command="ha-docker-cmd" aria-label="Copy Docker Home Assistant install commands">Copy</button></div>
-      <p class="pair-help">If your config directory is not <code>/config</code>, copy the folder into that directory's <code>custom_components</code> instead. On a self-hosted Fizzlayer, enable Advanced Mode in your Home Assistant profile before adding the integration and enter your server URL. Add integration uses fizzlayer.com unless you do that.</p>
+      <p class="pair-help">If your config directory is not <code>/config</code>, copy the folder into that directory's <code>custom_components</code> instead. Add integration shows a 6-digit code and opens the Fizzlayer Allow page for fizzlayer.com, including when Advanced Mode is on. The screen also shows the integration version.</p>
     </details>
     <p class="form-message" id="ha-connect-message" role="status"></p>
     <ul id="ha-connections" class="ha-connections" hidden></ul>
     <details id="ha-code-details">
-      <summary>Use a pairing code instead</summary>
-      <p class="pair-help">In your own Home Assistant, enable Advanced Mode, add Fizzlayer, and enter this code. It only works because you created it here while signed in. Self-hosted Fizzlayer also asks for this server's URL. Add integration uses the code Home Assistant shows on its screen instead.</p>
-      <p><code id="ha-code">Open this to create a code.</code></p>
+      <summary>Where the code is shown</summary>
+      <p class="pair-help">Home Assistant shows a 6-digit code on its own screen and opens the Fizzlayer Allow page. Type the code from that Home Assistant screen, then choose Allow. A code from a message is not accepted. The screen also shows the integration version.</p>
     </details>
   </section>
   <section class="dash-panel sensor-add" aria-labelledby="add-title"><div class="section-heading"><div><p class="setup-eyebrow">01 / EXPAND FIZZ</p><h2 id="add-title">Add a sensor</h2></div></div><form id="add-sensor-form" class="sensor-add-form"><div class="kind-field"><span class="field-label" id="new-kind-label">Type</span><input type="hidden" id="new-kind" value="water"><div class="kind-picker" id="kind-picker"><button type="button" class="kind-button" id="kind-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="kind-options" aria-labelledby="new-kind-label kind-button"></button><ul class="kind-options" id="kind-options" role="listbox" tabindex="-1" aria-labelledby="new-kind-label" hidden></ul></div></div><label for="new-name">Name<input id="new-name" maxlength="60" placeholder="e.g. Kitchen temperature"></label><fieldset class="source-field"><legend class="field-label">Data source</legend><div class="source-options"><label><input type="radio" name="new-source" value="real" checked><span>Real device</span></label><label><input type="radio" name="new-source" value="sample"><span>Sample stream</span></label></div></fieldset><button class="primary" type="submit" id="add-sensor-submit">Add sensor <span class="fa fa-plus" aria-hidden="true"></span></button></form><p class="source-help" id="source-help"></p><p class="form-message" id="add-message" role="status"></p></section>

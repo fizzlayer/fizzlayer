@@ -19,7 +19,7 @@ from homeassistant.helpers.storage import Store
 
 from .client import FizzlayerConnectionError, error_code, post_json
 from .config_flow import sync_selected
-from .const import DOMAIN, FLUSH_SECONDS, HEARTBEAT_SECONDS
+from .const import DOMAIN, FLUSH_SECONDS, HEARTBEAT_SECONDS, INTEGRATION_VERSION
 from .mapping import EntityPlan, convert_value
 from .push import PushQueue, Reading, ingest_body, split_results
 
@@ -29,6 +29,7 @@ STORAGE_VERSION = 1
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    _LOGGER.info("Fizzlayer integration %s is starting", INTEGRATION_VERSION)
     runtime = FizzlayerRuntime(hass, entry)
     await runtime.async_start()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
