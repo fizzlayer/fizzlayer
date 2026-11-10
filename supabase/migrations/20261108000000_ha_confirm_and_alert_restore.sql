@@ -159,7 +159,9 @@ end;
 $$;
 
 -- The code is the one Home Assistant is displaying. A link alone is not approval.
-create or replace function public.fizz_ha_authorize(p_token text, p_state text, p_code text)
+-- Postgres rejects CREATE OR REPLACE when a parameter is renamed (p_name -> p_code).
+drop function public.fizz_ha_authorize(text, text, text);
+create function public.fizz_ha_authorize(p_token text, p_state text, p_code text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_customer uuid;
@@ -227,3 +229,6 @@ grant execute on function
   public.fizz_ha_exchange(text, text, text, text, text),
   public.fizz_ha_preview(text, text)
 to service_role;
+
+revoke execute on function public.fizz_ha_authorize(text, text, text) from public, anon, authenticated;
+grant execute on function public.fizz_ha_authorize(text, text, text) to service_role;
