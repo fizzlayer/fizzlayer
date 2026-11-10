@@ -170,6 +170,7 @@ supabase db query --linked --file supabase/tests/plan_limits.sql
 supabase db query --linked --file supabase/tests/billing.sql
 supabase db query --linked --file supabase/tests/silence_alerts.sql
 supabase db query --linked --file supabase/tests/verified_phones.sql
+supabase db query --linked --file supabase/tests/homeassistant.sql
 ```
 
 New accounts start on the Hobbyist plan: 3 connected devices and 10 Fizz chat messages a month. To remove the limits on your own instance, set them to `NULL`:

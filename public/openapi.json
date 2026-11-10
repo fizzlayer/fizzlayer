@@ -20,8 +20,8 @@
       "post": {
         "tags": ["Readings"],
         "operationId": "sendReadings",
-        "summary": "Send readings for one sensor",
-        "description": "Stores 1 to 16 metrics observed at one moment. Metrics are validated against the sensor's type (for example, a Temperature sensor accepts temperature_c from -100 to 200); Custom sensors accept any metric name. Sending the same event_id again is idempotent, so retries are safe. Limits: 1,200 readings a minute per sensor and 5,000 per account.",
+        "summary": "Send readings for one sensor, or a batch from Home Assistant",
+        "description": "Stores 1 to 16 metrics observed at one moment. Metrics are validated against the sensor's type (for example, a Temperature sensor accepts temperature_c from -100 to 200); Custom sensors accept any metric name. Sending the same event_id again is idempotent, so retries are safe. A Home Assistant connection key may instead send {\"readings\": [ ... ]} with 1 to 40 of those objects. One bad item does not reject the rest. Limits: 1,200 readings a minute per sensor and 5,000 per account.",
         "security": [{ "sensorKey": [] }],
         "requestBody": {
           "required": true,

@@ -16,7 +16,7 @@ Onboarding, in order:
 4. `start_with_sample_data` with sensor types to explore with simulated data, and/or `add_sensor` with `source: "real"` to connect real hardware right away (returns a one-time API key and curl example, or a phone pairing link).
 5. Optional: `create_alert`, `pair_device` for a Linux device (`get_device_setup` has the install commands), `create_agent_connection` for an MCP token, `start_checkout` to upgrade.
 
-Other tools: `list_plans`, `list_sensor_types`, `list_sensors`, `get_readings`, `update_sensor`, `remove_sensor`, `create_phone_link`, `disconnect_phones`, `list_alerts`, `set_alert_enabled`, `delete_alert`, `ask_fizz`, `list_agent_connections`, `revoke_agent_connection`, `get_account`, `open_billing_portal`, `open_page`, `send_password_reset`, `sign_out`.
+Other tools: `list_plans`, `list_sensor_types`, `list_sensors`, `get_readings`, `update_sensor`, `remove_sensor`, `create_phone_link`, `disconnect_phones`, `connect_home_assistant`, `list_home_assistant`, `revoke_home_assistant`, `list_alerts`, `set_alert_enabled`, `delete_alert`, `ask_fizz`, `list_agent_connections`, `revoke_agent_connection`, `get_account`, `open_billing_portal`, `open_page`, `send_password_reset`, `sign_out`.
 
 The tool list is also published as a WebMCP card at https://fizzlayer.com/.well-known/webmcp (JSON: name, description, input schema, and hints for each tool).
 
@@ -42,7 +42,8 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 
 - A person must confirm their email before signing in; an agent cannot skip that step.
 - Passkeys, Google sign-in, voice chat, and phone sensor permissions need the person at the device.
-- Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`.
+- Sending readings uses the per-sensor API key: `POST https://fizzlayer.com/api/ingest` with `{"sensor_id": "...", "event_id": "unique-id", "metrics": {"temperature_c": 21.5}}`. A Home Assistant connection uses the same endpoint. Its device key can send up to 40 readings in one request as `{"readings": [ ... ]}`.
+- Home Assistant: `connect_home_assistant` opens My Home Assistant (`https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer`). Home Assistant shows a 6-digit code. The person types that code on the Fizzlayer page. The page names the install. A code from a message is not enough. They then pick `sensor` and `binary_sensor` entities. Each entity becomes a sensor labeled `source: "homeassistant"` and counts toward the device limit. The install pushes readings out, including a heartbeat about every 30 seconds so silence alerts keep working. `revoke_home_assistant` stops the connection and frees those slots. Do not ask the person to copy a token.
 - `create_alert` with `kind: "silence"` watches for no reading for `silence_minutes` (default 10, minimum 1). A scheduler checks about once a minute, so a silent sensor is called even when nothing else is reporting. Omit `kind` for a threshold alert. `call_phone` is optional and must already be paired by the owner under Phones in the dashboard. Pairing is a phone call that reads a code; only the signed-in owner can start or finish it, and agent or MCP tokens cannot. Phone calls require Tinkerer, Pro, or Enterprise. If the number is not paired, or the plan does not include calls, create a dashboard-only alert and tell the person to pair the number or upgrade. Asking again for the same alert returns the existing one.
 
 ## Machine-readable descriptions

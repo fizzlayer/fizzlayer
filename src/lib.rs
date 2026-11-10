@@ -8,6 +8,7 @@ pub mod contact;
 pub mod cron;
 pub mod customer;
 pub mod devices;
+pub mod homeassistant;
 pub mod mcp;
 pub mod notify;
 pub mod phone;
