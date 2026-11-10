@@ -116,6 +116,7 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional("code"): str,
                 }
             ),
+            description_placeholders={"base_url": DEFAULT_BASE_URL},
             errors=errors,
         )
 
@@ -214,6 +215,7 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                         vol.Optional("code", default=code): str,
                     }
                 ),
+                description_placeholders={"base_url": DEFAULT_BASE_URL},
                 errors={"code": "invalid_code"},
             )
         return await self.async_step_link(

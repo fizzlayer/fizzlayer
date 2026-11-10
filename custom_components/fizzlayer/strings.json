@@ -3,7 +3,7 @@
     "step": {
       "advanced": {
         "title": "Fizzlayer server",
-        "description": "Use https://fizzlayer.com, or the URL of a self-hosted Fizzlayer. A pairing code is created while you are signed in on the Fizzlayer Sensors page and typed into this Home Assistant. A code from a message is not yours.",
+        "description": "Use {base_url}, or the URL of a self-hosted Fizzlayer. A pairing code is created while you are signed in on the Fizzlayer Sensors page and typed into this Home Assistant. A code from a message is not yours.",
         "data": {
           "base_url": "Fizzlayer URL",
           "code": "Pairing code"
