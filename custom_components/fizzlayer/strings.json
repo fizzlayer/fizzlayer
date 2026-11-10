@@ -10,8 +10,8 @@
         }
       },
       "link": {
-        "title": "Link Fizzlayer",
-        "description": "On the Fizzlayer page, type this code: {code}. It is shown only on this screen, so Fizzlayer knows you are looking at this Home Assistant. If a window did not open, [open Fizzlayer]({url})."
+        "title": "Type this code on Fizzlayer",
+        "description": "Your code is {code}. Type it on the Fizzlayer Allow page, then choose Allow. This Home Assistant waits until you do. [Open the Fizzlayer Allow page]({url}). Integration version {version}. Server: {base_url}."
       },
       "reauth_confirm": {
         "title": "Fizzlayer connection expired",

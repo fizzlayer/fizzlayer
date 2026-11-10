@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "advanced": {
+        "title": "Fizzlayer server",
+        "description": "Use {base_url}, or the URL of a self-hosted Fizzlayer. A pairing code is created while you are signed in on the Fizzlayer Sensors page and typed into this Home Assistant. A code from a message is not yours.",
+        "data": {
+          "base_url": "Fizzlayer URL",
+          "code": "Pairing code"
+        }
+      },
+      "link": {
+        "title": "Type this code on Fizzlayer",
+        "description": "Your code is {code}. Type it on the Fizzlayer Allow page, then choose Allow. This Home Assistant waits until you do. [Open the Fizzlayer Allow page]({url}). Integration version {version}. Server: {base_url}."
+      },
+      "reauth_confirm": {
+        "title": "Fizzlayer connection expired",
+        "description": "The connection was revoked. Link it again to keep sending readings."
+      },
+      "entities": {
+        "title": "Choose sensors",
+        "description": "Home Assistant will push these to Fizzlayer. Temperature, humidity, power, door, and leak sensors start selected. Your plan has {remaining} device slots left (each entity uses one).",
+        "data": {
+          "entities": "Entities to share"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Enter an https URL, or http://localhost for a server on this machine.",
+      "invalid_code": "That pairing code is not valid or has expired. Create a new one on the Fizzlayer Sensors page.",
+      "device_limit": "Your Fizzlayer plan's device limit is reached. Remove a device or upgrade, then try again.",
+      "cannot_connect": "Fizzlayer could not be reached. Check the URL and try again."
+    },
+    "abort": {
+      "timeout": "Linking timed out. Start again from the Fizzlayer Sensors page.",
+      "expired": "This link expired. Start again from the Fizzlayer Sensors page.",
+      "already_linked": "This link was already used. Start again if you still need to connect.",
+      "rate_limited": "Too many link attempts. Wait a little and try again.",
+      "cannot_connect": "Fizzlayer could not be reached.",
+      "invalid_auth": "Fizzlayer rejected the connection. Remove it and link again.",
+      "no_entities": "No sensor or binary sensor entities were found.",
+      "already_configured": "This Fizzlayer connection is already set up.",
+      "reauth_successful": "Fizzlayer is linked again."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Assistant sensors",
+        "description": "Entities you clear are removed from Fizzlayer. Adding one uses a device slot on your plan.",
+        "data": {
+          "entities": "Entities to share"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Fizzlayer could not be reached.",
+      "device_limit": "Your Fizzlayer plan's device limit is reached."
+    },
+    "abort": {
+      "invalid_auth": "Fizzlayer rejected the connection. Link it again.",
+      "no_entities": "No sensor or binary sensor entities were found."
+    }
+  }
+}

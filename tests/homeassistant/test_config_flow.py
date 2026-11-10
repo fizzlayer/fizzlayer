@@ -89,6 +89,9 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
         assert "code=" not in result["url"]
         assert "fizzlayer.com" in result["url"]
         expected["code"] = result["description_placeholders"]["code"]
+        assert expected["code"].isdigit() and len(expected["code"]) == 6
+        assert result["description_placeholders"]["version"] == "1.1.0"
+        assert result["step_id"] == "link"
         flow_id = result["flow_id"]
         await hass.async_block_till_done()
         result = await hass.config_entries.flow.async_configure(flow_id)
@@ -102,3 +105,21 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
     assert result["data"]["api_key"].startswith("fizz_")
     assert set(result["options"]["entities"]) == {"sensor.rack_temp", "binary_sensor.closet_door"}
     assert plan_entity("sensor.rack_temp", "temperature", "°C").metric == "temperature_c"
+
+
+async def test_advanced_mode_shows_the_code_instead_of_a_url_form(hass, enable_custom_integrations):
+    """Advanced Mode used to ask for base_url and code and never displayed a code."""
+    from custom_components.fizzlayer.config_flow import FizzlayerConfigFlow
+
+    FizzlayerConfigFlow.show_advanced_options = property(lambda self: True)
+    try:
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    finally:
+        del FizzlayerConfigFlow.show_advanced_options
+    assert result["type"] is FlowResultType.EXTERNAL_STEP
+    assert result["step_id"] == "link"
+    placeholders = result["description_placeholders"]
+    assert placeholders["code"].isdigit() and len(placeholders["code"]) == 6
+    assert placeholders["version"] == "1.1.0"
+    assert placeholders["url"].startswith("https://fizzlayer.com/ha.html?state=")
+    assert "base_url" not in result

@@ -16,7 +16,7 @@ This integration lives in the Fizzlayer repository under `custom_components/fizz
 - `zip_release` is not set. HACS then downloads the repository archive and copies `custom_components/fizzlayer`. A zip release would need a zip of the integration files attached to every GitHub release, which this repository does not publish from CI.
 - `render_readme` is `true`, so HACS shows the repository README.
 
-HACS versions the integration from a GitHub **release**, not from a git tag alone. Until a release exists, HACS installs the default branch. Publish a release whose tag matches `manifest.json` (currently `1.0.0`, for example `v1.0.0`) when you want HACS to offer that version.
+HACS versions the integration from a GitHub **release**, not from a git tag alone. Until a release is published, HACS installs the default branch, or an older release if one is already marked latest. Publish a release whose tag matches `manifest.json` (currently `1.1.0`, for example `v1.1.0`) when you want HACS to offer that version. The version on the code screen and under Settings, Devices & services is the installed copy.
 
 **Restart Home Assistant** after HACS finishes installing.
 
@@ -32,7 +32,7 @@ The first time, My Home Assistant asks you to confirm your instance URL. If the 
 
 Temperature, humidity, power, energy, battery, door, and leak sensors start selected. Each entity counts toward the Fizzlayer device limit.
 
-Self-hosted Fizzlayer: enable **Advanced Mode** in your Home Assistant profile before adding the integration, and enter your server URL. `http://` is accepted only for localhost. Add integration uses fizzlayer.com unless you do that.
+Add integration shows a 6-digit code and a button that opens the Allow page, including when Advanced Mode is on. The server on that screen is fizzlayer.com. The same screen shows the integration version from `manifest.json`.
 
 ## Install without HACS
 
