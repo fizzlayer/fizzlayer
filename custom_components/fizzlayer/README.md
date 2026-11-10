@@ -2,27 +2,58 @@
 
 Push Home Assistant `sensor` and `binary_sensor` entities to [Fizzlayer](https://fizzlayer.com). Home Assistant sends the readings out, so the install does not need to be reachable from the internet.
 
-## Install with HACS
+Install this integration before adding it. Without the custom component, Home Assistant shows "This integration does not support configuration via the UI."
 
-This integration lives in the Fizzlayer repository under `custom_components/fizzlayer`. A separate repository is not required.
+## 1. Install via HACS
 
-1. In HACS, choose **Integrations**, then the menu, then **Custom repositories**.
-2. Add this repository (`https://github.com/fizzlayer/fizzlayer`) as category **Integration**.
-3. Install **Fizzlayer** and restart Home Assistant.
+[![Install via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fizzlayer&repository=fizzlayer&category=integration)
 
-HACS downloads the whole repository. That is the tradeoff of shipping the integration beside the Fizzlayer app.
+This integration lives in the Fizzlayer repository under `custom_components/fizzlayer`. A separate repository is not required. HACS allows one integration in `custom_components/`, and this repository has only `fizzlayer`.
 
-You can also copy `custom_components/fizzlayer` into your Home Assistant `config/custom_components` directory and restart.
+`hacs.json` is at the repository root:
 
-## Connect
+- `content_in_root` is `false` because the integration files are in `custom_components/fizzlayer`, not the repository root. Setting it to `true` would make HACS look in the wrong place.
+- `zip_release` is not set. HACS then downloads the repository archive and copies `custom_components/fizzlayer`. A zip release would need a zip of the integration files attached to every GitHub release, which this repository does not publish from CI.
+- `render_readme` is `true`, so HACS shows the repository README.
 
-On the Fizzlayer Sensors page, choose **Connect Home Assistant**. That opens My Home Assistant, which starts this integration. Home Assistant shows a 6-digit code. Type that code on the Fizzlayer page. The page also shows this install's name and version. You do not copy a device token, and a code from a message is not accepted unless it is the one on this screen.
+HACS versions the integration from a GitHub **release**, not from a git tag alone. Until a release exists, HACS installs the default branch. Publish a release whose tag matches `manifest.json` (currently `1.0.0`, for example `v1.0.0`) when you want HACS to offer that version.
+
+**Restart Home Assistant** after HACS finishes installing.
+
+You can also add the repository by hand in HACS: Integrations, then the menu, then Custom repositories, `https://github.com/fizzlayer/fizzlayer`, category Integration.
+
+## 2. Add the integration
+
+[![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer)
+
+Do this only after the restart. Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Type that code there. The page also shows this install's name and version. You do not copy a device token, and a code from a message is not accepted unless it is the one on this screen.
 
 The first time, My Home Assistant asks you to confirm your instance URL. If the browser blocks the window, use the link in the Home Assistant dialog.
 
 Temperature, humidity, power, energy, battery, door, and leak sensors start selected. Each entity counts toward the Fizzlayer device limit.
 
-Self-hosted Fizzlayer: enable **Advanced Mode** in your Home Assistant profile before adding the integration, and enter your server URL. `http://` is accepted only for localhost.
+Self-hosted Fizzlayer: enable **Advanced Mode** in your Home Assistant profile before adding the integration, and enter your server URL. `http://` is accepted only for localhost. Add integration uses fizzlayer.com unless you do that.
+
+## Install without HACS
+
+Copy `custom_components/fizzlayer` into the Home Assistant config `custom_components` directory, then restart. `/config` is that directory's parent on Home Assistant OS, Supervised, and the official container.
+
+```sh
+git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+mkdir -p /config/custom_components
+cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/
+```
+
+Docker, with the container named `homeassistant`:
+
+```sh
+git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+docker exec homeassistant mkdir -p /config/custom_components
+docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer
+docker restart homeassistant
+```
+
+If the config directory is not `/config`, copy the folder into that directory's `custom_components` instead. Then use Add integration above.
 
 ## What it sends
 

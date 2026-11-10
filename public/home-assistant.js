@@ -1,23 +1,4 @@
 (() => {
-  const redirect = 'https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer';
-
-  function openHomeAssistant() {
-    const popup = window.open(redirect, '_blank', 'noopener');
-    return popup;
-  }
-
-  document.querySelectorAll('[data-connect-ha]').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      const popup = openHomeAssistant();
-      if (popup) event.preventDefault();
-      const note = document.getElementById('ha-connect-message');
-      if (!note) return;
-      note.textContent = popup
-        ? 'Home Assistant is opening. Choose Allow on the Fizzlayer tab, then pick the sensors to share.'
-        : 'Your browser blocked the window. Allow pop-ups, or open the Sensors page and use Connect Home Assistant there.';
-    });
-  });
-
   const list = document.getElementById('ha-connections');
   const codeBox = document.getElementById('ha-code');
   const codeDetails = document.getElementById('ha-code-details');

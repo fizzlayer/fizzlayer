@@ -53,12 +53,37 @@
   <section class="dash-panel device-pairing" id="home-assistant" aria-labelledby="ha-title">
     <div class="section-heading"><div><p class="setup-eyebrow">HOME ASSISTANT</p><h2 id="ha-title">Connect Home Assistant</h2></div></div>
     <p class="pair-intro">Bring temperature, humidity, power, door, and leak sensors from a Home Assistant install into this workspace. Home Assistant pushes readings out, so the install can stay off the public internet. Each entity you share counts toward your plan's device limit.</p>
-    <p><button class="primary" type="button" id="connect-ha" data-connect-ha>Connect Home Assistant</button></p>
+    <ol class="pair-steps">
+      <li>
+        <strong>Install via HACS</strong>
+        <p>Home Assistant needs the Fizzlayer integration before it can be added. Without it, Add integration shows "This integration does not support configuration via the UI." This opens HACS, or the Marketplace on Home Assistant 2026.11 and newer, and adds this repository as an Integration.</p>
+        <p><a class="my-ha-badge" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=fizzlayer&repository=fizzlayer&category=integration" target="_blank" rel="noopener"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Install via HACS" height="40"></a></p>
+        <p><strong>Restart Home Assistant</strong> after the install finishes. The next step does not work until you do.</p>
+      </li>
+      <li>
+        <strong>Add the integration</strong>
+        <p>After the restart, add Fizzlayer. The first time, My Home Assistant asks you to confirm your instance URL. Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Sign in if you need to. The page names this install and its version. Type the code from the Home Assistant screen, then choose Allow. A code from a message is not enough, and you never copy a device token. Then pick the entities to share. Temperature, humidity, power, door, and leak sensors start selected.</p>
+        <p><a class="my-ha-badge" href="https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer" target="_blank" rel="noopener"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Add integration" height="40"></a></p>
+      </li>
+    </ol>
+    <details class="pair-setup">
+      <summary>Install without HACS</summary>
+      <p>Clone the repository and copy <code>custom_components/fizzlayer</code> into your Home Assistant config's <code>custom_components</code> folder. <code>/config</code> is that folder's parent on Home Assistant OS, Supervised, and the official container. Restart, then use Add integration above.</p>
+      <div class="pair-command"><pre><code id="ha-manual-cmd">git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+mkdir -p /config/custom_components
+cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/</code></pre><button class="secondary" type="button" data-copy-command="ha-manual-cmd" aria-label="Copy manual Home Assistant install commands">Copy</button></div>
+      <p>Home Assistant in Docker, with the container named <code>homeassistant</code>:</p>
+      <div class="pair-command"><pre><code id="ha-docker-cmd">git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+docker exec homeassistant mkdir -p /config/custom_components
+docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer
+docker restart homeassistant</code></pre><button class="secondary" type="button" data-copy-command="ha-docker-cmd" aria-label="Copy Docker Home Assistant install commands">Copy</button></div>
+      <p class="pair-help">If your config directory is not <code>/config</code>, copy the folder into that directory's <code>custom_components</code> instead. On a self-hosted Fizzlayer, enable Advanced Mode in your Home Assistant profile before adding the integration and enter your server URL. Add integration uses fizzlayer.com unless you do that.</p>
+    </details>
     <p class="form-message" id="ha-connect-message" role="status"></p>
     <ul id="ha-connections" class="ha-connections" hidden></ul>
     <details id="ha-code-details">
       <summary>Use a pairing code instead</summary>
-      <p class="pair-help">In your own Home Assistant, enable Advanced Mode, add Fizzlayer, and enter this code. It only works because you created it here while signed in. Self-hosted Fizzlayer also asks for this server's URL. The one-click button uses the code Home Assistant shows on its screen instead.</p>
+      <p class="pair-help">In your own Home Assistant, enable Advanced Mode, add Fizzlayer, and enter this code. It only works because you created it here while signed in. Self-hosted Fizzlayer also asks for this server's URL. Add integration uses the code Home Assistant shows on its screen instead.</p>
       <p><code id="ha-code">Open this to create a code.</code></p>
     </details>
   </section>

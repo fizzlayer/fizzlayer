@@ -26,6 +26,8 @@ button, a, input, select, textarea, summary { outline-offset: 4px; }
 [hidden] { display: none !important; }
 svg { vertical-align: middle; }
 a { color: var(--accent); text-underline-offset: 3px; }
+.my-ha-badge { display: inline-block; margin: 4px 0; max-width: 100%; line-height: 0; text-decoration: none; vertical-align: middle; }
+.my-ha-badge img { display: block; height: 40px; width: auto; max-width: 100%; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .skip-link { position: fixed; top: 10px; left: 10px; padding: 12px 18px; background: var(--navy); color: white; border-radius: 6px; z-index: 100; transform: translateY(-180%); }
 .skip-link:focus { transform: none; }
