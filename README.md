@@ -93,9 +93,42 @@ Replace the origin for a self-hosted instance. Supported tools include `list_sen
 
 ## Home Assistant
 
-Fizzlayer sits on an existing Home Assistant install. Home Assistant pushes `sensor` and `binary_sensor` entities out, so the install does not need to be reachable from the internet. On the Sensors page, **Connect Home Assistant** opens [My Home Assistant](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer), which starts the integration. Home Assistant shows a 6-digit code. The person types that code on the Fizzlayer page, which also names the install, and then picks entities. Temperature, humidity, power, door, and leak sensors start selected. Each entity becomes a Fizzlayer sensor and counts toward the plan's device limit. A heartbeat about every 30 seconds keeps silence alerts working. Revoke the connection from the Sensors page or by removing the integration.
+Fizzlayer sits on an existing Home Assistant install. Home Assistant pushes `sensor` and `binary_sensor` entities out, so the install does not need to be reachable from the internet. Install the integration before adding it. Without the custom component, Home Assistant shows "This integration does not support configuration via the UI."
 
-The integration lives in `custom_components/fizzlayer` and can be installed with [HACS](https://www.hacs.xyz/) as a custom repository (category: Integration). A separate repository is not required. HACS downloads this whole repository. See [Home Assistant in the docs](https://fizzlayer.com/docs.html#home-assistant).
+### 1. Install via HACS
+
+[![Install via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fizzlayer&repository=fizzlayer&category=integration)
+
+This opens HACS, or the Marketplace on Home Assistant 2026.11 and newer, and adds this repository as an Integration. `custom_components/` contains only `fizzlayer`, which is the layout HACS requires. `hacs.json` sets `content_in_root` to false because the integration is not in the repository root, and it does not set `zip_release`, so HACS downloads this repository and copies `custom_components/fizzlayer`.
+
+**Restart Home Assistant** after the install finishes.
+
+### 2. Add the integration
+
+[![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer)
+
+Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Type that code there. The page also names the install. A code from a message is not enough, and there is no device token to copy. Then pick entities. Temperature, humidity, power, door, and leak sensors start selected. Each entity becomes a Fizzlayer sensor and counts toward the plan's device limit. A heartbeat about every 30 seconds keeps silence alerts working. Revoke the connection from the Sensors page or by removing the integration.
+
+The same steps are on the [Sensors page](https://fizzlayer.com/sensors.html#home-assistant) and in the [docs](https://fizzlayer.com/docs.html#home-assistant).
+
+### Without HACS
+
+```sh
+git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+mkdir -p /config/custom_components
+cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/
+```
+
+`/config` is the config directory on Home Assistant OS, Supervised, and the official container. Restart, then use Add integration.
+
+Docker, with the container named `homeassistant`:
+
+```sh
+git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+docker exec homeassistant mkdir -p /config/custom_components
+docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer
+docker restart homeassistant
+```
 
 ## Send readings over HTTP
 

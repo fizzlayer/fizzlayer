@@ -16,7 +16,10 @@
         button.textContent = 'Copied';
         setTimeout(() => { button.textContent = 'Copy'; }, 1500);
       } catch {
-        message.textContent = 'Copy is unavailable. Select the command in the box and copy it manually.';
+        const target = button.closest('#home-assistant')
+          ? document.getElementById('ha-connect-message')
+          : message;
+        if (target) target.textContent = 'Copy is unavailable. Select the command in the box and copy it manually.';
       }
     });
   }

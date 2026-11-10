@@ -1,7 +1,6 @@
 {
   "name": "Fizzlayer",
   "content_in_root": false,
-  "domains": ["fizzlayer"],
   "homeassistant": "2024.11.0",
-  "render_readme": false
+  "render_readme": true
 }

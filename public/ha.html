@@ -11,14 +11,14 @@
   <link rel="stylesheet" href="/legal.css">
 </head>
 <body>
-  <main class="shell legal-layout" style="max-width: 40rem; margin: 3rem auto; padding: 0 1.25rem;">
+  <main class="shell" style="max-width: 40rem; margin: 3rem auto; padding: 0 1.25rem;">
     <a class="dashboard-logo" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="32" height="32">Fizzlayer<span>.</span></a>
     <h1 id="ha-title" style="font-size: 2.4rem; margin: 1.5rem 0 .75rem;">Connect Home Assistant</h1>
     <p id="ha-message">Checking your Fizzlayer account…</p>
     <p id="ha-install" hidden></p>
     <form id="ha-form" hidden>
       <label for="ha-confirm">Code shown in Home Assistant
-        <input id="ha-confirm" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required pattern="[0-9 ]{6,7}" style="display:block;width:10rem;margin:.4rem 0 1rem;font-size:1.4rem;letter-spacing:.15em">
+        <input id="ha-confirm" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required pattern="[0-9 ]{6,7}" style="display:block;width:10rem;margin:.4rem 0 1rem;padding:.45rem .6rem;border:1px solid #d7e2e9;border-radius:6px;background:#fff;color:#142b3c;font-size:1.4rem;letter-spacing:.15em">
       </label>
       <button class="primary" type="submit" id="ha-allow">Allow</button>
     </form>

@@ -1,7 +1,7 @@
 {
   "domain": "fizzlayer",
   "name": "Fizzlayer",
-  "codeowners": ["@fizzlayer"],
+  "codeowners": ["@nisargap"],
   "config_flow": true,
   "documentation": "https://fizzlayer.com/docs.html#home-assistant",
   "integration_type": "service",
