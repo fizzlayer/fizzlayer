@@ -97,8 +97,8 @@ begin
     jsonb_build_object('sensor_id', door, 'event_id', 'ha-door-1', 'metrics', jsonb_build_object('open', true)),
     jsonb_build_object('sensor_id', result->'sensors'->2->>'sensor_id', 'event_id', 'ha-power-1', 'metrics', jsonb_build_object('power_w', 180))
   ));
-  perform pg_temp.ha_assert(reading->'results'->0->>'boolean_value' = 'true'
-    and reading->'results'->1->>'unit' = 'W', 'a batch keeps each sensor unit');
+  perform pg_temp.ha_assert(reading->'results'->0->'accepted'->0->>'boolean_value' = 'true'
+    and reading->'results'->1->'accepted'->0->>'unit' = 'W', 'a batch keeps each sensor unit');
   perform pg_temp.ha_assert(public.fizz_ingest_batch('fizz_' || repeat('ab', 32), jsonb_build_array(
     jsonb_build_object('sensor_id', sensor, 'event_id', 'nope', 'metrics', jsonb_build_object('temperature_c', 1))
   ))->>'error' = 'unauthorized', 'an unknown key fails the batch');

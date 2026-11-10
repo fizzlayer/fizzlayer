@@ -48,7 +48,7 @@ declare v_name text;
 begin
   select conname into v_name from pg_constraint
   where conrelid = 'public.fizz_sensor_readings'::regclass and contype = 'c'
-    and pg_get_constraintdef(oid) ilike '%source in%';
+    and (pg_get_constraintdef(oid) ilike '%source in%' or pg_get_constraintdef(oid) ilike '%(source = any%');
   if v_name is not null then
     execute format('alter table public.fizz_sensor_readings drop constraint %I', v_name);
   end if;
