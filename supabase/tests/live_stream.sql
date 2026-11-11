@@ -100,7 +100,7 @@ exception when insufficient_privilege then
   null;
 end $$;
 
-set local role service_role;
+reset role;
 insert into live_results values ('anon cannot read the live feed');
 select label from live_results order by label;
 rollback;
