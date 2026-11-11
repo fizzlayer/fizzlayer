@@ -45,6 +45,8 @@ a { color: var(--accent); text-underline-offset: 3px; }
 .eyebrow-label { display: flex; align-items: center; gap: 9px; margin: 0 0 20px; font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent); }
 .status-dot { display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 50%; background: #44a88a; box-shadow: 0 0 0 4px #44a88a12; }
 .ui-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.nav-links a.github-link { display: inline-flex; align-items: center; gap: 7px; }
+.nav-links a.github-link svg { display: block; flex: none; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
