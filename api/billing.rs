@@ -10,9 +10,9 @@ async fn handler(request: Request) -> Result<Response<ResponseBody>, Error> {
     if let Err(response) = fizz::security::guard_request(&request) {
         return Ok(response);
     }
-    Ok(if request.method() == "POST" {
+    Ok(if request.method() == "GET" || request.method() == "POST" {
         handle(request).await
     } else {
-        fizz::customer::error(405, "method_not_allowed", "Use POST.")
+        fizz::customer::error(405, "method_not_allowed", "Use GET or POST.")
     })
 }

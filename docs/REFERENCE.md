@@ -80,7 +80,7 @@ Run `supabase db query --linked --file supabase/tests/plan_limits.sql` to verify
 
 ### Billing with Stripe
 
-When the Stripe variables are set, Settings offers **Upgrade** buttons for Tinkerer and Pro, and **Manage billing** once an account has a Stripe customer. Without them, billing is hidden and plans change only in the database.
+When the Stripe variables are set, sign-up offers Hobbyist, Tinkerer, Pro, and an Enterprise contact link, and Settings offers **Upgrade** buttons for Tinkerer and Pro plus **Manage billing** once an account has a Stripe customer. Without them, sign-up does not offer paid plans, Settings hides billing, and plans change only in the database. A new account stays on Hobbyist until the webhook records a paid subscription.
 
 | Variable | Value |
 | --- | --- |
@@ -89,7 +89,8 @@ When the Stripe variables are set, Settings offers **Upgrade** buttons for Tinke
 | `STRIPE_PRICE_TINKERER` | Price ID (`price_...`) of the monthly Tinkerer price |
 | `STRIPE_PRICE_PRO` | Price ID of the monthly Pro price |
 
-- `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates a Stripe Checkout session; `{"action":"portal"}` opens the Stripe customer portal. Both return `{"url": ...}` for the browser to open and allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal.
+- `GET /api/billing` returns `{"available":true}` when the four Stripe variables are set, and `{"available":false}` otherwise. It does not require a session.
+- `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates a Stripe Checkout session; `{"action":"portal"}` opens the Stripe customer portal. Both return `{"url": ...}` for the browser to open and allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal. Optional `"return_to":"app"` sends Stripe back to `/app.html`; omitted or `"settings"` sends it to `/settings.html`. Any other value is `400 invalid_return`. Success and cancel add `?billing=success` or `?billing=cancelled`. Cancelling does not change the plan.
 - `POST /api/stripe-webhook` receives Stripe events. Subscribe the endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`. Each event's signature and timestamp (5-minute tolerance) are verified; the handler then fetches the subscription from Stripe and stores its current state, so retried and out-of-order events are harmless. A failure answers `500` so Stripe retries.
 - `active`, `trialing`, and `past_due` subscriptions keep their plan; `past_due` keeps it while Stripe retries the payment. Any other status, or a price that matches neither variable, returns the account to Hobbyist. Enterprise accounts are never changed by webhooks.
 - In the Stripe customer portal settings, allow switching between the Tinkerer and Pro prices and cancelling. For local testing, use test-mode keys and prices with a local database so no real account or card is involved:

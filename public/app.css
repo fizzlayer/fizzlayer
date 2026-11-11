@@ -48,6 +48,27 @@ input::placeholder { color: #7b9daa; }
 .oauth-logo { display: grid; place-items: center; flex: none; width: 1.9rem; height: 1.9rem; background: #fff; box-shadow: 2px 2px 0 #071018; }
 .oauth-logo svg { display: block; width: 1.3rem; height: 1.3rem; }
 #email-wrap { margin-bottom: 1.6rem; }
+.plan-picker { margin: 0 0 18px; padding: 0; border: 0; }
+.plan-picker legend { margin-bottom: 8px; color: #48616f; font-size: 15px; font-weight: 500; }
+.plan-options { display: grid; gap: 8px; }
+.plan-option { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; grid-template-areas: "check name price" "check tag tag" "check detail detail"; column-gap: 10px; row-gap: 2px; align-items: start; width: 100%; border: 1px solid #d7e2e9; border-radius: 8px; background: white; color: var(--ink); padding: 12px; text-align: left; text-decoration: none; }
+.plan-option:hover, .plan-option:focus-visible { border-color: #6daebf; }
+.plan-option:has(input:checked), .plan-option-current { border-color: #17394e; background: #f4fbfd; }
+.plan-option input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.plan-option-check { grid-area: check; width: 16px; height: 16px; margin-top: 2px; border: 2px solid #8eacba; border-radius: 3px; }
+.plan-option:has(input:checked) .plan-option-check { background: #17394e; border-color: #17394e; }
+.plan-option:has(input:focus-visible) { outline: 3px solid #098fab; outline-offset: 3px; }
+.plan-option-name { grid-area: name; font-size: 15px; font-weight: 600; }
+.plan-option-price { grid-area: price; color: #17394e; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.plan-option-tag, .plan-option-detail { color: #5d7788; font-size: 13px; line-height: 1.4; }
+.plan-option-tag { grid-area: tag; }
+.plan-option-detail { grid-area: detail; }
+.plan-option-link { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name price" "tag tag" "detail detail"; }
+@media (max-width: 420px) {
+  .plan-option { grid-template-columns: 18px minmax(0, 1fr); grid-template-areas: "check name" "check price" "check tag" "check detail"; }
+  .plan-option-link { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "price" "tag" "detail"; }
+  .plan-option-price { justify-self: start; }
+}
 .text-button { margin-right: auto; padding: 0; border: 0; background: none; color: #a9eaf7; text-decoration: underline; text-underline-offset: 4px; font-size: 1.35rem; }
 .text-button:hover { color: #fff; }
 .email-sent { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.4rem; }

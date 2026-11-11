@@ -362,7 +362,7 @@ The Compose file maps `host.docker.internal` to the host. Pull a model that supp
 
 **Phone calls.** Leave `AGENTPHONE_API_KEY` empty and alerts stay on the dashboard. Nothing is dialed. There is no self-hosted dialer. Calls are US voice only, and the account's plan must include them (Tinkerer, Pro, or Enterprise). Hobbyist does not place calls.
 
-**Stripe.** Leave the four `STRIPE_*` variables empty. `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
+**Stripe.** Leave the four `STRIPE_*` variables empty. `GET /api/billing` returns `{"available":false}`, sign-up does not offer paid plans, and `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
 
 **SMTP.** Keep `MAILER_AUTOCONFIRM=true` until a message actually arrives. Then set `MAILER_AUTOCONFIRM=false` and the `SMTP_*` variables. Password reset and the confirmation link use `PUBLIC_URL`.
 
