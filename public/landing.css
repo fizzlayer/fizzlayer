@@ -188,6 +188,8 @@ body { overflow-x: clip; }
   .nav-links.open { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
   .nav-links a { display: block; padding-block: 14px; }
   .nav-links .nav-sign-in { margin-left: 0; }
+  .nav-links .nav-github { grid-column: 1 / -1; }
+  .nav-links a.github-link { display: inline-flex; align-items: center; gap: 8px; width: fit-content; }
   .nav-links .nav-cta { margin-top: 3px; text-align: center; }
   .hero { gap: 30px; grid-template-columns: 1fr 1fr; min-height: 550px; }
   .hero h1 { font-size: 49px; letter-spacing: -2.7px; }
