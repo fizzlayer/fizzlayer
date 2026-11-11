@@ -66,7 +66,10 @@ begin
   perform pg_temp.live_assert(public.fizz_live_principal(key_a, sensor_a)->>'error' = 'paused', 'paused sensor cannot connect');
   perform public.fizz_update_sensor(a.token, sensor_a, null, null, 'active', false);
 
-  update public.fizz_stream_tokens set expires_at = now() - interval '1 minute'
+  -- expires_at must stay after created_at. Backdate both so the row is already expired.
+  update public.fizz_stream_tokens
+  set created_at = now() - interval '2 minutes',
+      expires_at = now() - interval '1 minute'
   where token_hash = extensions.digest(grant_a->>'token', 'sha256');
   perform pg_temp.live_assert(public.fizz_live_principal(grant_a->>'token', sensor_a)->>'error' = 'unauthorized', 'expired stream token is refused');
 

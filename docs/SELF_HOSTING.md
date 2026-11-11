@@ -208,7 +208,7 @@ Checked against Supabase's announcement and product page, not against a producti
 | --- | --- |
 | CLI | 2.120.0 or later. `compute = true` is already under `[experimental]` |
 | Sizes | 2 GB / 1 vCPU (`2gb`, what this repo sets) or 4 GB / 2 vCPU |
-| Region | us-west-2 only during the alpha. Confirm project `Fizz` (`bbmdkpzzzalkvthwgsek`) is in that region before pushing |
+| Region | Supabase's alpha announcement listed us-west-2 only. The Fizz project (`bbmdkpzzzalkvthwgsek`) is in us-east-1 and already has Compute enabled, so that announcement does not block this deploy |
 | Price | The alpha is free and is for evaluation, not production. It may change or end. No general price has been published for this service. That is separate from Postgres [compute hours](https://supabase.com/docs/guides/platform/manage-your-usage/compute), which bill the database instance |
 | Lifetime | No wall-clock limit of the kind Edge Functions have (400 seconds). A service can still be restarted at any time, so readings live in Postgres |
 | Idle | A public service suspends when idle and is described as resuming in under a second. Open sockets keep it awake; clients reconnect after a suspend |
@@ -222,7 +222,7 @@ The public URL is HTTP. It does not publish TCP port 1883. MQTT clients on that 
 Do this in the Supabase project you mean to use. Nothing in this repository deploys it for you.
 
 1. Apply `supabase/migrations/20261111000000_live_stream.sql` with the other migrations (`supabase db push`).
-2. Confirm the project is in us-west-2 and that Compute is enabled for it. The alpha is waitlisted.
+2. On Fizz (`bbmdkpzzzalkvthwgsek`) Compute is already enabled, including from us-east-1. On another project, confirm Compute is enabled before pushing. The alpha announcement listed us-west-2 only; that list is not the gate for Fizz.
 3. Put `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the project's secrets. Compute injects project secrets into the service. The worker will not store readings without them. Add `FIZZ_STREAM_ORIGINS` only if the browser origin is not `https://fizzlayer.com` or `https://www.fizzlayer.com` (comma-separated). Loopback origins are always allowed.
 4. From the repo root, with Supabase CLI 2.120.0 or later:
 
