@@ -3,8 +3,7 @@
 #   mkdir fizzlayer && cd fizzlayer
 #   curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.yml -o compose.yml
 #   curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.env.example -o .env.example
-#   curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
-#   sh selfhost-init.sh
+#   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/out" fizzlayer/fizzlayer-api:latest init --out /out/.env
 #   docker compose up -d
 #
 # Images only: no build and no files from a clone. SQL migrations are inside

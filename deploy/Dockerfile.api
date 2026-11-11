@@ -19,4 +19,5 @@ ENV FIZZ_PUBLIC_DIR=/app/public
 ENV PORT=8080
 USER 65532:65532
 EXPOSE 8080
-CMD ["fizz-serve"]
+ENTRYPOINT ["/usr/local/bin/fizz-serve"]
+CMD []

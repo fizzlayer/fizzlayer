@@ -68,8 +68,7 @@ No clone and no compiler. Download the compose file, generate secrets, and start
 mkdir fizzlayer && cd fizzlayer
 curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.yml -o compose.yml
 curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.env.example -o .env.example
-curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
-sh selfhost-init.sh
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/out" fizzlayer/fizzlayer-api:latest init --out /out/.env
 docker compose up -d
 ```
 
@@ -206,7 +205,6 @@ cargo test --locked --manifest-path cli/Cargo.toml
 | `supabase/migrations/` | Database schema, access policies, and server functions |
 | `supabase/tests/` | SQL checks for ownership and security protections |
 | `hardware/` | Device firmware and hardware guides |
-| `tools/demo/` | Dashboard walkthrough and recording tools |
 
 ## License
 
