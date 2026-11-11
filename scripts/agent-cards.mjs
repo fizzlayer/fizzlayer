@@ -35,7 +35,7 @@ function webmcpTools() {
 
 // The pages that load webmcp.js, read from the HTML so new pages are picked up.
 function webmcpPages() {
-  const pages = ['index.html', 'docs.html', 'app.html', 'sensors.html', 'agents.html', 'settings.html', 'privacy.html', 'terms.html', 'demo.html', 'phone.html'];
+  const pages = ['index.html', 'docs.html', 'pricing.html', 'status.html', 'enterprise.html', 'app.html', 'sensors.html', 'agents.html', 'settings.html', 'privacy.html', 'terms.html', 'demo.html', 'phone.html'];
   return pages.filter((page) => read(`public/${page}`).includes('src="/webmcp.js"')).map((page) => (page === 'index.html' ? '/' : `/${page}`));
 }
 

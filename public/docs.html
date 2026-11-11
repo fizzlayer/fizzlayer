@@ -48,7 +48,7 @@
       <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
       <ul class="nav-links">
         <li><a href="/docs.html" aria-current="page">Docs</a></li>
-        <li class="nav-wide"><a href="/#pricing">Pricing</a></li>
+        <li class="nav-wide"><a href="/pricing">Pricing</a></li>
         <li class="nav-wide"><a href="/demo.html">Live demo</a></li>
         <li><a class="button nav-cta" href="/app.html#sign-in">Sign in</a></li>
       </ul>
@@ -456,7 +456,7 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
         <tbody>
         <tr><td><code>start_checkout</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Upgrade to a paid plan. Opens Stripe Checkout in this tab; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.</p><p class="docs-args">Input: <code>plan</code></p></td></tr>
         <tr><td><code>open_billing_portal</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Open the Stripe billing portal to change plans, update the payment method, see invoices, or cancel. The person makes the changes there.</p><p class="docs-args">No input.</p></td></tr>
-        <tr><td><code>open_page</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, docs (documentation), privacy, or terms.</p><p class="docs-args">Input: <code>page</code></p></td></tr>
+        <tr><td><code>open_page</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (documentation), privacy, or terms.</p><p class="docs-args">Input: <code>page</code></p></td></tr>
         </tbody></table></div>
         <h4>More</h4>
         <div class="docs-table-wrap"><table>
@@ -513,6 +513,6 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
     </div>
   </main>
 
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html" aria-current="page">Docs</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html" aria-current="page">Docs</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
 </body>
 </html>

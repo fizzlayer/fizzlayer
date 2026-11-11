@@ -27,6 +27,21 @@
       "source": "/docs",
       "destination": "/docs.html",
       "permanent": true
+    },
+    {
+      "source": "/pricing",
+      "destination": "/pricing.html",
+      "permanent": true
+    },
+    {
+      "source": "/status",
+      "destination": "/status.html",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise",
+      "destination": "/enterprise.html",
+      "permanent": true
     }
   ],
   "rewrites": [

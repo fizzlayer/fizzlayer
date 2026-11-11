@@ -8,6 +8,9 @@
   "pages": [
     "/",
     "/docs.html",
+    "/pricing.html",
+    "/status.html",
+    "/enterprise.html",
     "/app.html",
     "/sensors.html",
     "/agents.html",
@@ -672,7 +675,7 @@
     },
     {
       "name": "open_page",
-      "description": "Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, demo, docs (documentation), privacy, or terms.",
+      "description": "Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (documentation), privacy, or terms.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -685,6 +688,8 @@
               "agents",
               "settings",
               "pricing",
+              "status",
+              "enterprise",
               "demo",
               "docs",
               "privacy",
