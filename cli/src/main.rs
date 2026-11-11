@@ -15,6 +15,8 @@ use std::{
 
 use serde_json::{Map, Value, json};
 
+mod transport;
+
 const DEFAULT_API: &str = "https://fizzlayer.com";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "fizz — connect this device to Fizz
@@ -23,14 +25,20 @@ Usage:
   fizz pair [--name NAME] [--force]   Show a pairing code and approve the request here
   fizz run [--every SECONDS] [--once] Send CPU temperature, load, memory, and disk usage
   fizz send METRIC VALUE [...]        Send your own readings, e.g. fizz send temperature_c 22.4
+  fizz tail                           Print live readings for this device
   fizz status                         Show this device's pairing
   fizz unpair                         Revoke this device's key and forget the pairing
   fizz service                        Print a systemd unit that keeps `fizz run` going
   fizz --version
 
+Add --stream to run or send to keep one WebSocket open instead of an HTTPS request
+per reading. Add --mqtt to publish those readings over MQTT. tail uses the live
+socket; tail --mqtt subscribes over MQTT. Both use this device's sensor key.
+
 Environment:
-  FIZZ_API      Fizz base URL (default https://fizzlayer.com)
-  FIZZ_CONFIG   Config file (default ~/.config/fizz/device.json)";
+  FIZZ_API       Fizz base URL (default https://fizzlayer.com)
+  FIZZ_CONFIG    Config file (default ~/.config/fizz/device.json)
+  FIZZ_MQTT_URL  Override the discovered MQTT URL (mqtt://, ws://, or wss://)";
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -40,6 +48,7 @@ fn main() -> ExitCode {
         Some("pair") => pair(&args[1..]),
         Some("run") => run(&args[1..]),
         Some("send") => send(&args[1..]),
+        Some("tail") => tail(&args[1..]),
         Some("status") => status(),
         Some("unpair") => unpair(),
         Some("service") => service(),
@@ -130,6 +139,16 @@ fn validate_api(base: &str) -> Result<()> {
     Ok(())
 }
 
+fn get(base: &str, path: &str) -> Result<Reply> {
+    validate_api(base)?;
+    let url = format!("{base}{path}");
+    let mut response = agent()
+        .get(&url)
+        .call()
+        .map_err(|e| format!("Could not reach Fizz at {url}: {e}"))?;
+    read_reply(response.status().as_u16(), &mut response)
+}
+
 fn post(base: &str, path: &str, body: &Value, bearer: Option<&str>) -> Result<Reply> {
     validate_api(base)?;
     let url = format!("{base}{path}");
@@ -142,13 +161,16 @@ fn post(base: &str, path: &str, body: &Value, bearer: Option<&str>) -> Result<Re
     let mut response = request
         .send(body.to_string())
         .map_err(|e| format!("Could not reach Fizz at {url}: {e}"))?;
-    let status = response.status().as_u16();
+    read_reply(response.status().as_u16(), &mut response)
+}
+
+fn read_reply(status: u16, response: &mut ureq::http::Response<ureq::Body>) -> Result<Reply> {
     let text = response
         .body_mut()
         .with_config()
         .limit(1024 * 1024)
         .read_to_string()
-        .map_err(|_| "Fizz returned an invalid or oversized response.")?;
+        .map_err(|_| "Fizz returned an invalid or oversized response.".to_owned())?;
     let body = serde_json::from_str(&text).unwrap_or(Value::Null);
     Ok(Reply { status, body })
 }
@@ -508,7 +530,34 @@ fn valid_metric(name: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'_')
 }
 
-fn send(args: &[String]) -> Result<()> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Transport {
+    Https,
+    Socket,
+    Mqtt,
+}
+
+fn chosen_transport(args: &[String]) -> Result<Transport> {
+    let socket = args.iter().any(|arg| arg == "--stream");
+    let mqtt = args.iter().any(|arg| arg == "--mqtt");
+    match (socket, mqtt) {
+        (true, true) => Err("Use either --stream or --mqtt.".into()),
+        (true, false) => Ok(Transport::Socket),
+        (false, true) => Ok(Transport::Mqtt),
+        (false, false) => Ok(Transport::Https),
+    }
+}
+
+fn known_flags(args: &[String], allowed: &[&str]) -> Result<()> {
+    for arg in args {
+        if arg.starts_with("--") && !allowed.contains(&arg.as_str()) {
+            return Err(format!("Unknown flag `{arg}`. Run `fizz help` for usage."));
+        }
+    }
+    Ok(())
+}
+
+fn metrics_from_pairs(args: &[String]) -> Result<Map<String, Value>> {
     if args.is_empty() || !args.len().is_multiple_of(2) || args.len() > 32 {
         return Err(
             "Use `fizz send METRIC VALUE [METRIC VALUE ...]` with up to 16 metrics.".into(),
@@ -524,13 +573,65 @@ fn send(args: &[String]) -> Result<()> {
         }
         metrics.insert(pair[0].clone(), parse_value(&pair[1])?);
     }
-    send_metrics(&require_config()?, &metrics)?;
+    Ok(metrics)
+}
+
+fn send(args: &[String]) -> Result<()> {
+    known_flags(args, &["--stream", "--mqtt"])?;
+    let transport = chosen_transport(args)?;
+    let metrics = metrics_from_pairs(
+        &args
+            .iter()
+            .filter(|arg| !arg.starts_with("--"))
+            .cloned()
+            .collect::<Vec<_>>(),
+    )?;
+    let config = require_config()?;
+    publish(&config, &metrics, transport)?;
     println!(
         "Sent {} reading{}.",
         metrics.len(),
         if metrics.len() == 1 { "" } else { "s" }
     );
     Ok(())
+}
+
+fn publish(
+    config: &Map<String, Value>,
+    metrics: &Map<String, Value>,
+    transport: Transport,
+) -> Result<()> {
+    match transport {
+        Transport::Https => send_metrics(config, metrics),
+        Transport::Socket => {
+            let urls = stream_urls(config)?;
+            let mut link = transport::ReadingLink::open(
+                &urls.websocket_url,
+                &field(config, "sensor_id")?,
+                &field(config, "api_key")?,
+            )?;
+            link.send(metrics, &event_id())
+        }
+        Transport::Mqtt => {
+            let urls = stream_urls(config)?;
+            transport::mqtt_publish(
+                &urls,
+                env::var("FIZZ_MQTT_URL").ok().as_deref(),
+                &field(config, "sensor_id")?,
+                &field(config, "api_key")?,
+                metrics,
+                &event_id(),
+            )
+        }
+    }
+}
+
+fn stream_urls(config: &Map<String, Value>) -> Result<transport::StreamUrls> {
+    let base = config_api(config);
+    transport::discover(|path| {
+        let reply = get(&base, path)?;
+        Ok((reply.status, reply.body))
+    })
 }
 
 fn read_number(path: &str) -> Option<f64> {
@@ -615,6 +716,8 @@ fn summary(metrics: &Map<String, Value>) -> String {
 }
 
 fn run(args: &[String]) -> Result<()> {
+    known_flags(args, &["--every", "--once", "--stream", "--mqtt"])?;
+    let transport = chosen_transport(args)?;
     let every = match flag_value(args, "--every")? {
         Some(raw) => raw
             .parse::<u64>()
@@ -626,6 +729,16 @@ fn run(args: &[String]) -> Result<()> {
     }
     let once = args.iter().any(|a| a == "--once");
     let config = require_config()?;
+    let mut link = if transport == Transport::Socket {
+        let urls = stream_urls(&config)?;
+        Some(transport::ReadingLink::open(
+            &urls.websocket_url,
+            &field(&config, "sensor_id")?,
+            &field(&config, "api_key")?,
+        )?)
+    } else {
+        None
+    };
     println!(
         "Sending readings from \"{}\" to account {} every {every}s. Press Ctrl-C to stop.",
         field(&config, "device_name")?,
@@ -639,15 +752,59 @@ fn run(args: &[String]) -> Result<()> {
                     .into(),
             );
         }
-        match send_metrics(&config, &metrics) {
+        let sent = match transport {
+            Transport::Https => send_metrics(&config, &metrics),
+            Transport::Socket => match link.as_mut() {
+                Some(open) => open.send(&metrics, &event_id()),
+                None => Err("The stream is not open.".into()),
+            },
+            Transport::Mqtt => publish(&config, &metrics, Transport::Mqtt),
+        };
+        match sent {
             Ok(()) => println!("{}  sent  {}", clock(), summary(&metrics)),
             Err(e) if e.contains("revoked") => return Err(e),
-            Err(e) => eprintln!("{}  not sent: {e}", clock()),
+            Err(e) => {
+                eprintln!("{}  not sent: {e}", clock());
+                if transport == Transport::Socket
+                    && let (Ok(urls), Ok(sensor), Ok(key)) = (
+                        stream_urls(&config),
+                        field(&config, "sensor_id"),
+                        field(&config, "api_key"),
+                    )
+                {
+                    link = transport::ReadingLink::open(&urls.websocket_url, &sensor, &key).ok();
+                }
+            }
         }
         if once {
             return Ok(());
         }
         thread::sleep(Duration::from_secs(every));
+    }
+}
+
+fn tail(args: &[String]) -> Result<()> {
+    known_flags(args, &["--stream", "--mqtt"])?;
+    let transport = chosen_transport(args)?;
+    if transport == Transport::Https {
+        // tail defaults to the live socket. --stream is accepted as that same choice.
+    }
+    let config = require_config()?;
+    let urls = stream_urls(&config)?;
+    let sensor = field(&config, "sensor_id")?;
+    let key = field(&config, "api_key")?;
+    let print = |line: &str| println!("{line}");
+    match transport {
+        Transport::Mqtt => transport::tail_mqtt(
+            &urls,
+            env::var("FIZZ_MQTT_URL").ok().as_deref(),
+            &sensor,
+            &key,
+            print,
+        ),
+        Transport::Https | Transport::Socket => {
+            transport::tail_socket(&urls.live_url, &sensor, &key, print)
+        }
     }
 }
 

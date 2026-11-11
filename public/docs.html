@@ -84,6 +84,7 @@
           <p class="toc-label">Connect devices</p>
           <ol>
             <li><a href="#http-api">Send readings over HTTP</a></li>
+            <li><a href="#live">Live socket and MQTT</a></li>
             <li><a href="#phones">Phones</a></li>
             <li><a href="#linux">Raspberry Pi and Linux</a></li>
             <li><a href="#home-assistant">Home Assistant</a></li>
@@ -190,6 +191,17 @@
         </ul>
         <p>The full request and response formats are in the <a href="/openapi.json">OpenAPI description</a>. Keep each API key on the device that uses it. Keys are stored only as hashes, so we can never show one again; rotating a key stops the old one immediately.</p>
 
+        <h2 id="live">Live socket and MQTT</h2>
+        <p>A reading can also stay on a connection instead of opening a new HTTPS request each time. The connection ends at Fizzlayer's Compute worker, not at a Vercel function. Stored readings, alerts, and agent tools are the same as <a href="#http-api">HTTP ingest</a>.</p>
+        <p>On a paired Linux device:</p>
+        <pre><code>fizz run --stream --every 15
+fizz send --mqtt temperature_c 22.4
+fizz tail</code></pre>
+        <p><code>--stream</code> keeps a WebSocket open. <code>--mqtt</code> publishes MQTT. <code>fizz tail</code> prints new readings until you stop it. Both need live streaming to be turned on for that Fizzlayer. If it is not, the command says so and the HTTPS commands keep working.</p>
+        <p>Other devices use the same sensor id and API key. The WebSocket address comes from <code>GET /api/stream</code>. The first message is <code>{"op":"auth","key":"YOUR_SENSOR_API_KEY"}</code>. Each reading is <code>{"op":"reading","sensor_id":"YOUR_SENSOR_ID","event_id":"reading-002","metrics":{"temperature_c":22.4}}</code>. A matching <code>{"op":"ack"}</code> means it was stored.</p>
+        <p>MQTT is version 3.1.1. Connect with the sensor id as the username and the API key as the password. Publish <code>{"event_id":"reading-003","metrics":{"temperature_c":22.4}}</code> to <code>fizz/v1/YOUR_SENSOR_ID/readings</code>. Subscribe to <code>fizz/v1/YOUR_SENSOR_ID/live</code> to hear readings, including ones that arrived over HTTPS. On the hosted worker the MQTT connection is a WebSocket (<code>wss://…/mqtt</code>). ESP-IDF can use that. A Home Assistant MQTT broker entry and Arduino PubSubClient need plain TCP port 1883, which the Compute URL does not expose; use HTTPS ingest, the Home Assistant integration, or an MQTT listener you run yourself from the same worker image.</p>
+        <p>The dashboard subscribes on its own. An agent can too: <code>POST /api/stream</code> with the agent token returns a token that lasts 15 minutes and can only listen. That token is not a sensor key. Do not put it in a URL.</p>
+
         <h2 id="phones">Phones</h2>
         <p>Turn any phone into a sensor without installing an app.</p>
         <ol class="docs-steps">
@@ -209,8 +221,10 @@ fizz pair --name "Workshop Pi"</code></pre>
           <li>Back on the device, check the account name and approve the request. Nothing connects until you approve it at the device.</li>
           <li>Start streaming:</li>
         </ol>
-        <pre><code>fizz run --every 60                       # system health every minute
+        <pre><code>fizz run --every 60                       # system health every minute, over HTTPS
+fizz run --stream --every 15              # one WebSocket instead of a request per sample
 fizz send temperature_c 22.4 humidity_pct 48   # your own readings
+fizz tail                                 # print live readings
 fizz status                               # show the pairing</code></pre>
         <p>To keep it running after reboots, <code>fizz service</code> prints a systemd unit to install. The <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/CLI.md">CLI guide</a> covers every command, configuration, and building from source. Microcontrollers such as the ESP32 can't run the CLI; give them an <a href="#http-api">API sensor</a> instead.</p>
 

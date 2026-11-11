@@ -51,6 +51,46 @@
 
   // Keep an honest, bounded trend from readings actually seen in this session.
   // Do not turn simulated values into a claimed history or invent missing samples.
+  let liveDraw = 0;
+  function applyLiveReading(reading) {
+    if (!reading || $('dashboard').hidden) return;
+    const sensor = sensors.find((item) => item.id === reading.sensor_id);
+    if (!sensor) return;
+    const row = {
+      sensor_id: reading.sensor_id,
+      event_id: reading.event_id,
+      metric: reading.metric,
+      numeric_value: reading.numeric_value,
+      boolean_value: reading.boolean_value,
+      text_value: reading.text_value,
+      unit: reading.unit,
+      observed_at: reading.observed_at,
+      received_at: reading.received_at,
+      source: reading.source,
+    };
+    sensor.latest_reading = row;
+    sensor.last_received_at = reading.received_at;
+    const metrics = Array.isArray(sensor.latest_metrics) ? sensor.latest_metrics.slice() : [];
+    const summary = {
+      metric: reading.metric,
+      numeric_value: reading.numeric_value,
+      boolean_value: reading.boolean_value,
+      text_value: reading.text_value,
+      unit: reading.unit,
+      observed_at: reading.observed_at,
+    };
+    const index = metrics.findIndex((item) => item.metric === reading.metric);
+    if (index >= 0) metrics[index] = summary;
+    else metrics.push(summary);
+    sensor.latest_metrics = metrics;
+    recordReading(sensor);
+    detail.noteReading?.(sensor, row);
+    clearTimeout(liveDraw);
+    liveDraw = setTimeout(() => {
+      if (!$('dashboard').hidden) renderSensors();
+    }, 150);
+  }
+
   function recordReading(sensor) {
     const reading = sensor.latest_reading;
     if (!Number.isFinite(reading?.numeric_value)) return;
@@ -831,6 +871,7 @@
       if (timer) clearInterval(timer);
       refresh();
       timer = setInterval(refresh, 5000);
+      window.fizzLive?.start(applyLiveReading);
       window.fizzChatVoice?.start();
     },
     stop() {
@@ -845,6 +886,7 @@
       updateChatControls();
       if (timer) clearInterval(timer);
       timer = null;
+      window.fizzLive?.stop();
       sensors = [];
       readingHistory.clear();
       sensorFilter = 'all';

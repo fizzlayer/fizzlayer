@@ -122,6 +122,8 @@ The Sensors page can create additional sensors, switch a sensor to API mode, rot
 | `GET`, `POST`, `PATCH`, `DELETE /api/sensors` | List, create, update, remove customer sensors (session cookie) |
 | `GET /api/readings?sensor_id=<uuid>&limit=100` | Recent readings for an owned sensor |
 | `POST /api/ingest` | Send readings using a sensor API key |
+| `GET /api/stream` | Whether live streaming is configured, and the WebSocket and MQTT URLs |
+| `POST /api/stream` | Mint a 15-minute stream token for the signed-in workspace or an agent token |
 | `GET`, `POST`, `DELETE /api/phone` | Pair and revoke phone devices; phone posts motion, voice, and location data |
 | `GET`, `POST`, `PATCH`, `DELETE /api/alerts` | View and manage threshold and silence rules. A call alert is rejected unless the number is paired and the plan includes calls |
 | `GET`, `POST /api/phones` | List, pair, confirm, and remove workspace phone numbers. Owner session only; agent tokens cannot call it |
@@ -129,7 +131,7 @@ The Sensors page can create additional sensors, switch a sensor to API mode, rot
 | `POST /api/chat` | Ask Fizz about readings, add sensors, claim device pairing codes, and create alerts |
 | `GET`, `POST /api/voice` | Check voice availability, transcribe microphone audio, and speak agent replies (session cookie) |
 
-For API ingestion, use a unique `event_id` for each sample; retries with the same ID are idempotent. Metrics are validated against the sensor type. For example, a Temperature sensor accepts `temperature_c`:
+For API ingestion, use a unique `event_id` for each sample; retries with the same ID are idempotent. A WebSocket or MQTT publish uses that same rule and the same per-sensor and per-account rate limits, because the worker calls `fizz_ingest_event`. Metrics are validated against the sensor type. For example, a Temperature sensor accepts `temperature_c`:
 
 ```sh
 curl -X POST https://fizzlayer.com/api/ingest \
@@ -138,6 +140,16 @@ curl -X POST https://fizzlayer.com/api/ingest \
   -d '{"sensor_id":"YOUR_SENSOR_ID","event_id":"sample-001","metrics":{"temperature_c":27.4}}'
 ```
 
+### Live socket and MQTT
+
+`GET /api/stream` returns `{"enabled": false}` until `FIZZ_STREAM_URL` is set on the API. When it is set, the response includes `websocket_url`, `live_url`, and `mqtt_ws_url`. `POST /api/stream` with the session cookie, or `Authorization: Bearer fizz_agent_...`, returns a `fizz_stream_` token that lasts 15 minutes. The body may be `{}` or `{"sensor_id": "<uuid>"}`. A token without a sensor id can subscribe to every sensor in that workspace. A token with a sensor id can subscribe only to that sensor. Issuing is limited to 60 tokens an hour per workspace and 30 an hour per agent. The token cannot publish.
+
+Devices publish with the sensor API key, not the stream token. On the WebSocket at `websocket_url`, the first text frame is `{"op":"auth","key":"fizz_..."}` (or the same key in `Authorization: Bearer` on the upgrade). Each reading is `{"op":"reading","sensor_id","event_id","metrics","observed_at"?}`. The server answers `{"op":"ack","event_id"}` or `{"op":"error","error","event_id"}`. `live_url` is the subscribe socket: after auth, send `{"op":"subscribe","sensor_id"?}`. Readings arrive as `{"op":"reading",...}` without a customer id.
+
+MQTT uses protocol 3.1.1, QoS 0 or 1, and no wildcards. Connect with username set to the sensor id and password set to the sensor key. Publish JSON `{"event_id","metrics","observed_at"?}` to `fizz/v1/<sensor-id>/readings`. Subscribe to `fizz/v1/<sensor-id>/live`. A stream token or agent token connects with that token as the password and may only subscribe. The Compute public URL exposes MQTT on the WebSocket path `mqtt_ws_url` (subprotocol `mqtt`). Plain TCP `mqtt://host:1883` is available only when `MQTT_TCP_PORT` is reachable; set `FIZZ_MQTT_TCP_URL` on the API if you want `GET /api/stream` to advertise it.
+
+The dashboard mints a workspace token and subscribes in the browser. `fizz tail` does the same with the device key. Threshold alerts still run in the database trigger. A call queued by a streamed reading is placed by `/api/cron`, which already scans about once a minute, rather than inside the worker.
+
 ### Request size limits
 
 Every limit below is checked before any database or model call. Request bodies are capped while they are read, so an oversized body is rejected without being buffered.
@@ -145,6 +157,7 @@ Every limit below is checked before any database or model call. Request bodies a
 | Request | Limits |
 | --- | --- |
 | `POST /api/ingest` | Body up to 16 KB (`413` beyond). One reading has 1 to 16 metrics, or a Home Assistant connection key sends `{"readings": [ ... ]}` with 1 to 40 readings. Metric names up to 40 characters (lowercase letters, digits, underscores), text values up to 512 bytes, `event_id` up to 128 characters. Numbers, booleans, and text only; objects and arrays are rejected inside a metric value. The database enforces the metric count and text length again. |
+| WebSocket and MQTT frames | One frame or MQTT packet up to 16 KB, with the same metric, event id, and text limits as ingest. The database checks the sensor type and the 1,200-per-sensor and 5,000-per-account minute limits again. |
 | Phone readings and transcripts | Body up to 360 KB. Audio clips up to about 256 KB, transcripts up to 500 bytes, event IDs up to 100 characters. |
 | `POST /api/chat` | Body up to 64 KB. The new message is up to 1,000 characters. Up to 12 earlier messages of up to 3,000 characters each. The new message and history together are capped at 12,000 characters: the server keeps the newest earlier messages that fit, starting from a user message, and drops the rest. The dashboard sends only the newest messages that fit. Fizz's replies are at most 3,000 characters. |
 | `POST /api/voice` | Recordings up to 2 MB and 30 seconds; transcripts up to 1,000 characters; text to speak up to 3,000 characters. |

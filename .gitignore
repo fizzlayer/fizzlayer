@@ -3,5 +3,6 @@
 .env*
 /supabase/.temp/
 /cli/target/
+/supabase/compute/fizz-worker/target/
 __pycache__/
 /output/
