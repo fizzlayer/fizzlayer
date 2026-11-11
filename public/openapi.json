@@ -46,6 +46,64 @@
         }
       }
     },
+    "/api/stream": {
+      "get": {
+        "tags": ["Readings"],
+        "operationId": "getStream",
+        "summary": "Live stream and MQTT addresses",
+        "description": "Returns enabled:false until FIZZ_STREAM_URL is set. When streaming is on, websocket_url, live_url, and mqtt_ws_url are absolute wss URLs. Devices still authenticate with the sensor API key on the socket itself.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Streaming is off, or the public worker URLs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "websocket_url": { "type": "string" },
+                    "live_url": { "type": "string" },
+                    "mqtt_ws_url": { "type": "string" },
+                    "mqtt_tcp_url": { "type": ["string", "null"] }
+                  },
+                  "required": ["enabled"]
+                },
+                "example": { "enabled": false }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Readings"],
+        "operationId": "issueStreamToken",
+        "summary": "Mint a short-lived subscribe token",
+        "description": "Session cookie or Authorization: Bearer fizz_agent_.... The token lasts 15 minutes, is scoped to the workspace, and cannot publish. Optional sensor_id limits it to one owned sensor. 60 an hour per workspace, 30 an hour per agent.",
+        "security": [{ "agentToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sensor_id": { "type": "string", "format": "uuid" }
+                }
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Token minted once. It is not stored in a recoverable form." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "sensor_id is not in this workspace." },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
     "/api/mcp": {
       "post": {
         "tags": ["Agents"],

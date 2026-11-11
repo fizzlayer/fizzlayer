@@ -143,6 +143,8 @@ curl https://fizzlayer.com/api/ingest \
 
 Use a new `event_id` for each sample; retrying the same ID is idempotent. Keys are scoped to a single sensor. This endpoint also supports microcontrollers that cannot run the CLI. See the [sensor API reference](docs/REFERENCE.md#sensor-api) for routes, phone pairing, and alert behavior.
 
+The same readings can stay on one connection instead of a request per sample. `fizz run --stream` and `fizz send --stream` use a WebSocket. `fizz run --mqtt` and `fizz send --mqtt` publish MQTT. `fizz tail` prints live readings for the paired sensor. HTTPS ingest keeps working. The socket and the MQTT listener run on the `fizz-worker` Supabase Compute service, because a Vercel function cannot hold the connection. Setup is in the [self-hosting guide](docs/SELF_HOSTING.md#live-stream-and-mqtt).
+
 ## Development
 
 After configuring your development Supabase project and local environment as described in the [self-hosting guide](docs/SELF_HOSTING.md):

@@ -480,6 +480,16 @@
   }
 
   // Called after each dashboard refresh: keep the open view current, or close it if the sensor is gone.
+  function noteReading(item, reading) {
+    if (!dialog?.open || !sensor || !item || sensor.id !== item.id || !reading) return;
+    sensor = item;
+    const duplicate = history.some((row) => row.event_id && row.event_id === reading.event_id && row.metric === reading.metric);
+    if (!duplicate) history = [reading, ...history].slice(0, 500);
+    renderHeader();
+    renderNow();
+    renderHistory();
+  }
+
   function update(list) {
     if (!dialog?.open || !sensor) return;
     const next = list.find((item) => item.id === sensor.id);
@@ -507,5 +517,5 @@
     dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
   }
 
-  window.fizzSensorDetail = { tiles, open, update, close, metricCount: (item) => latestMetrics(item).length, configure: (next) => { options = next || {}; } };
+  window.fizzSensorDetail = { tiles, open, update, close, noteReading, metricCount: (item) => latestMetrics(item).length, configure: (next) => { options = next || {}; } };
 })();

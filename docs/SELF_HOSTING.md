@@ -2,7 +2,7 @@
 
 Run your own Fizzlayer instance with your own Vercel project and Supabase project. Vercel serves the web app and Rust API; Supabase provides PostgreSQL, Auth, and storage. Devices and agents connect to your instance's HTTPS origin.
 
-This is the deployment path supported by the repository today. It does not include a standalone application server or a Docker Compose stack for running the entire product on a VPS. The optional private Supabase Compute worker is not required by the app; no Compute deployment is needed to apply the database migrations. See the [technical reference](REFERENCE.md) for API and authentication details.
+This is the deployment path supported by the repository today. It does not include a standalone application server or a Docker Compose stack for running the entire product on a VPS. HTTPS ingest, the dashboard, and MCP work without the Compute worker. Live sockets and MQTT need the `fizz-worker` service described below. See the [technical reference](REFERENCE.md) for API and authentication details.
 
 ## Prerequisites
 
@@ -85,6 +85,8 @@ Add these server-side environment variables to each environment you use:
 | `AGENTPHONE_AGENT_ID` | Sometimes | Required when the AgentPhone account has multiple agents; a sole agent is selected automatically |
 | `CRON_SECRET` | For silence alerts and call retries | Long random secret. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` on `GET /api/cron`. Use the same value if an external scheduler calls that path |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
+| `FIZZ_STREAM_URL` | For live sockets and MQTT | Public base URL of the `fizz-worker` Compute service, including any gateway path. Example: `https://YOUR_PROJECT_REF.supabase.co/workers/v1/fizz-worker`. Empty leaves streaming off; HTTPS ingest is unchanged |
+| `FIZZ_MQTT_TCP_URL` | No | Advertised plain MQTT URL, such as `mqtt://mqtt.example.com:1883`, when that port is actually reachable. Leave unset on the Compute public URL |
 
 Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls. Pairing calls and alert calls use the same `AGENTPHONE_API_KEY` and `AGENTPHONE_AGENT_ID`. No new variable is required. Hobbyist accounts are not able to place either call.
 
@@ -191,6 +193,55 @@ Use a recent Supabase CLI with `db query` support; the repository's security aud
 - Phone notifications currently support US voice calls. SMS and physical actuator control are not implemented.
 - Phone sensor collection requires an open browser page and device permissions. HTTPS is required for production browser sensor and microphone features.
 - Fizz sessions last 12 hours. Device, agent, and session credentials are stored as hashes; protect the CLI's local credential file and rotate/revoke credentials from the app when needed.
-- The private `fizz-worker` Compute service is a health server reserved for future work. Deploying it does not add background alert processing or sample generation.
+- The `fizz-worker` Compute service is the live socket and MQTT listener. Deploying it is a separate step from `db push` and from the Vercel deploy. Until `FIZZ_STREAM_URL` is set, `GET /api/stream` returns `{"enabled": false}` and devices keep using HTTPS. See [Live stream and MQTT](#live-stream-and-mqtt).
+- `supabase/migrations/20261111000000_live_stream.sql` adds `fizz_stream_tokens` and an index on `fizz_sensor_readings (received_at, id)`. The index build locks reading writes until it finishes. On a large table, create that index with `CREATE INDEX CONCURRENTLY` before `db push`.
 
 When updating, review and apply new database migrations before releasing API changes that require them. An application rollback does not roll back database migrations; plan schema compatibility and recovery separately.
+
+## Live stream and MQTT
+
+Vercel functions cannot hold a WebSocket or an MQTT session. Supabase Compute, in private alpha as of the 27 October 2026 announcement, runs a long-lived HTTP service in the same project as Postgres. Fizzlayer uses that for `fizz-worker`. The worker is public (`exposure = "public"` in `supabase/config.toml`) because a private service has no URL. It accepts device WebSockets at `/v1/stream`, subscriber WebSockets at `/v1/live`, and MQTT 3.1.1 over WebSocket at `/mqtt`. Every accepted reading is `fizz_ingest_event`, the same function as `POST /api/ingest`, so alerts, silence detection, Fizz, and MCP do not grow a second store. The worker then polls `fizz_live_since` and forwards new rows only to subscribers whose workspace owns them.
+
+Checked against Supabase's announcement and product page, not against a production deploy:
+
+| | |
+| --- | --- |
+| CLI | 2.120.0 or later. `compute = true` is already under `[experimental]` |
+| Sizes | 2 GB / 1 vCPU (`2gb`, what this repo sets) or 4 GB / 2 vCPU |
+| Region | Supabase's alpha announcement listed us-west-2 only. The Fizz project (`bbmdkpzzzalkvthwgsek`) is in us-east-1 and already has Compute enabled, so that announcement does not block this deploy |
+| Price | The alpha is free and is for evaluation, not production. It may change or end. No general price has been published for this service. That is separate from Postgres [compute hours](https://supabase.com/docs/guides/platform/manage-your-usage/compute), which bill the database instance |
+| Lifetime | No wall-clock limit of the kind Edge Functions have (400 seconds). A service can still be restarted at any time, so readings live in Postgres |
+| Idle | A public service suspends when idle and is described as resuming in under a second. Open sockets keep it awake; clients reconnect after a suspend |
+| Missing | No autoscaling, GPU, or persistent disk. Agent sandboxes are not in the alpha. Every service receives all of the project's secrets |
+| URL | Dashboard snippets use `https://<project-ref>.supabase.co/workers/v1/<name>`. Read the URL on the Compute page after the first push and do not guess if it differs |
+
+The public URL is HTTP. It does not publish TCP port 1883. MQTT clients on that URL use WebSocket (`wss://.../mqtt`, subprotocol `mqtt`). ESP-IDF can do that with `MQTT_TRANSPORT_OVER_WSS`. Home Assistant's MQTT integration and Arduino `PubSubClient` speak TCP. For those, run this same image somewhere you can publish port 1883 (`MQTT_TCP_PORT=1883`) or wait until Compute exposes extra ports. Set `FIZZ_MQTT_TCP_URL` only when that address is reachable.
+
+### Deploy the worker
+
+Do this in the Supabase project you mean to use. Nothing in this repository deploys it for you.
+
+1. Apply `supabase/migrations/20261111000000_live_stream.sql` with the other migrations (`supabase db push`).
+2. On Fizz (`bbmdkpzzzalkvthwgsek`) Compute is already enabled, including from us-east-1. On another project, confirm Compute is enabled before pushing. The alpha announcement listed us-west-2 only; that list is not the gate for Fizz.
+3. Put `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the project's secrets. Compute injects project secrets into the service. The worker will not store readings without them. Add `FIZZ_STREAM_ORIGINS` only if the browser origin is not `https://fizzlayer.com` or `https://www.fizzlayer.com` (comma-separated). Loopback origins are always allowed.
+4. From the repo root, with Supabase CLI 2.120.0 or later:
+
+   ```sh
+   supabase compute push --project-ref YOUR_PROJECT_REF
+   ```
+
+   The image is `supabase/compute/fizz-worker`. It listens on `PORT` (the platform sets this; locally it defaults to 8080). `GET /health` returns `{"service":"fizz-worker","status":"ok"}`.
+5. Copy the public URL from the Compute page. On Vercel, set `FIZZ_STREAM_URL` to that base, for example `https://YOUR_PROJECT_REF.supabase.co/workers/v1/fizz-worker`, with no trailing slash. Redeploy the API. `GET /api/stream` should then return `"enabled": true`.
+6. The site's Content-Security-Policy allows `https://*.supabase.co` and `wss://*.supabase.co`. If the public URL is on another host, add that host to `connect-src` in `vercel.json`.
+
+A streamed reading still creates alert rows in the database. The worker does not dial AgentPhone. `/api/cron` places queued calls, so a call that follows a socket or MQTT reading can wait until the next cron run instead of leaving on the ingest request itself.
+
+Locally, without Compute:
+
+```sh
+SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=... \
+  cargo run --manifest-path supabase/compute/fizz-worker/Cargo.toml
+FIZZ_STREAM_URL=http://127.0.0.1:8080 scripts/dev.sh --local-db
+```
+
+`MQTT_TCP_PORT=1883` also opens a plain MQTT listener on that port. The image runs as uid 65532 and needs outbound HTTPS to the Supabase API.

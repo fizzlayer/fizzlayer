@@ -434,5 +434,7 @@ enabled = true
 [compute.fizz-worker]
 runtime = "dockerfile"
 size = "2gb"
-exposure = "private"
-exclude = [".env", ".env.*", ".git"]
+# Public so devices and the dashboard can open the WebSocket. Private has no URL.
+# The public service can suspend while nobody is connected; clients reconnect.
+exposure = "public"
+exclude = [".env", ".env.*", ".git", "target"]

@@ -1,0 +1,17 @@
+[package]
+name = "fizz-worker"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Fizzlayer socket and MQTT worker for Supabase Compute"
+
+[[bin]]
+name = "fizz-worker"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+serde_json = "1"
+sha1 = "0.10"
+tungstenite = { version = "0.26", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }

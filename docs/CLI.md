@@ -50,7 +50,12 @@ Codes expire after 15 minutes and can be claimed once. Pairing requires approval
 | `fizz run` | Publish available system metrics every 60 seconds until interrupted. |
 | `fizz run --every 30` | Change the interval; the minimum is 15 seconds. |
 | `fizz run --once` | Attempt one sample, then exit. |
+| `fizz run --stream` | Keep one WebSocket open and send each sample on it. Combine with `--every` and `--once`. |
+| `fizz run --mqtt` | Publish each sample over MQTT instead. |
 | `fizz send METRIC VALUE […]` | Publish up to 16 custom metrics in one reading. |
+| `fizz send --stream …` / `fizz send --mqtt …` | Send that reading on the socket or over MQTT. |
+| `fizz tail` | Print live readings for this device until interrupted. |
+| `fizz tail --mqtt` | Same, subscribed over MQTT. |
 | `fizz status` | Show device name, account, sensor ID, API origin, and config path. |
 | `fizz unpair` | Revoke the device key and remove the local configuration. |
 | `fizz service` | Print a systemd unit; does not install or start it. |
@@ -65,7 +70,15 @@ fizz send temperature_c 22.4 humidity_pct 48
 fizz send door_open true location "Workshop"
 ```
 
-Metric names must start with a lowercase letter, contain only lowercase letters, digits, and underscores, and be at most 40 characters long. Values accept numbers, lowercase `true` or `false`, or text up to 512 characters. Readings use `/api/ingest` and appear in the same dashboard, alerts, chat, and MCP tools as other sensor data.
+Metric names must start with a lowercase letter, contain only lowercase letters, digits, and underscores, and be at most 40 characters long. Values accept numbers, lowercase `true` or `false`, or text up to 512 characters. Readings use `/api/ingest` unless you pass `--stream` or `--mqtt`. Those transports call the same ingest function, so the dashboard, alerts, chat, and MCP tools see the same rows. The command asks `GET /api/stream` for the worker URL. If that endpoint says streaming is off, the flag exits with an error and the HTTPS command still works.
+
+```sh
+fizz run --stream --every 15
+fizz send --mqtt temperature_c 22.4
+fizz tail
+```
+
+`--stream` and `--mqtt` cannot be combined. `FIZZ_MQTT_URL` overrides the discovered MQTT address (`mqtt://host:1883`, `ws://`, or `wss://`). `fizz tail --mqtt` expects a WebSocket URL.
 
 To move a device to another account, run `fizz unpair` first, then pair again. `fizz pair --force` replaces the saved pairing after approval but does **not** revoke the previous device key; revoke the previous device separately if you use it.
 

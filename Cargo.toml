@@ -59,6 +59,10 @@ name = "ingest"
 path = "api/ingest.rs"
 
 [[bin]]
+name = "stream"
+path = "api/stream.rs"
+
+[[bin]]
 name = "chat"
 path = "api/chat.rs"
 
