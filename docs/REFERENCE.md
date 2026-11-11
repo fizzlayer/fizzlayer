@@ -80,7 +80,7 @@ Run `supabase db query --linked --file supabase/tests/plan_limits.sql` to verify
 
 ### Billing with Stripe
 
-When the Stripe variables are set, sign-up offers Hobbyist, Tinkerer, Pro, and an Enterprise contact link, and Settings offers **Upgrade** buttons for Tinkerer and Pro plus **Manage billing** once an account has a Stripe customer. Without them, sign-up does not offer paid plans, Settings hides billing, and plans change only in the database. A new account stays on Hobbyist until the webhook records a paid subscription.
+When the Stripe variables are set, sign-up offers Hobbyist, Tinkerer, Pro, and an Enterprise contact link, and Settings offers **Upgrade** buttons for Tinkerer and Pro plus **Manage billing** once an account has a Stripe customer. Without them, sign-up hides the plan picker, skips checkout, shows no upgrade prompt, and opens the dashboard. Settings hides billing, and plans change only in the database. A new account stays on Hobbyist until the webhook records a paid subscription.
 
 | Variable | Value |
 | --- | --- |

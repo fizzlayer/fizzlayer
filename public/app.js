@@ -169,7 +169,20 @@ function takeSignupPlan() {
   return stored.plan;
 }
 
+async function showWorkspace(username) {
+  signedInUsername = username;
+  let sensors = [];
+  try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
+  $('upgrade-prompt').hidden = true;
+  showDashboard(sensors);
+}
+
 async function showBillingReturn(username) {
+  await billingKnown;
+  if (!billingAvailable) {
+    await showWorkspace(username);
+    return;
+  }
   signedInUsername = username;
   let sensors = [];
   try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
@@ -191,7 +204,12 @@ async function showBillingReturn(username) {
 async function continueAfterSignup(username) {
   await billingKnown;
   const plan = takeSignupPlan();
-  if (plan && billingAvailable) {
+  // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. The new account opens the dashboard.
+  if (!billingAvailable) {
+    await showWorkspace(username);
+    return;
+  }
+  if (plan) {
     try {
       const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
       location.assign(result.url);
