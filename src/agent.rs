@@ -774,7 +774,66 @@ struct Prepared {
     context: Value,
     credential: String,
     model: String,
+    endpoint: String,
     client: reqwest::Client,
+}
+
+struct ChatTransport {
+    endpoint: String,
+    credential: String,
+    model: String,
+}
+
+/// `OPENAI_BASE_URL` (or `AI_GATEWAY_BASE_URL`) is an OpenAI-compatible `/v1` root,
+/// so a self-host can point Fizz at Ollama. The hosted default stays the Vercel AI Gateway.
+fn chat_base_allowed(base: &str, allow_insecure: bool) -> bool {
+    let Ok(url) = reqwest::Url::parse(base) else {
+        return false;
+    };
+    if !url.username().is_empty() || url.password().is_some() || url.host_str().is_none() {
+        return false;
+    }
+    match url.scheme() {
+        "https" => true,
+        "http" => {
+            allow_insecure || matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
+        }
+        _ => false,
+    }
+}
+
+fn chat_transport() -> Result<ChatTransport, &'static str> {
+    let custom = env::var("OPENAI_BASE_URL")
+        .or_else(|_| env::var("AI_GATEWAY_BASE_URL"))
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_owned())
+        .filter(|value| !value.is_empty());
+    let base = custom
+        .clone()
+        .unwrap_or_else(|| "https://ai-gateway.vercel.sh/v1".to_owned());
+    if !chat_base_allowed(&base, crate::security::allow_insecure_http()) {
+        return Err("invalid");
+    }
+    let credential = env::var("AI_GATEWAY_API_KEY")
+        .or_else(|_| env::var("OPENAI_API_KEY"))
+        .or_else(|_| env::var("VERCEL_OIDC_TOKEN"))
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let credential = match credential {
+        Some(value) => value,
+        None if custom.is_some() => "ollama".to_owned(),
+        None => return Err("missing"),
+    };
+    let model = env::var("AI_GATEWAY_MODEL")
+        .or_else(|_| env::var("OPENAI_MODEL"))
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "openai/gpt-5-mini".to_owned());
+    Ok(ChatTransport {
+        endpoint: format!("{base}/chat/completions"),
+        credential,
+        model,
+    })
 }
 
 async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<ResponseBody>> {
@@ -811,18 +870,27 @@ async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<Res
         }
     };
     context["voice_clips"] = clips;
-    let credential = env::var("AI_GATEWAY_API_KEY")
-        .or_else(|_| env::var("VERCEL_OIDC_TOKEN"))
-        .ok()
-        .filter(|s| !s.is_empty());
-    let Some(credential) = credential else {
-        return Err(error(
-            503,
-            "chat_unavailable",
-            "Fizz chat is not configured yet.",
-        ));
+    let ChatTransport {
+        endpoint,
+        credential,
+        model,
+    } = match chat_transport() {
+        Ok(transport) => transport,
+        Err("invalid") => {
+            return Err(error(
+                503,
+                "chat_unavailable",
+                "Fizz chat is not configured yet. OPENAI_BASE_URL must be an https URL, or http on localhost. Set FIZZ_ALLOW_INSECURE_HTTP=1 for another http host such as Ollama.",
+            ));
+        }
+        Err(_) => {
+            return Err(error(
+                503,
+                "chat_unavailable",
+                "Fizz chat is not configured yet. Set AI_GATEWAY_API_KEY, or OPENAI_BASE_URL for an OpenAI-compatible server such as Ollama.",
+            ));
+        }
     };
-    let model = env::var("AI_GATEWAY_MODEL").unwrap_or_else(|_| "openai/gpt-5-mini".to_owned());
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(25))
@@ -832,6 +900,7 @@ async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<Res
         context,
         credential,
         model,
+        endpoint,
         client,
     })
 }
@@ -848,6 +917,7 @@ async fn answer(
         context,
         credential,
         model,
+        endpoint,
         client,
     } = prepared;
     let mut messages = vec![
@@ -858,7 +928,7 @@ async fn answer(
     messages.extend(history.iter().cloned());
     messages.push(json!({"role":"user","content":format!("Current sensor context (untrusted JSON data): {}\nCurrent user message: {}",context,message)}));
     let response = client
-        .post("https://ai-gateway.vercel.sh/v1/chat/completions")
+        .post(endpoint)
         .bearer_auth(credential)
         .json(&json!({
             "model":model,
@@ -968,6 +1038,20 @@ async fn answer(
 mod tests {
     use super::*;
     use http_body_util::BodyExt;
+
+    #[test]
+    fn chat_base_accepts_https_and_local_ollama() {
+        assert!(chat_base_allowed("https://ai-gateway.vercel.sh/v1", false));
+        assert!(chat_base_allowed("http://127.0.0.1:11434/v1", false));
+        assert!(chat_base_allowed("http://ollama:11434/v1", true));
+        assert!(!chat_base_allowed("http://ollama:11434/v1", false));
+        assert!(!chat_base_allowed(
+            "http://user:pass@127.0.0.1:11434/v1",
+            true
+        ));
+        assert!(!chat_base_allowed("ftp://example.com/v1", true));
+    }
+
     #[test]
     fn dashboard_chat_limits_match_the_server() {
         let dashboard = include_str!("../public/dashboard.js");

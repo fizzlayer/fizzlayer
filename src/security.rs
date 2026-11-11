@@ -6,6 +6,32 @@ use vercel_runtime::{Response, ResponseBody};
 
 use crate::{customer::error, store::Supabase};
 
+/// Self-host on a private HTTP network (the Docker gateway, or Ollama on another host).
+/// Production leaves this unset, so Supabase and chat URLs stay HTTPS except loopback.
+pub fn allow_insecure_http() -> bool {
+    matches!(
+        env::var("FIZZ_ALLOW_INSECURE_HTTP").ok().as_deref(),
+        Some("1") | Some("true")
+    )
+}
+
+fn public_host_match(host: &str) -> bool {
+    let Ok(value) = env::var("FIZZ_PUBLIC_HOST") else {
+        return false;
+    };
+    value.split(',').any(|item| {
+        let item = item.trim().trim_end_matches('/');
+        if item.is_empty() {
+            return false;
+        }
+        let bare = item
+            .strip_prefix("https://")
+            .or_else(|| item.strip_prefix("http://"))
+            .unwrap_or(item);
+        bare.eq_ignore_ascii_case(host)
+    })
+}
+
 pub fn site_origin(host: Option<&str>) -> Option<String> {
     let host = host?;
     if host.is_empty()
@@ -25,8 +51,10 @@ pub fn site_origin(host: Option<&str>) -> Option<String> {
     .iter()
     .filter_map(|key| env::var(key).ok())
     .any(|value| value.eq_ignore_ascii_case(host));
+    let extra = public_host_match(host);
     if !local
         && !configured
+        && !extra
         && !matches!(
             host,
             "fizzlayer.com" | "www.fizzlayer.com" | "fizz-zeta.vercel.app"
@@ -35,7 +63,14 @@ pub fn site_origin(host: Option<&str>) -> Option<String> {
         return None;
     }
     let mut origin = parsed;
-    if local {
+    // Loopback stays HTTP unless a self-host explicitly terminates TLS on it.
+    // An extra host listed in FIZZ_PUBLIC_HOST is HTTPS unless FIZZ_PUBLIC_SCHEME=http.
+    let http = match env::var("FIZZ_PUBLIC_SCHEME").ok().as_deref() {
+        Some("http") if local || extra => true,
+        Some("https") => false,
+        _ => local,
+    };
+    if http {
         origin.set_scheme("http").ok()?;
     }
     Some(origin.origin().ascii_serialization())
@@ -238,6 +273,38 @@ mod tests {
             site_origin(Some("localhost:3000")).as_deref(),
             Some("http://localhost:3000")
         );
+        let previous = env::var("FIZZ_PUBLIC_HOST").ok();
+        let previous_scheme = env::var("FIZZ_PUBLIC_SCHEME").ok();
+        // SAFETY: tests in this process do not read these variables. Restored below.
+        unsafe {
+            env::set_var(
+                "FIZZ_PUBLIC_HOST",
+                "sensors.example.com, https://edge.example.com/",
+            );
+            env::set_var("FIZZ_PUBLIC_SCHEME", "http");
+        }
+        assert_eq!(
+            site_origin(Some("sensors.example.com")).as_deref(),
+            Some("http://sensors.example.com")
+        );
+        unsafe {
+            env::set_var("FIZZ_PUBLIC_SCHEME", "https");
+        }
+        assert_eq!(
+            site_origin(Some("edge.example.com")).as_deref(),
+            Some("https://edge.example.com")
+        );
+        assert!(site_origin(Some("other.example.com")).is_none());
+        unsafe {
+            match previous {
+                Some(value) => env::set_var("FIZZ_PUBLIC_HOST", value),
+                None => env::remove_var("FIZZ_PUBLIC_HOST"),
+            }
+            match previous_scheme {
+                Some(value) => env::set_var("FIZZ_PUBLIC_SCHEME", value),
+                None => env::remove_var("FIZZ_PUBLIC_SCHEME"),
+            }
+        }
         for host in [
             "localhost.evil.com",
             "127.0.0.1.evil.com",

@@ -57,7 +57,16 @@ The CLI remembers that origin. The [CLI guide](docs/CLI.md) covers supported arc
 
 ## Self-hosting
 
-Deploy Fizzlayer into your own **Vercel and Supabase accounts**. The current API uses the Vercel Functions runtime; this repository does not include a standalone server or Docker Compose deployment.
+Run the whole stack with Docker. The API image serves the site and the Rust API on one port, and the worker image is the existing live socket and MQTT process (including plain MQTT on port 1883):
+
+```sh
+./scripts/selfhost-init.sh
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+Open `http://localhost:8080` and create an account. Chat, voice, phone calls, and Stripe stay off until you set their keys; chat can use an OpenAI-compatible server such as Ollama. The [self-hosting guide](docs/SELF_HOSTING.md) has the five-minute path, the dependency list, and the Vercel plus Supabase path.
+
+You can still deploy into your own **Vercel and Supabase accounts**. The `api/*.rs` entry points are the Vercel functions; the Docker server calls the same Rust handlers.
 
 1. Clone the repository and install stable Rust, the Vercel CLI, and the Supabase CLI.
 2. Create a Supabase project, link it, and apply the database migrations:

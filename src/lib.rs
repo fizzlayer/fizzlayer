@@ -15,6 +15,8 @@ pub mod notify;
 pub mod phone;
 pub mod security;
 pub mod sensors;
+pub mod serve;
+pub mod status;
 pub mod store;
 pub mod stream;
 pub mod voice;

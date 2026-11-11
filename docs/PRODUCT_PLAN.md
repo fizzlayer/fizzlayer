@@ -43,6 +43,6 @@ The notification queue is drained during reading-related requests and by `GET /a
 
 ## Deployment boundaries
 
-The current application runs as Vercel Functions plus static assets, with a Supabase project providing Postgres, PostgREST, and Auth. A generic standalone application server or Docker deployment is not included. Self-hosting instructions describe operating this stack in your own accounts and domain.
+The hosted application runs as Vercel Functions plus static assets, with a Supabase project providing Postgres, PostgREST, and Auth. `deploy/docker-compose.yml` runs the same API and the live worker on one machine, with Postgres, GoTrue, and PostgREST, or pointed at Supabase Cloud. Self-hosting instructions cover both.
 
 Phone motion, location, and microphone capabilities depend on browser permissions and platform support. Sharing requires the phone page to remain active and can stop when the browser suspends it. The system monitors readings and sends alerts; it does not control physical actuators.

@@ -136,6 +136,8 @@ dependencies = [
  "base64 0.22.1",
  "http",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "reqwest",
  "ring",
  "serde_json",
