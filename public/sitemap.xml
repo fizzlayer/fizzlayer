@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://fizzlayer.com/</loc></url>
+  <url><loc>https://fizzlayer.com/pricing</loc></url>
+  <url><loc>https://fizzlayer.com/status</loc></url>
+  <url><loc>https://fizzlayer.com/enterprise</loc></url>
   <url><loc>https://fizzlayer.com/docs.html</loc></url>
   <url><loc>https://fizzlayer.com/demo.html</loc></url>
   <url><loc>https://fizzlayer.com/privacy.html</loc></url>

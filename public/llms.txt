@@ -24,7 +24,7 @@ Tools return JSON text. Failures return `{"ok": false, "error": "..."}` with a m
 
 ## Payments
 
-Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month, dashboard alerts only), Tinkerer ($10/month, 10 devices, 100 credits, phone calls), Pro ($25/month, 50 devices, 1,000 credits, phone calls), Enterprise (contact us, phone calls). Sample sensors do not count as devices; one credit is one message to Fizz. Phone calls, including the call that pairs a number, are not included on Hobbyist.
+Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month, dashboard alerts only), Tinkerer ($10/month, 10 devices, 100 credits, phone calls), Pro ($25/month, 50 devices, 1,000 credits, phone calls), Enterprise (contact us, phone calls). Sample sensors do not count as devices; one credit is one message to Fizz. Phone calls, including the call that pairs a number, are not included on Hobbyist. The same table is at https://fizzlayer.com/pricing. Enterprise contact is https://fizzlayer.com/enterprise (the existing sales form, `POST /api/contact`). https://fizzlayer.com/status checks `GET /api/status` and `GET /api/stream` in the browser. It does not store uptime history or state an SLA, and it does not report the alert scheduler.
 
 `start_checkout` with `plan: "tinkerer"` or `"pro"` opens Stripe Checkout in the same tab. The person enters their own payment details and confirms; do not enter card details for them. The plan updates within seconds, and `get_account` shows it. `open_billing_portal` handles plan changes, payment methods, invoices, and cancellation.
 
