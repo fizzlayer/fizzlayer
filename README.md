@@ -45,6 +45,8 @@ fizz send temperature_c 22.4 humidity_pct 48
 fizz status
 ```
 
+CLI 0.2.0 can keep one WebSocket open (`fizz run --stream`), publish the same readings over MQTT (`fizz run --mqtt` or `fizz send --mqtt`), and print live readings for this device (`fizz tail`). HTTPS `fizz run` is unchanged. The installer selects the newest `cli-v*` GitHub release, not whichever release GitHub has marked Latest.
+
 For your own deployment, set its origin when pairing:
 
 ```sh

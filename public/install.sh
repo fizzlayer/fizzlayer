@@ -6,7 +6,7 @@
 # Read it first if you like:  curl -fsSL https://fizzlayer.com/install.sh | less
 #
 # Options (environment variables):
-#   FIZZ_VERSION=cli-v0.1.0   install a specific release instead of the latest
+#   FIZZ_VERSION=cli-v0.2.0   install that CLI release instead of the newest cli-v* release
 #   FIZZ_INSTALL_DIR=DIR      install somewhere other than /usr/local/bin or ~/.local/bin
 set -eu
 
@@ -37,10 +37,22 @@ main() {
 
   version="${FIZZ_VERSION:-latest}"
   if [ "$version" = "latest" ]; then
-    base="https://github.com/$REPO/releases/latest/download"
-  else
-    base="https://github.com/$REPO/releases/download/$version"
+    # GitHub's /releases/latest is whichever release was marked Latest. That can be
+    # the Home Assistant integration (v1.x), which does not contain the fizz binary.
+    # Releases are listed newest first; take the first cli-v* tag.
+    releases=$(curl -fsSL --proto '=https' --tlsv1.2 \
+      -H "Accept: application/vnd.github+json" \
+      -H "User-Agent: fizz-install" \
+      "https://api.github.com/repos/$REPO/releases?per_page=100") || fail "Could not look up CLI releases."
+    version=$(printf '%s\n' "$releases" | tr ',' '\n' | sed -n 's/.*"tag_name": *"\(cli-v[^"]*\)".*/\1/p' | head -n 1)
+    [ -n "$version" ] || fail "No cli-v* release was found. Set FIZZ_VERSION to a CLI tag."
   fi
+  case "$version" in
+    *[!0-9A-Za-z._+-]*|cli-v|cli-v[!0-9]*) fail "FIZZ_VERSION must be latest or a cli-v* tag." ;;
+    cli-v[0-9]*) ;;
+    *) fail "FIZZ_VERSION must be latest or a cli-v* tag." ;;
+  esac
+  base="https://github.com/$REPO/releases/download/$version"
 
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT INT TERM
