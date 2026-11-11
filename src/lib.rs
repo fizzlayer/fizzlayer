@@ -14,6 +14,7 @@ pub mod mcp;
 pub mod notify;
 pub mod phone;
 pub mod security;
+pub mod selfhost;
 pub mod sensors;
 pub mod serve;
 pub mod status;

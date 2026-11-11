@@ -14,7 +14,7 @@ The same tags are also pushed to `ghcr.io/fizzlayer/fizzlayer-api` and `ghcr.io/
 ## What you need
 
 - A computer that can run containers. Docker Engine 24 or newer, with the Compose plugin 2.24 or newer (`docker compose version`). The no-clone file uses Compose configs. Docker Desktop on macOS or Windows is fine.
-- `openssl` and `python3`. The init script uses both. It does not install them. `git` is only needed if you clone the repository to build from source.
+- A POSIX shell, `curl`, and `id`. Secrets are generated inside the API image, so the host does not need `openssl`, `python3`, or `git`. `git` is only for building from source.
 - Free TCP ports **8080** (website and API), **8081** (live WebSocket and MQTT-over-WebSocket), and **1883** (plain MQTT). The optional HTTPS proxy also needs **80** and **443**.
 - About **1 GB of free RAM**. An idle stack used about 140 MB. Give it **4 GB of free disk**. The images are a little over 1 GB, and Postgres grows with readings.
 - A browser on the same machine for the first account, or another computer that can reach port 8080.
@@ -29,12 +29,18 @@ You do not clone the repository. Create an empty directory and download three fi
 mkdir fizzlayer && cd fizzlayer
 curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.yml -o compose.yml
 curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.env.example -o .env.example
-curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
-sh selfhost-init.sh
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/out" fizzlayer/fizzlayer-api:latest init --out /out/.env
 docker compose up -d
 ```
 
-`selfhost-init.sh` writes `.env` in this directory (mode 600) with a database password, a JWT secret, a service-role key, and `CRON_SECRET`. `.env.example` is the same list with placeholders, so you can read it before generating secrets. `docker compose up -d` pulls any image that is not already local and starts the stack. The migrate container exits 0 after it applies SQL. That is expected.
+`fizz-serve init` writes `.env` in this directory (mode 600) with a database password, a JWT secret, a service-role key, and `CRON_SECRET`. It runs inside the API image. `.env.example` is the same list with placeholders. `docker compose up -d` pulls any image that is not already local and starts the stack. The migrate container exits 0 after it applies SQL. That is expected.
+
+`scripts/selfhost-init.sh` is the same `docker run` for a checkout, or when you would rather download a script:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
+sh selfhost-init.sh
+```
 
 Open <http://localhost:8080>. Create an account. The password must be at least 12 characters. No confirmation email is sent: `MAILER_AUTOCONFIRM=true` is the default, so the account is usable immediately.
 
@@ -87,7 +93,7 @@ From a checkout:
 
 The same script writes `.env` in the current directory when it is not inside this repository, and `deploy/.env` when it is. It refuses to overwrite that file. `--force` replaces it. Do that only when you mean to throw away the old passwords. A database that was already initialized keeps the old Postgres password in its volume, so a new `.env` will not log in until you also delete the volume (`down -v`) or change the password inside Postgres.
 
-The script needs `openssl` and `python3`. It writes the file with mode `600` and prints nothing except the path. It generates:
+The host command is `docker run`. Random bytes and the HS256 service-role JWT are created by `fizz-serve init` in the image. The host does not need `openssl` or `python3`. It writes the file with mode `600` and prints the path. It generates:
 
 - `POSTGRES_PASSWORD` and `AUTHENTICATOR_PASSWORD`, 24 random bytes each, hex
 - `JWT_SECRET`, 32 random bytes, hex. GoTrue and PostgREST both use it
