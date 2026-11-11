@@ -13,8 +13,8 @@ The same tags are also pushed to `ghcr.io/fizzlayer/fizzlayer-api` and `ghcr.io/
 
 ## What you need
 
-- A computer that can run containers. Docker Engine 24 or newer, with the Compose plugin 2.20 or newer (`docker compose version`). Docker Desktop on macOS or Windows is fine. On Linux, the `docker compose` plugin from your distro is fine.
-- `git`, `openssl`, and `python3`. The init script uses the last two. It does not install them.
+- A computer that can run containers. Docker Engine 24 or newer, with the Compose plugin 2.24 or newer (`docker compose version`). The no-clone file uses Compose configs. Docker Desktop on macOS or Windows is fine.
+- `openssl` and `python3`. The init script uses both. It does not install them. `git` is only needed if you clone the repository to build from source.
 - Free TCP ports **8080** (website and API), **8081** (live WebSocket and MQTT-over-WebSocket), and **1883** (plain MQTT). The optional HTTPS proxy also needs **80** and **443**.
 - About **1 GB of free RAM**. An idle stack used about 140 MB. Give it **4 GB of free disk**. The images are a little over 1 GB, and Postgres grows with readings.
 - A browser on the same machine for the first account, or another computer that can reach port 8080.
@@ -23,17 +23,18 @@ Nothing else is required to sign up, create a sensor, and store readings. Chat, 
 
 ## Quick start with published images
 
-Clone the repository. Compose needs the files in `deploy/` and the SQL in `supabase/migrations`. You do not compile Rust.
+You do not clone the repository. Create an empty directory and download three files. `deploy/compose.yml` pulls `fizzlayer/fizzlayer-api` and `fizzlayer/fizzlayer-worker` from Docker Hub, plus Postgres, GoTrue, PostgREST, and Caddy. The API image already contains the SQL migrations and applies them on first start. Nothing is built or mounted from a checkout.
 
 ```sh
-git clone https://github.com/fizzlayer/fizzlayer.git
-cd fizzlayer
-./scripts/selfhost-init.sh
-docker compose -f deploy/docker-compose.yml pull
-docker compose -f deploy/docker-compose.yml up -d
+mkdir fizzlayer && cd fizzlayer
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.yml -o compose.yml
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.env.example -o .env.example
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
+sh selfhost-init.sh
+docker compose up -d
 ```
 
-`pull` downloads `fizzlayer/fizzlayer-api:latest` and `fizzlayer/fizzlayer-worker:latest`, plus Postgres, GoTrue, PostgREST, and Caddy. `up -d` starts them. The first start applies every file in `supabase/migrations/` and then exits the migrate container. That is expected.
+`selfhost-init.sh` writes `.env` in this directory (mode 600) with a database password, a JWT secret, a service-role key, and `CRON_SECRET`. `.env.example` is the same list with placeholders, so you can read it before generating secrets. `docker compose up -d` pulls any image that is not already local and starts the stack. The migrate container exits 0 after it applies SQL. That is expected.
 
 Open <http://localhost:8080>. Create an account. The password must be at least 12 characters. No confirmation email is sent: `MAILER_AUTOCONFIRM=true` is the default, so the account is usable immediately.
 
@@ -43,21 +44,18 @@ Check the API:
 curl -fsS http://localhost:8080/api/status
 ```
 
-You want `"status":"ok"` and `"database":"connected"`. HTTP 200 with `"database":"unavailable"` still means the database is not ready. Wait a few seconds and try again, then see [Troubleshooting](#troubleshooting).
+You want `"status":"ok"` and `"database":"connected"`. HTTP 200 with `"database":"unavailable"` still means the database is not ready. Wait a few seconds and try again, then see [Troubleshooting](#troubleshooting). The worker answers on port 8081: `curl -fsS http://localhost:8081/health`.
 
-Stop the stack with:
-
-```sh
-docker compose -f deploy/docker-compose.yml down
-```
-
-The database volume remains. `down -v` deletes it.
+Stop the stack with `docker compose down`. The database volume remains. `down -v` deletes it.
 
 ## Build the images yourself
 
-From the same checkout, after `./scripts/selfhost-init.sh`:
+Clone the repository when you want to change the server or you cannot pull from Docker Hub. From the checkout, `./scripts/selfhost-init.sh` writes `deploy/.env` (not the current directory). Then:
 
 ```sh
+git clone https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
+./scripts/selfhost-init.sh
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
@@ -75,26 +73,32 @@ FIZZ_WORKER_IMAGE=fizzlayer/fizzlayer-worker:sha-FULL_COMMIT
 
 ## What `selfhost-init.sh` writes
 
-Run it once from the repository root:
+From the no-clone directory:
+
+```sh
+sh selfhost-init.sh
+```
+
+From a checkout:
 
 ```sh
 ./scripts/selfhost-init.sh
 ```
 
-It refuses to overwrite an existing `deploy/.env`. `./scripts/selfhost-init.sh --force` replaces that file. Do that only when you mean to throw away the old passwords. A database that was already initialized keeps the old Postgres password in its volume, so a new `.env` will not log in until you also delete the volume (`down -v`) or change the password inside Postgres.
+The same script writes `.env` in the current directory when it is not inside this repository, and `deploy/.env` when it is. It refuses to overwrite that file. `--force` replaces it. Do that only when you mean to throw away the old passwords. A database that was already initialized keeps the old Postgres password in its volume, so a new `.env` will not log in until you also delete the volume (`down -v`) or change the password inside Postgres.
 
-The script needs `openssl` and `python3`. It writes `deploy/.env` with mode `600` and prints nothing except the path. It generates:
+The script needs `openssl` and `python3`. It writes the file with mode `600` and prints nothing except the path. It generates:
 
 - `POSTGRES_PASSWORD` and `AUTHENTICATOR_PASSWORD`, 24 random bytes each, hex
 - `JWT_SECRET`, 32 random bytes, hex. GoTrue and PostgREST both use it
 - `SUPABASE_SERVICE_ROLE_KEY` and `ANON_KEY`, HS256 JWTs signed with that secret, role `service_role` and `anon`, valid for about 10 years
 - `CRON_SECRET`, 32 random bytes, hex
 
-It also writes the local defaults below (public URL, ports, autoconfirm, empty provider keys). The service-role key can read and write every row. Leave it in `deploy/.env`. Do not commit that file, and do not put it in the browser.
+It also writes the local defaults below (public URL, ports, autoconfirm, empty provider keys). The service-role key can read and write every row. Leave it in `.env`. Do not commit that file, and do not put it in the browser.
 
 ## Environment variables
 
-Set these in `deploy/.env`. Empty values use the default in `deploy/docker-compose.yml` where one is listed. Restart after a change: `docker compose -f deploy/docker-compose.yml up -d`.
+Set these in `.env` next to `compose.yml`, or in `deploy/.env` when you use the checkout. Empty values use the default in the compose file. Restart after a change: `docker compose up -d`.
 
 ### Required for the local stack
 
@@ -360,15 +364,14 @@ The Compose file maps `host.docker.internal` to the host. Pull a model that supp
 
 ## Upgrade, back up, and read logs
 
-Pull new images and start them. The migrate container runs again and applies any SQL file it has not recorded:
+Pull new images and start them. The migrate container runs again. SQL is inside `fizzlayer/fizzlayer-api`, so a new API image is what brings new migrations. The container records applied filenames in `public.fizz_schema_migrations` and skips them next time. An image rollback does not roll back SQL.
 
 ```sh
-git pull
-docker compose -f deploy/docker-compose.yml pull
-docker compose -f deploy/docker-compose.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
-`git pull` matters because SQL files come from the checkout, not from the API image. The migrate container records applied filenames in `public.fizz_schema_migrations` and skips them next time. An image rollback does not roll back SQL.
+From a checkout that uses `deploy/docker-compose.yml`, the same two commands need `-f deploy/docker-compose.yml`, and `git pull` updates the SQL mounted into the migrate container.
 
 Dump the database:
 

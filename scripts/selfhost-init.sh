@@ -1,8 +1,15 @@
 #!/bin/sh
-# Write deploy/.env with fresh local secrets. Re-run with --force to replace it.
+# Write a secret .env for Docker Compose. Re-run with --force to replace it.
+# Inside a checkout this writes deploy/.env. Downloaded on its own, or piped
+# to sh, it writes .env in the current directory next to compose.yml.
 set -eu
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-out="$root/deploy/.env"
+script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+if [ -f "$repo_root/deploy/docker-compose.yml" ] && [ -f "$repo_root/scripts/selfhost-init.sh" ]; then
+  out="$repo_root/deploy/.env"
+else
+  out="$(pwd)/.env"
+fi
 if [ -f "$out" ] && [ "${1:-}" != "--force" ]; then
   echo "$out already exists. Pass --force to replace it." >&2
   exit 1
