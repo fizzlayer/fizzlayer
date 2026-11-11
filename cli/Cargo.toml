@@ -3,7 +3,7 @@ name = "fizz-cli"
 version = "0.2.0"
 edition = "2024"
 description = "Pair a device with Fizz and stream its readings"
-license = "MIT"
+license = "Apache-2.0"
 
 [[bin]]
 name = "fizz"

@@ -59,6 +59,7 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 ## Docs
 
 - [Documentation](https://fizzlayer.com/docs.html): setup, the HTTP API, the MCP server, and every WebMCP tool
+- [Self-host with Docker](https://fizzlayer.com/self-host): pull `fizzlayer/fizzlayer-api` and `fizzlayer/fizzlayer-worker`, create an account, and send readings over HTTPS, WebSocket, and MQTT port 1883. The repository guide is https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md
 - [Website](https://fizzlayer.com)
 - [Interactive demo](https://fizzlayer.com/demo.html) (no sign-in)
 - [Technical reference](https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md)

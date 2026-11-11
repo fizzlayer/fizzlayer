@@ -1,12 +1,17 @@
 # Local Fizzlayer. From the repo root, after ./scripts/selfhost-init.sh:
-#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml pull
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# That pulls fizzlayer/fizzlayer-api and fizzlayer/fizzlayer-worker.
+# Add --build to compile those two images from this checkout instead.
 #
 # COMPOSE_PROFILES=local (written by the init script) starts Postgres, GoTrue,
 # and PostgREST. To use Supabase Cloud instead, set COMPOSE_PROFILES empty and
 # point SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY at the project. Then:
-#   docker compose -f deploy/docker-compose.yml up -d --build api worker
+#   docker compose -f deploy/docker-compose.yml up -d api worker
 #
-# Profile "tls" adds Caddy with a local certificate on ports 80 and 443.
+# Profile "tls" adds Caddy on ports 80 and 443. FIZZ_ACME_EMAIL=internal
+# (the default) uses a local certificate. Set a real email for a public name.
 
 name: fizzlayer
 
@@ -119,10 +124,11 @@ services:
     restart: "no"
 
   api:
+    image: ${FIZZ_API_IMAGE:-fizzlayer/fizzlayer-api:latest}
+    pull_policy: missing
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
-    image: fizzlayer-api:local
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -142,6 +148,7 @@ services:
       FIZZ_STREAM_URL: ${FIZZ_STREAM_URL:-http://localhost:8081}
       FIZZ_MQTT_TCP_URL: ${FIZZ_MQTT_TCP_URL:-mqtt://localhost:1883}
       CRON_SECRET: ${CRON_SECRET:-}
+      FIZZ_CRON_SECONDS: ${FIZZ_CRON_SECONDS:-60}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
@@ -157,13 +164,16 @@ services:
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
     ports:
       - "${API_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   worker:
+    image: ${FIZZ_WORKER_IMAGE:-fizzlayer/fizzlayer-worker:latest}
+    pull_policy: missing
     build:
       context: ../supabase/compute/fizz-worker
       dockerfile: Dockerfile
-    image: fizzlayer-worker:local
     depends_on:
       gateway:
         condition: service_started
@@ -188,6 +198,7 @@ services:
       - worker
     environment:
       FIZZ_DOMAIN: ${FIZZ_DOMAIN:-localhost}
+      FIZZ_ACME_EMAIL: ${FIZZ_ACME_EMAIL:-internal}
     ports:
       - "80:80"
       - "443:443"

@@ -25,10 +25,10 @@ jobs:
         with:
           category: integration
           comment: "false"
-          # license and topics read GitHub repository settings, not files in
-          # this pull request. This repository has no detected SPDX license
-          # and no topics, so those checks cannot pass from the workflow.
-          # Remove an entry after that setting exists.
+          # license and topics read GitHub's detected repository metadata, not
+          # the files in this pull request. LICENSE is Apache-2.0, copyright Fizzlayer LLC.
+          # Drop "license" from ignore after GitHub shows that SPDX license on
+          # the default branch. Topics are still unset.
           ignore: license topics
 
       - name: Hassfest

@@ -287,6 +287,7 @@ pub fn mapped_path(path: &str) -> &str {
         "/pricing" | "/pricing/" => "/pricing.html",
         "/status" | "/status/" => "/status.html",
         "/enterprise" | "/enterprise/" => "/enterprise.html",
+        "/self-host" | "/self-host/" => "/self-host.html",
         "/.well-known/webmcp" => "/.well-known/webmcp.json",
         other => other,
     }
@@ -456,6 +457,7 @@ mod tests {
         assert_eq!(mapped_path("/pricing/"), "/pricing.html");
         assert_eq!(mapped_path("/status"), "/status.html");
         assert_eq!(mapped_path("/enterprise"), "/enterprise.html");
+        assert_eq!(mapped_path("/self-host"), "/self-host.html");
         assert_eq!(
             mapped_path("/.well-known/webmcp"),
             "/.well-known/webmcp.json"

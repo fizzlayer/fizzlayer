@@ -1,58 +1,426 @@
-# Self-host Fizzlayer
+# Self-host Fizzlayer with Docker
 
-Two ways to run your own instance:
+This guide is for running Fizzlayer on a machine you control. You do not need to have used the repository before. Docker pulls the API and the live worker. Postgres, sign-in, and the website run on the same machine.
 
-- **Docker Compose** on one machine. This is the five-minute path below. It starts Postgres, GoTrue, PostgREST, the API (which also serves the website), and the live worker, including plain MQTT on port 1883.
-- **Vercel and Supabase**, later in this document. That path keeps the API as Vercel functions and can use Supabase Compute for the worker.
+A second path, [Deploy on Vercel and Supabase](#deploy-on-vercel-and-supabase), keeps the API on Vercel. Use that when you already operate those accounts. The [technical reference](REFERENCE.md) lists every API.
 
-Devices and agents connect to your instance's origin. See the [technical reference](REFERENCE.md) for API and authentication details.
+Images:
 
-## Five-minute Docker Compose
+- [fizzlayer/fizzlayer-api](https://hub.docker.com/r/fizzlayer/fizzlayer-api) serves the website and the API
+- [fizzlayer/fizzlayer-worker](https://hub.docker.com/r/fizzlayer/fizzlayer-worker) accepts live WebSockets and MQTT
 
-From a checkout of this repository:
+The same tags are also pushed to `ghcr.io/fizzlayer/fizzlayer-api` and `ghcr.io/fizzlayer/fizzlayer-worker`. `latest` tracks `main`. `sha-<commit>` pins one build. A `v*` git tag is published under that version name.
+
+## What you need
+
+- A computer that can run containers. Docker Engine 24 or newer, with the Compose plugin 2.20 or newer (`docker compose version`). Docker Desktop on macOS or Windows is fine. On Linux, the `docker compose` plugin from your distro is fine.
+- `git`, `openssl`, and `python3`. The init script uses the last two. It does not install them.
+- Free TCP ports **8080** (website and API), **8081** (live WebSocket and MQTT-over-WebSocket), and **1883** (plain MQTT). The optional HTTPS proxy also needs **80** and **443**.
+- About **1 GB of free RAM**. An idle stack used about 140 MB. Give it **4 GB of free disk**. The images are a little over 1 GB, and Postgres grows with readings.
+- A browser on the same machine for the first account, or another computer that can reach port 8080.
+
+Nothing else is required to sign up, create a sensor, and store readings. Chat, voice, phone calls, and card checkout stay off until you add those keys.
+
+## Quick start with published images
+
+Clone the repository. Compose needs the files in `deploy/` and the SQL in `supabase/migrations`. You do not compile Rust.
 
 ```sh
+git clone https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
 ./scripts/selfhost-init.sh
+docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+`pull` downloads `fizzlayer/fizzlayer-api:latest` and `fizzlayer/fizzlayer-worker:latest`, plus Postgres, GoTrue, PostgREST, and Caddy. `up -d` starts them. The first start applies every file in `supabase/migrations/` and then exits the migrate container. That is expected.
+
+Open <http://localhost:8080>. Create an account. The password must be at least 12 characters. No confirmation email is sent: `MAILER_AUTOCONFIRM=true` is the default, so the account is usable immediately.
+
+Check the API:
+
+```sh
+curl -fsS http://localhost:8080/api/status
+```
+
+You want `"status":"ok"` and `"database":"connected"`. HTTP 200 with `"database":"unavailable"` still means the database is not ready. Wait a few seconds and try again, then see [Troubleshooting](#troubleshooting).
+
+Stop the stack with:
+
+```sh
+docker compose -f deploy/docker-compose.yml down
+```
+
+The database volume remains. `down -v` deletes it.
+
+## Build the images yourself
+
+From the same checkout, after `./scripts/selfhost-init.sh`:
+
+```sh
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-The init script writes `deploy/.env` (mode 600) with a Postgres password, a JWT secret, an anon key, a service-role JWT, and `CRON_SECRET`. Open `http://localhost:8080`, create an account, and add a sensor. Email confirmation is off by default (`MAILER_AUTOCONFIRM=true`) so sign-up does not need an SMTP server. The first build compiles the Rust images and takes a while; later starts reuse them.
+`--build` compiles `fizzlayer/fizzlayer-api` and `fizzlayer/fizzlayer-worker` from this tree and tags them with those names. The next `up` without `--build` reuses the local images. Use this when you are changing the server, or when you cannot pull from Docker Hub. A release build of both images takes several minutes.
 
-`GET http://localhost:8080/api/status` should report `"database": "connected"`. `GET /api/stream` returns the worker WebSocket on port 8081 and `mqtt://localhost:1883`. Send a reading with the sensor key:
+To pin a published build instead of `latest`:
 
 ```sh
-curl -fsS -H "Authorization: Bearer fizz_…" -H "Content-Type: application/json" \
-  -d '{"sensor_id":"SENSOR_UUID","event_id":"1","metrics":{"temperature_c":21.5}}' \
+# in deploy/.env
+FIZZ_API_IMAGE=fizzlayer/fizzlayer-api:sha-FULL_COMMIT
+FIZZ_WORKER_IMAGE=fizzlayer/fizzlayer-worker:sha-FULL_COMMIT
+```
+
+`sha-` is followed by the full 40-character git commit. The same tags exist under `ghcr.io/fizzlayer/`. If that registry asks you to log in, `docker login ghcr.io` with a GitHub token that can read packages, then set `FIZZ_API_IMAGE` and `FIZZ_WORKER_IMAGE` to the `ghcr.io` names.
+
+## What `selfhost-init.sh` writes
+
+Run it once from the repository root:
+
+```sh
+./scripts/selfhost-init.sh
+```
+
+It refuses to overwrite an existing `deploy/.env`. `./scripts/selfhost-init.sh --force` replaces that file. Do that only when you mean to throw away the old passwords. A database that was already initialized keeps the old Postgres password in its volume, so a new `.env` will not log in until you also delete the volume (`down -v`) or change the password inside Postgres.
+
+The script needs `openssl` and `python3`. It writes `deploy/.env` with mode `600` and prints nothing except the path. It generates:
+
+- `POSTGRES_PASSWORD` and `AUTHENTICATOR_PASSWORD`, 24 random bytes each, hex
+- `JWT_SECRET`, 32 random bytes, hex. GoTrue and PostgREST both use it
+- `SUPABASE_SERVICE_ROLE_KEY` and `ANON_KEY`, HS256 JWTs signed with that secret, role `service_role` and `anon`, valid for about 10 years
+- `CRON_SECRET`, 32 random bytes, hex
+
+It also writes the local defaults below (public URL, ports, autoconfirm, empty provider keys). The service-role key can read and write every row. Leave it in `deploy/.env`. Do not commit that file, and do not put it in the browser.
+
+## Environment variables
+
+Set these in `deploy/.env`. Empty values use the default in `deploy/docker-compose.yml` where one is listed. Restart after a change: `docker compose -f deploy/docker-compose.yml up -d`.
+
+### Required for the local stack
+
+| Variable | Default if omitted | What it does |
+| --- | --- | --- |
+| `COMPOSE_PROFILES` | `local` | `local` starts Postgres, GoTrue, and PostgREST. Add `,tls` for HTTPS. Empty means "do not start the database"; see [Supabase Cloud](#use-supabase-cloud-instead-of-local-postgres) |
+| `POSTGRES_PASSWORD` | none | Password for the `postgres` user. The init script sets it |
+| `AUTHENTICATOR_PASSWORD` | none | Password for the PostgREST login role. Set only on the first boot of the database volume |
+| `JWT_SECRET` | none | Shared HMAC secret for Auth tokens and PostgREST |
+| `SUPABASE_SERVICE_ROLE_KEY` | none | Service-role JWT. The API and the worker send it to PostgREST |
+| `PUBLIC_URL` | `http://localhost:8080` | Origin browsers use. Auth email links and OAuth redirects use it |
+
+`ANON_KEY` is generated and not sent to the browser. The API does not read it. Keep it if you later put a gateway in front of PostgREST.
+
+### Ports and addresses
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `API_PORT` | `8080` | Host port for the website and API |
+| `WORKER_PORT` | `8081` | Host port for the worker's HTTP and WebSocket listener |
+| `MQTT_PORT` | `1883` | Host port for plain MQTT |
+| `MQTT_TCP_PORT` | `1883` | Port inside the worker container. Leave this at 1883 |
+| `SUPABASE_URL` | `http://gateway:8000` | Where the API and worker call PostgREST and GoTrue. The Docker network name, not a browser URL |
+| `SUPABASE_PUBLIC_URL` | `http://localhost:8080` | Where a browser starts GitHub or Google sign-in. The API proxies `/auth/v1` to GoTrue |
+| `FIZZ_AUTH_UPSTREAM` | empty in Compose, `http://auth:9999` in the generated file | GoTrue address for that proxy. Leave it empty when Auth is Supabase Cloud |
+| `FIZZ_ALLOW_INSECURE_HTTP` | `1` | Allows `http://` to the Docker gateway and to an OpenAI-compatible server on another host. Set `0` when `SUPABASE_URL` is `https://` |
+| `FIZZ_PUBLIC_HOST` | `localhost:8080` | Extra `Host` values the API accepts, comma-separated. `localhost` is already allowed |
+| `FIZZ_PUBLIC_SCHEME` | `http` | `http` or `https` for hosts in `FIZZ_PUBLIC_HOST`. Loopback stays `http` unless this is `https` |
+| `FIZZ_STREAM_URL` | `http://localhost:8081` | Public base of the worker, no trailing slash. `GET /api/stream` turns it into WebSocket URLs |
+| `FIZZ_MQTT_TCP_URL` | `mqtt://localhost:1883` | Advertised plain-MQTT URL. Set it only when clients can open that port |
+| `FIZZ_STREAM_ORIGINS` | `http://localhost:8080` | Browser `Origin` values the worker accepts, comma-separated. Loopback is always allowed |
+| `FIZZ_API_IMAGE` | `fizzlayer/fizzlayer-api:latest` | API image to pull or build |
+| `FIZZ_WORKER_IMAGE` | `fizzlayer/fizzlayer-worker:latest` | Worker image to pull or build |
+| `FIZZ_CRON_SECONDS` | `60` | How often the API scans for silence alerts. Minimum 15 |
+| `CRON_SECRET` | generated | Bearer token for `GET /api/cron`. The in-process scan does not need a caller. The HTTP route still checks this secret |
+
+### Email, OAuth, and HTTPS
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `MAILER_AUTOCONFIRM` | `true` | `true` creates the account without a confirmation link. Set `false` only after SMTP works |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | empty, port `587` | SMTP for confirmation and password reset |
+| `SMTP_ADMIN_EMAIL` | `admin@localhost` | From address GoTrue uses |
+| `SMTP_SENDER_NAME` | `Fizzlayer` | From name |
+| `GITHUB_ENABLED` | `false` | `true` turns on GitHub sign-in. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` |
+| `GOOGLE_ENABLED` | `false` | `true` turns on Google sign-in. Set `GOOGLE_CLIENT_ID` and `GOOGLE_SECRET` |
+| `FIZZ_DOMAIN` | `localhost` | Name the HTTPS proxy serves. Used only with the `tls` profile |
+| `FIZZ_ACME_EMAIL` | `internal` | `internal` is a local certificate. Any other value is the email Let's Encrypt associates with `FIZZ_DOMAIN` |
+
+The GitHub or Google callback URL is `${PUBLIC_URL}/auth/v1/callback`.
+
+### Optional product features
+
+Leave these empty. The website still runs.
+
+| Variable | When set |
+| --- | --- |
+| `OPENAI_BASE_URL` | OpenAI-compatible `/v1` root, such as `http://host.docker.internal:11434/v1` for Ollama on the host. `AI_GATEWAY_BASE_URL` is the same setting. Unset uses `https://ai-gateway.vercel.sh/v1` |
+| `OPENAI_API_KEY` | Bearer token for that server. If the base URL is custom and this is empty, the API sends a placeholder bearer for servers that ignore it |
+| `OPENAI_MODEL` | Model name. `AI_GATEWAY_MODEL` is the same setting. Default `openai/gpt-5-mini`, which an Ollama server does not have. Set this to the model you pulled |
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway key. Used when no custom base URL is set. `VERCEL_OIDC_TOKEN` is also accepted there |
+| `ELEVENLABS_API_KEY` | Voice chat. `ELEVENLABS_VOICE_ID` optional; default George (`JBFqnCBsd6RMkjVDRZzb`) |
+| `AGENTPHONE_API_KEY` | Outbound US voice calls. `AGENTPHONE_AGENT_ID` when the account has more than one agent |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | Paid checkout. Set all four or none |
+
+The model behind `OPENAI_BASE_URL` must accept JSON mode (`response_format: json_object`). A model that only returns plain text makes chat answer 503.
+
+## Create an account and sign in
+
+In a browser, open <http://localhost:8080/app.html>. Choose **Create account**, enter an email and a password of at least 12 characters, and submit. You land in the dashboard. **Sign in** on the same page uses that email and password later.
+
+The same calls from a terminal, which is what you want when you are checking the install:
+
+```sh
+curl -fsS -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"action":"sign_up","email":"you@example.com","password":"choose-a-long-pass"}' \
+  http://localhost:8080/api/auth
+
+curl -fsS -c cookies.txt -b cookies.txt -H 'Content-Type: application/json' \
+  -d '{"action":"sign_in","email":"you@example.com","password":"choose-a-long-pass"}' \
+  http://localhost:8080/api/auth
+
+curl -fsS -b cookies.txt http://localhost:8080/api/me
+```
+
+`sign_up` returns `{"ok":true,...}` and sets a `fizz_session` cookie. `"confirm_email":true` means autoconfirm is off and the person must open the email link before `sign_in` works. `sign_in` with a wrong password returns 401 and does not say which field was wrong.
+
+Anyone who can reach the site can create an account. After you have yours, close sign-up in Postgres:
+
+```sh
+docker compose -f deploy/docker-compose.yml exec db \
+  psql -U postgres -d postgres \
+  -c "update public.fizz_instance_settings set sign_up_open = false;"
+```
+
+Existing accounts can still sign in.
+
+## Add a sensor and send readings
+
+### From the dashboard
+
+Open **Sensors**, add a sensor, choose a type, and choose **API** (real readings, not a sample stream). The page shows a key once. It starts with `fizz_` and is 69 characters. Copy it. The sensor id is a UUID on the same screen.
+
+### With curl
+
+Use the cookie from sign-up:
+
+```sh
+curl -fsS -b cookies.txt -H 'Content-Type: application/json' \
+  -d '{"kind":"temperature","name":"Bench","mode":"api"}' \
+  http://localhost:8080/api/sensors
+```
+
+The JSON has `sensor.id` and `api_key`. Send one reading. `event_id` is your own id; sending the same id again does not create a second row.
+
+```sh
+curl -fsS -H "Authorization: Bearer fizz_YOUR_KEY" -H 'Content-Type: application/json' \
+  -d '{"sensor_id":"SENSOR_UUID","event_id":"reading-1","metrics":{"temperature_c":21.5}}' \
   http://localhost:8080/api/ingest
 ```
 
-Stop the stack with `docker compose -f deploy/docker-compose.yml down`. The database volume remains until `down -v`.
+A 202 response with `"accepted"` is success. Read it back:
 
-### What runs, and what stays outside
+```sh
+curl -fsS -b cookies.txt \
+  "http://localhost:8080/api/readings?sensor_id=SENSOR_UUID&limit=20"
+```
 
-| Dependency | How a self-host runs it |
-| --- | --- |
-| Website (`public/`) | The `api` image serves it on port 8080, including `/docs`, `/pricing`, `/status`, and `/enterprise` |
-| Rust API | Same image. One process calls the existing handlers and runs the minute alert scan in-process. `GET /api/cron` still accepts `CRON_SECRET` if an external scheduler calls it |
-| Postgres | `postgres:17` in the `local` profile. Schema comes from `supabase/migrations` on first boot |
-| Auth (GoTrue) | `supabase/gotrue` in the `local` profile. The API proxies `/auth/v1` for browser OAuth. Email sign-up can auto-confirm |
-| PostgREST | `postgrest/postgrest` in the `local` profile. The API and worker call `/rest/v1`. The browser never gets a Supabase key |
-| Live WebSocket and MQTT | The existing `fizz-worker` image. HTTP and MQTT-over-WebSocket on port 8081, plain MQTT 3.1.1 on port 1883 |
-| TLS | Optional `tls` profile: Caddy on ports 80 and 443 with a local certificate (`deploy/Caddyfile.tls`). Replace `tls internal` with `tls you@example.com` for a public name |
-| Supabase Cloud | Leave `COMPOSE_PROFILES` empty and set `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY`. Start `api` and `worker` only. Set `FIZZ_ALLOW_INSECURE_HTTP=0` and clear `FIZZ_AUTH_UPSTREAM` |
-| Fizz chat | Optional. Unset, chat answers 503 and says it is not configured. Set `OPENAI_BASE_URL` to an OpenAI-compatible `/v1` root (Ollama: `http://host.docker.internal:11434/v1`) and `OPENAI_MODEL`. `AI_GATEWAY_API_KEY` still selects the Vercel AI Gateway when no base URL is set. The model must accept JSON mode |
-| Voice (ElevenLabs) | Optional. Unset, voice replies that it is not configured |
-| Phone calls (AgentPhone) | Optional. Unset, alerts stay in the dashboard and queued calls are not dialed. There is no self-hosted phone provider |
-| Paid checkout (Stripe) | Optional. Unset, billing stays hidden. Prices are still the plan rows in the database |
-| GitHub or Google sign-in | Optional GoTrue settings (`GITHUB_*`, `GOOGLE_*`). The provider callback is `${PUBLIC_URL}/auth/v1/callback` |
-| SMTP | Optional. Required only when `MAILER_AUTOCONFIRM=false` |
-| Kong, Realtime, Storage, Studio | Not used. The app does not call them |
+`temperature_c` on a temperature sensor is stored with the unit °C. A Custom sensor accepts your own metric names: lowercase letters, digits, and underscores, starting with a letter.
 
-A custom hostname needs `FIZZ_PUBLIC_HOST` (comma-separated) and, for plain HTTP, `FIZZ_PUBLIC_SCHEME=http`. Loopback is already allowed. The Content-Security-Policy matches the hosted site, and the self-host server adds the worker origin from `FIZZ_STREAM_URL`. `upgrade-insecure-requests` is sent only when the request arrived as HTTPS (`X-Forwarded-Proto`), so `http://localhost:8080` still loads.
+### WebSocket and MQTT
 
-Published images, after the repository secrets exist, are `ghcr.io/fizzlayer/fizzlayer-api`, `ghcr.io/fizzlayer/fizzlayer-worker`, and `${DOCKERHUB_NAMESPACE}/fizzlayer-api` plus `${DOCKERHUB_NAMESPACE}/fizzlayer-worker` (`fizzlayer` unless the `DOCKERHUB_NAMESPACE` variable says otherwise). Tags are `sha-<commit>` always, `latest` on `main`, and the tag name on `v*` tags. The publish workflow skips Docker Hub when `DOCKERHUB_USERNAME` or `DOCKERHUB_TOKEN` is missing and still pushes to GHCR.
+Ask the API where to connect:
 
-To point Compose at those images instead of building, set `image:` and drop the `build:` block, or pull them and retag as `fizzlayer-api:local` and `fizzlayer-worker:local`.
+```sh
+curl -fsS http://localhost:8080/api/stream
+```
+
+On this stack that is `"enabled":true`, `websocket_url` `ws://localhost:8081/v1/stream`, `mqtt_ws_url` `ws://localhost:8081/mqtt`, and `mqtt_tcp_url` `mqtt://localhost:1883`.
+
+Plain MQTT uses MQTT 3.1.1. The username is the sensor id. The password is the sensor key. The topic is `fizz/v1/<sensor-id>/readings`. Install the Mosquitto clients (`mosquitto-clients` on Debian and Ubuntu) and publish:
+
+```sh
+mosquitto_pub -h 127.0.0.1 -p 1883 \
+  -u SENSOR_UUID -P 'fizz_YOUR_KEY' \
+  -t 'fizz/v1/SENSOR_UUID/readings' \
+  -m '{"event_id":"mqtt-1","metrics":{"temperature_c":23.5}}'
+```
+
+There is no output when the broker accepts a QoS 0 publish. Read the sensor again with the readings curl above. `mqtt-1` should be in the JSON.
+
+The device WebSocket is the same pipeline. The first text frame is `{"op":"auth","key":"fizz_YOUR_KEY"}`. The next is `{"op":"reading","sensor_id":"SENSOR_UUID","event_id":"ws-1","metrics":{"temperature_c":22.5}}`. The `fizz` CLI does that for you. Install it, then point it at this machine:
+
+```sh
+curl -fsSL http://localhost:8080/install.sh | sh
+FIZZ_API=http://localhost:8080 fizz pair
+```
+
+`fizz pair` prints a short code and waits. On the **Agents** page (`http://localhost:8080/agents.html`), enter that code. The terminal then asks you to approve. Answer `y` only if the account name it prints is yours. After that:
+
+```sh
+fizz send temperature_c 21.5
+fizz send --stream temperature_c 22.5
+fizz send --mqtt temperature_c 23.5
+fizz tail
+```
+
+`fizz send` posts to `/api/ingest`. `--stream` uses the WebSocket. `--mqtt` publishes to port 1883. Do not pass both flags. `fizz tail` prints live readings for this device. `fizz run --once` sends CPU temperature, load, memory, and disk where the OS exposes them. The CLI remembers `FIZZ_API` after pairing. Set it again only to override that saved origin.
+
+Subscribe to one sensor's live topic, `fizz/v1/<sensor-id>/live`, with the same username and password. Wildcards are rejected.
+
+## HTTPS with your own domain
+
+The `tls` profile is a Caddy proxy on ports 80 and 443. It forwards the site to the API and `/live` to the worker. Point DNS for the name at this machine, and open both ports. Let's Encrypt completes HTTP-01 on port 80.
+
+In `deploy/.env`:
+
+```sh
+COMPOSE_PROFILES=local,tls
+FIZZ_DOMAIN=sensors.example.com
+FIZZ_ACME_EMAIL=you@example.com
+PUBLIC_URL=https://sensors.example.com
+SUPABASE_PUBLIC_URL=https://sensors.example.com
+FIZZ_PUBLIC_HOST=sensors.example.com
+FIZZ_PUBLIC_SCHEME=https
+FIZZ_STREAM_URL=https://sensors.example.com/live
+FIZZ_STREAM_ORIGINS=https://sensors.example.com
+FIZZ_MQTT_TCP_URL=mqtt://sensors.example.com:1883
+```
+
+`FIZZ_ACME_EMAIL=internal` (the default) issues a certificate this machine trusts only after you install Caddy's local CA. Use that for a private trial. A real address asks Let's Encrypt for a certificate for `FIZZ_DOMAIN`. Then:
+
+```sh
+docker compose -f deploy/docker-compose.yml up -d
+curl -fsS https://sensors.example.com/api/status
+```
+
+The API on port 8080 is still published for the machine itself. The public site is `https://sensors.example.com`. MQTT stays on 1883. It is not inside TLS. Clients that cannot open 1883 keep using `/api/ingest` or MQTT over the WebSocket from `GET /api/stream`.
+
+For a local look at the proxy without a domain:
+
+```sh
+# COMPOSE_PROFILES=local,tls and FIZZ_ACME_EMAIL=internal
+docker compose -f deploy/docker-compose.yml up -d
+curl -kfsS https://localhost/api/status
+```
+
+Browsers should keep using <http://localhost:8080> unless you also set `FIZZ_PUBLIC_SCHEME=https`. The local certificate is not the one a public browser trusts.
+
+## Use Supabase Cloud instead of local Postgres
+
+Create a Supabase project and apply this repo's migrations before the API starts:
+
+```sh
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push --linked
+```
+
+In `deploy/.env`, point the API at that project and do not start the local database:
+
+```sh
+COMPOSE_PROFILES=
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLIC_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+FIZZ_ALLOW_INSECURE_HTTP=0
+FIZZ_AUTH_UPSTREAM=
+```
+
+Keep `FIZZ_STREAM_URL` on the worker you run (`http://localhost:8081`, or the HTTPS `/live` URL). The worker calls `SUPABASE_URL` itself. Then start only the two app containers:
+
+```sh
+docker compose -f deploy/docker-compose.yml up -d api worker
+```
+
+Configure Auth (site URL, redirect URLs, SMTP, Google, GitHub) in the Supabase dashboard. The Docker `GITHUB_*` and `SMTP_*` variables are not used in this mode. They configure the bundled GoTrue only.
+
+New migrations are not applied on boot in this mode. Run `supabase db push --linked` when you pull a checkout that adds SQL files.
+
+## Optional features
+
+Restart with `docker compose -f deploy/docker-compose.yml up -d` after editing `deploy/.env`.
+
+**Chat.** With nothing set, a signed-in `POST /api/chat` returns 503 and tells you to set `AI_GATEWAY_API_KEY` or `OPENAI_BASE_URL`. For Ollama on the same machine as Docker:
+
+```sh
+OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+OPENAI_MODEL=llama3.1
+```
+
+The Compose file maps `host.docker.internal` to the host. Pull a model that supports JSON mode, then ask Fizz from the dashboard. `OPENAI_API_KEY` can stay empty for Ollama.
+
+**Voice.** `GET /api/voice` returns `{"available":false}` until `ELEVENLABS_API_KEY` is set. A voice request then returns 503: "Voice chat isn't available yet. You can still type to Fizz."
+
+**Phone calls.** Leave `AGENTPHONE_API_KEY` empty and alerts stay on the dashboard. Nothing is dialed. There is no self-hosted dialer. Calls are US voice only, and the account's plan must include them (Tinkerer, Pro, or Enterprise). Hobbyist does not place calls.
+
+**Stripe.** Leave the four `STRIPE_*` variables empty. `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
+
+**SMTP.** Keep `MAILER_AUTOCONFIRM=true` until a message actually arrives. Then set `MAILER_AUTOCONFIRM=false` and the `SMTP_*` variables. Password reset and the confirmation link use `PUBLIC_URL`.
+
+**GitHub and Google.** Create an OAuth app whose callback is `http://localhost:8080/auth/v1/callback` (or your `https://` origin). Set `GITHUB_ENABLED=true` plus the client id and secret, or the `GOOGLE_*` pair. The buttons on the sign-in page use that.
+
+## Upgrade, back up, and read logs
+
+Pull new images and start them. The migrate container runs again and applies any SQL file it has not recorded:
+
+```sh
+git pull
+docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+`git pull` matters because SQL files come from the checkout, not from the API image. The migrate container records applied filenames in `public.fizz_schema_migrations` and skips them next time. An image rollback does not roll back SQL.
+
+Dump the database:
+
+```sh
+docker compose -f deploy/docker-compose.yml exec -T db \
+  pg_dump -U postgres -d postgres --format=custom > fizzlayer.dump
+```
+
+Restore into a stopped API so writers are idle. `--clean` drops objects before recreating them. Try it on a copy before you need it.
+
+```sh
+docker compose -f deploy/docker-compose.yml stop api worker rest
+docker compose -f deploy/docker-compose.yml exec -T db \
+  pg_restore -U postgres -d postgres --clean --if-exists < fizzlayer.dump
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+Logs:
+
+```sh
+docker compose -f deploy/docker-compose.yml logs --tail 100 api
+docker compose -f deploy/docker-compose.yml logs --tail 100 worker
+docker compose -f deploy/docker-compose.yml ps -a
+```
+
+`migrate` showing `Exited (0)` is a finished migration, not a crash. `Exited (1)` is a failed migration. `docker compose -f deploy/docker-compose.yml logs migrate` prints the SQL error.
+
+## Troubleshooting
+
+**`/api/status` says `database` `unavailable` or `unconfigured`.** `unconfigured` means `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing. `unavailable` means PostgREST refused the key or the gateway is down. Check `logs rest`, `logs gateway`, and `logs auth`. On a first boot, wait until `logs migrate` says `migrations applied`.
+
+**Migrate prints `auth.uid() did not appear`.** GoTrue did not finish. `logs auth` shows the reason. A fresh volume creates the `auth` schema before GoTrue starts. If you replaced `deploy/.env` without deleting the volume, the passwords no longer match.
+
+**The browser says the host is not configured, or the API returns `invalid_host`.** The `Host` header is not localhost and not in `FIZZ_PUBLIC_HOST`. Set `FIZZ_PUBLIC_HOST` to the host:port you type in the browser, and set `FIZZ_PUBLIC_SCHEME` to `http` or `https` to match.
+
+**Sign-up returns `confirm_email`.** `MAILER_AUTOCONFIRM` is not `true`, or SMTP is required and not set. Turn autoconfirm back on, or finish SMTP.
+
+**Ingest returns 401.** The `Authorization` header must be `Bearer` plus the sensor key from sensor creation. The key is shown once.
+
+**MQTT connection refused.** Port 1883 is the worker. `docker compose ps` should show `0.0.0.0:1883->1883`. `curl -fsS http://localhost:8081/health` should include `"mqtt_tcp":true`.
+
+**`fizz send --stream` and `fizz send --mqtt` both fail.** Pass only one of them. `GET /api/stream` must say `"enabled":true`. If it says `false`, `FIZZ_STREAM_URL` is empty.
+
+**Chat, voice, or billing returns 503.** That feature's key is unset. The message names what to set. Readings and the dashboard do not need it.
+
+**Port already in use.** Change `API_PORT`, `WORKER_PORT`, or `MQTT_PORT`, and change `FIZZ_STREAM_URL`, `FIZZ_MQTT_TCP_URL`, `PUBLIC_URL`, and `FIZZ_PUBLIC_HOST` to the same numbers. `PUBLIC_URL` is what the browser uses.
+
+**Ollama from inside the API container cannot connect.** The URL is `http://host.docker.internal:11434/v1`, and `FIZZ_ALLOW_INSECURE_HTTP` must stay `1`. Ollama must listen on the host, not only on a container network the API cannot see.
+
+## Deploy on Vercel and Supabase
+
+This path keeps the API as Vercel functions. Supabase provides Postgres and Auth. Live sockets still need the Compute worker described at the end of this document. The Docker path above does not use this section.
 
 ## Prerequisites
 
