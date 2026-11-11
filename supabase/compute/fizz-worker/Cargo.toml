@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 description = "Fizzlayer socket and MQTT worker for Supabase Compute"
+license = "Apache-2.0"
 
 [[bin]]
 name = "fizz-worker"

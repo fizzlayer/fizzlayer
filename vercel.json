@@ -42,6 +42,11 @@
       "source": "/enterprise",
       "destination": "/enterprise.html",
       "permanent": true
+    },
+    {
+      "source": "/self-host",
+      "destination": "/self-host.html",
+      "permanent": true
     }
   ],
   "rewrites": [

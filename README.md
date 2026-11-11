@@ -1,5 +1,7 @@
 # Fizzlayer
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 **The physical layer for AI agents.**
 
 Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings their readings into one dashboard so you can ask questions, watch changes, and set alerts. Fizz, the built-in assistant, helps you understand what your devices are reporting.
@@ -57,14 +59,22 @@ The CLI remembers that origin. The [CLI guide](docs/CLI.md) covers supported arc
 
 ## Self-hosting
 
-Run the whole stack with Docker. The API image serves the site and the Rust API on one port, and the worker image is the existing live socket and MQTT process (including plain MQTT on port 1883):
+[![fizzlayer-api](https://img.shields.io/docker/v/fizzlayer/fizzlayer-api?label=fizzlayer-api&sort=semver)](https://hub.docker.com/r/fizzlayer/fizzlayer-api)
+[![fizzlayer-worker](https://img.shields.io/docker/v/fizzlayer/fizzlayer-worker?label=fizzlayer-worker&sort=semver)](https://hub.docker.com/r/fizzlayer/fizzlayer-worker)
+
+Pull the published images and start the stack. No Rust toolchain is required:
 
 ```sh
+git clone https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
 ./scripts/selfhost-init.sh
-docker compose -f deploy/docker-compose.yml up -d --build
+docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
-Open `http://localhost:8080` and create an account. Chat, voice, phone calls, and Stripe stay off until you set their keys; chat can use an OpenAI-compatible server such as Ollama. The [self-hosting guide](docs/SELF_HOSTING.md) has the five-minute path, the dependency list, and the Vercel plus Supabase path.
+Open `http://localhost:8080` and create an account. The [self-hosting guide](docs/SELF_HOSTING.md) covers every `.env` variable, sending readings over HTTP, WebSocket, and MQTT 1883, HTTPS with Caddy, Supabase Cloud, backups, and logs. The same page is on the website at `/self-host`. `docker compose -f deploy/docker-compose.yml up -d --build` compiles the images from this checkout instead of pulling them.
+
+Images: [fizzlayer/fizzlayer-api](https://hub.docker.com/r/fizzlayer/fizzlayer-api) and [fizzlayer/fizzlayer-worker](https://hub.docker.com/r/fizzlayer/fizzlayer-worker). The same tags are on `ghcr.io/fizzlayer/`.
 
 You can still deploy into your own **Vercel and Supabase accounts**. The `api/*.rs` entry points are the Vercel functions; the Docker server calls the same Rust handlers.
 
@@ -196,6 +206,10 @@ cargo test --locked --manifest-path cli/Cargo.toml
 | `supabase/tests/` | SQL checks for ownership and security protections |
 | `hardware/` | Device firmware and hardware guides |
 | `tools/demo/` | Dashboard walkthrough and recording tools |
+
+## License
+
+Fizzlayer is released under the [Apache License 2.0](LICENSE). Copyright 2026 Fizzlayer LLC.
 
 ## Documentation
 

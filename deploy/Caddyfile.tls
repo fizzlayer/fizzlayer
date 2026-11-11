@@ -1,8 +1,9 @@
-# Optional TLS in front of the API. `tls internal` is a local certificate.
-# For a public name, replace that line with `tls you@example.com` and set
-# FIZZ_DOMAIN to the name Caddy should obtain a certificate for.
+# Optional TLS in front of the API.
+# FIZZ_ACME_EMAIL=internal (the default) issues a local certificate.
+# Set FIZZ_ACME_EMAIL to a real address and FIZZ_DOMAIN to a public name
+# for a Let's Encrypt certificate. Ports 80 and 443 must reach this host.
 {$FIZZ_DOMAIN:localhost} {
-	tls internal
+	tls {$FIZZ_ACME_EMAIL:internal}
 	encode gzip
 	handle /live/* {
 		reverse_proxy worker:8080

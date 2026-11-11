@@ -456,7 +456,7 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
         <tbody>
         <tr><td><code>start_checkout</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Upgrade to a paid plan. Opens Stripe Checkout in this tab; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.</p><p class="docs-args">Input: <code>plan</code></p></td></tr>
         <tr><td><code>open_billing_portal</code><br><span class="docs-badge docs-badge-confirm">confirm first</span></td><td><p>Open the Stripe billing portal to change plans, update the payment method, see invoices, or cancel. The person makes the changes there.</p><p class="docs-args">No input.</p></td></tr>
-        <tr><td><code>open_page</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (documentation), privacy, or terms.</p><p class="docs-args">Input: <code>page</code></p></td></tr>
+        <tr><td><code>open_page</code><br><span class="docs-badge docs-badge-read">read-only</span></td><td><p>Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (documentation), self-host (Docker), privacy, or terms.</p><p class="docs-args">Input: <code>page</code></p></td></tr>
         </tbody></table></div>
         <h4>More</h4>
         <div class="docs-table-wrap"><table>
@@ -497,7 +497,7 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
         <p>Read the <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms of Service</a> for the full details. Report a security issue to <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a>.</p>
 
         <h2 id="self-hosting">Self-hosting</h2>
-        <p>Fizzlayer is open source. You can run your own instance on your own Vercel and Supabase accounts, with your own invitations, and point the CLI at it with <code>FIZZ_API</code>. Start with the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md">self-hosting guide</a>; the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md">technical reference</a> covers every API and integration in depth.</p>
+        <p>Run Fizzlayer on your own machine with Docker. The published images are <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-api">fizzlayer/fizzlayer-api</a> and <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-worker">fizzlayer/fizzlayer-worker</a>. The <a href="/self-host">self-hosting page</a> covers install, the first account, HTTPS ingest, WebSocket, MQTT on port 1883, a domain with Caddy, and Supabase Cloud. The same steps are in the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md">repository guide</a>. You can still deploy the API as Vercel functions; that path is in the same guide. Point the CLI at your origin with <code>FIZZ_API</code>.</p>
 
         <h2 id="troubleshooting">Troubleshooting</h2>
         <dl class="docs-faq">
@@ -513,6 +513,6 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
     </div>
   </main>
 
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html" aria-current="page">Docs</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html" aria-current="page">Docs</a><a href="/self-host">Self-host</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
 </body>
 </html>

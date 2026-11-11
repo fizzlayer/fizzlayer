@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1722">
+  <title>Self-host Fizzlayer with Docker</title>
+  <meta name="description" content="Run Fizzlayer on your own machine. Pull the Docker Hub images, create an account, and send readings over HTTPS, WebSocket, and MQTT.">
+  <link rel="canonical" href="https://fizzlayer.com/self-host">
+  <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/design.css">
+  <link rel="stylesheet" href="/legal.css">
+  <link rel="stylesheet" href="/docs.css">
+  <script src="/webmcp.js" defer></script>
+  <script src="/docs.js" defer></script>
+  <script src="/analytics.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-nav">
+    <nav class="container" aria-label="Main">
+      <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
+      <ul class="nav-links">
+        <li><a href="/docs.html">Docs</a></li>
+        <li class="nav-wide"><a href="/self-host" aria-current="page">Self-host</a></li>
+        <li class="nav-wide"><a href="/pricing">Pricing</a></li>
+        <li class="nav-wide"><a href="/demo.html">Live demo</a></li>
+        <li><a class="button nav-cta" href="/app.html#sign-in">Sign in</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="legal docs" id="main-content">
+    <header class="legal-hero">
+      <div class="container">
+        <p class="eyebrow-label">Self-hosting</p>
+        <h1 id="title">Run Fizzlayer with Docker</h1>
+        <p class="docs-lede">Pull two images, start the stack, and create an account. No Rust compiler. Chat, voice, phone calls, and card checkout stay off until you add them.</p>
+        <div class="docs-quick">
+          <a href="#start"><span class="fa fa-box" aria-hidden="true"></span><strong>Start</strong><span>Clone, init, pull, and open the site.</span></a>
+          <a href="#readings"><span class="fa fa-wave-square" aria-hidden="true"></span><strong>Send readings</strong><span>HTTPS, WebSocket, and MQTT 1883.</span></a>
+          <a href="#https"><span class="fa fa-lock" aria-hidden="true"></span><strong>Your domain</strong><span>Caddy gets a certificate.</span></a>
+          <a href="#cloud"><span class="fa fa-cloud" aria-hidden="true"></span><strong>Supabase Cloud</strong><span>Skip the local database.</span></a>
+        </div>
+      </div>
+    </header>
+
+    <div class="container legal-layout">
+      <nav class="toc docs-toc" aria-label="Self-hosting">
+        <div class="toc-group">
+          <p class="toc-label">Start</p>
+          <ol>
+            <li><a href="#need">What you need</a></li>
+            <li><a href="#start">Quick start</a></li>
+            <li><a href="#build">Build from source</a></li>
+            <li><a href="#account">First account</a></li>
+          </ol>
+        </div>
+        <div class="toc-group">
+          <p class="toc-label">Devices</p>
+          <ol>
+            <li><a href="#readings">Send readings</a></li>
+            <li><a href="#cli">Pair the CLI</a></li>
+          </ol>
+        </div>
+        <div class="toc-group">
+          <p class="toc-label">Options</p>
+          <ol>
+            <li><a href="#https">HTTPS and a domain</a></li>
+            <li><a href="#cloud">Supabase Cloud</a></li>
+            <li><a href="#optional">Chat, calls, billing</a></li>
+            <li><a href="#operate">Upgrade and backups</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+          </ol>
+        </div>
+      </nav>
+
+      <article class="legal-body" aria-labelledby="title">
+        <h2 id="need">What you need</h2>
+        <ul>
+          <li>Docker Engine 24 or newer, and Docker Compose 2.20 or newer (<code>docker compose version</code>).</li>
+          <li><code>git</code>, <code>openssl</code>, and <code>python3</code>.</li>
+          <li>Free ports <strong>8080</strong> (site and API), <strong>8081</strong> (live WebSocket), and <strong>1883</strong> (MQTT). HTTPS also uses <strong>80</strong> and <strong>443</strong>.</li>
+          <li>About 1 GB of free RAM and 4 GB of free disk. An idle stack used about 140 MB of RAM. The images are a little over 1 GB.</li>
+        </ul>
+        <p>Images: <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-api">fizzlayer/fizzlayer-api</a> and <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-worker">fizzlayer/fizzlayer-worker</a>. The same tags are on <code>ghcr.io/fizzlayer/</code>. <code>latest</code> tracks the main branch.</p>
+
+        <h2 id="start">Quick start</h2>
+        <p>Clone the repository. Compose needs <code>deploy/</code> and <code>supabase/migrations</code>. You do not compile anything.</p>
+        <pre><code>git clone https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
+./scripts/selfhost-init.sh
+docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml up -d</code></pre>
+        <p><code>selfhost-init.sh</code> writes <code>deploy/.env</code> (mode 600) with a database password, a JWT secret, a service-role key, and <code>CRON_SECRET</code>. It will not overwrite that file. <code>./scripts/selfhost-init.sh --force</code> replaces it, which breaks a database that already used the old password unless you delete the volume too.</p>
+        <p>Open <a href="http://localhost:8080">http://localhost:8080</a>. Then:</p>
+        <pre><code>curl -fsS http://localhost:8080/api/status</code></pre>
+        <p>You want <code>"database":"connected"</code>. <code>docker compose -f deploy/docker-compose.yml down</code> stops the stack and keeps the database. <code>down -v</code> deletes it. The full variable list is in the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md">repository guide</a>.</p>
+
+        <h2 id="build">Build from source</h2>
+        <p>After the init script, compile the two app images from this checkout. The first build takes several minutes.</p>
+        <pre><code>docker compose -f deploy/docker-compose.yml up -d --build</code></pre>
+        <p>That tags them <code>fizzlayer/fizzlayer-api</code> and <code>fizzlayer/fizzlayer-worker</code>. Later <code>up</code> commands reuse those local images. Pin a published commit with <code>FIZZ_API_IMAGE</code> and <code>FIZZ_WORKER_IMAGE</code> set to <code>fizzlayer/fizzlayer-api:sha-…</code> (the full 40-character commit) in <code>deploy/.env</code>.</p>
+
+        <h2 id="account">First account</h2>
+        <p>Open <a href="http://localhost:8080/app.html">http://localhost:8080/app.html</a>. Create an account with a password of at least 12 characters. No confirmation email is sent: <code>MAILER_AUTOCONFIRM=true</code> is the default. Sign in later on the same page.</p>
+        <p>From a terminal:</p>
+        <pre><code>curl -fsS -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"action":"sign_up","email":"you@example.com","password":"choose-a-long-pass"}' \
+  http://localhost:8080/api/auth
+
+curl -fsS -b cookies.txt -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"action":"sign_in","email":"you@example.com","password":"choose-a-long-pass"}' \
+  http://localhost:8080/api/auth
+
+curl -fsS -b cookies.txt http://localhost:8080/api/me</code></pre>
+        <p>A reply of <code>"confirm_email":true</code> means autoconfirm is off. Anyone who can open the site can register. To close registration after your own account exists:</p>
+        <pre><code>docker compose -f deploy/docker-compose.yml exec db \
+  psql -U postgres -d postgres \
+  -c "update public.fizz_instance_settings set sign_up_open = false;"</code></pre>
+
+        <h2 id="readings">Send a reading</h2>
+        <p>Create an API sensor. The response includes <code>sensor.id</code> and a one-time <code>api_key</code> that starts with <code>fizz_</code>.</p>
+        <pre><code>curl -fsS -b cookies.txt -H 'Content-Type: application/json' \
+  -d '{"kind":"temperature","name":"Bench","mode":"api"}' \
+  http://localhost:8080/api/sensors
+
+curl -fsS -H "Authorization: Bearer fizz_YOUR_KEY" -H 'Content-Type: application/json' \
+  -d '{"sensor_id":"SENSOR_UUID","event_id":"reading-1","metrics":{"temperature_c":21.5}}' \
+  http://localhost:8080/api/ingest
+
+curl -fsS -b cookies.txt \
+  "http://localhost:8080/api/readings?sensor_id=SENSOR_UUID&amp;limit=20"</code></pre>
+        <p>HTTP 202 with <code>accepted</code> means the reading was stored. Sending the same <code>event_id</code> again does not create a second row.</p>
+        <p>Ask where live clients should connect:</p>
+        <pre><code>curl -fsS http://localhost:8080/api/stream</code></pre>
+        <p>This stack returns <code>ws://localhost:8081/v1/stream</code> and <code>mqtt://localhost:1883</code>. MQTT 3.1.1 uses the sensor id as the username and the sensor key as the password. The topic is <code>fizz/v1/&lt;sensor-id&gt;/readings</code>.</p>
+        <pre><code>mosquitto_pub -h 127.0.0.1 -p 1883 \
+  -u SENSOR_UUID -P 'fizz_YOUR_KEY' \
+  -t 'fizz/v1/SENSOR_UUID/readings' \
+  -m '{"event_id":"mqtt-1","metrics":{"temperature_c":23.5}}'</code></pre>
+        <p>A device WebSocket sends <code>{"op":"auth","key":"fizz_YOUR_KEY"}</code> and then <code>{"op":"reading","sensor_id":"SENSOR_UUID","event_id":"ws-1","metrics":{"temperature_c":22.5}}</code>. The CLI in the next section does that.</p>
+
+        <h2 id="cli">Pair the CLI</h2>
+        <p>Install <code>fizz</code> and pair it with this server. The installer downloads the CLI from GitHub. <code>FIZZ_API</code> selects your machine.</p>
+        <pre><code>curl -fsSL http://localhost:8080/install.sh | sh
+FIZZ_API=http://localhost:8080 fizz pair</code></pre>
+        <p>The terminal prints a short code and waits. Open the <a href="http://localhost:8080/agents.html">Agents</a> page, enter the code, then answer <code>y</code> on the device when it asks you to approve. After that:</p>
+        <pre><code>fizz send temperature_c 21.5
+fizz send --stream temperature_c 22.5
+fizz send --mqtt temperature_c 23.5
+fizz tail</code></pre>
+        <p><code>fizz send</code> uses HTTPS. <code>--stream</code> uses the WebSocket. <code>--mqtt</code> publishes to port 1883. Use only one of those flags. <code>fizz run --once</code> sends CPU, load, memory, and disk where the operating system exposes them.</p>
+
+        <h2 id="https">HTTPS and a domain</h2>
+        <p>Add <code>tls</code> to <code>COMPOSE_PROFILES</code> and set the public name. Ports 80 and 443 must reach this machine. Let's Encrypt uses port 80.</p>
+        <pre><code>COMPOSE_PROFILES=local,tls
+FIZZ_DOMAIN=sensors.example.com
+FIZZ_ACME_EMAIL=you@example.com
+PUBLIC_URL=https://sensors.example.com
+SUPABASE_PUBLIC_URL=https://sensors.example.com
+FIZZ_PUBLIC_HOST=sensors.example.com
+FIZZ_PUBLIC_SCHEME=https
+FIZZ_STREAM_URL=https://sensors.example.com/live
+FIZZ_STREAM_ORIGINS=https://sensors.example.com
+FIZZ_MQTT_TCP_URL=mqtt://sensors.example.com:1883</code></pre>
+        <pre><code>docker compose -f deploy/docker-compose.yml up -d
+curl -fsS https://sensors.example.com/api/status</code></pre>
+        <p><code>FIZZ_ACME_EMAIL=internal</code> makes a local certificate instead. Try that with <code>curl -kfsS https://localhost/api/status</code>. Keep using <code>http://localhost:8080</code> in a browser unless you set <code>FIZZ_PUBLIC_SCHEME=https</code>. MQTT on 1883 is not wrapped in TLS.</p>
+
+        <h2 id="cloud">Supabase Cloud</h2>
+        <p>Apply the SQL yourself, then do not start the local database:</p>
+        <pre><code>supabase link --project-ref YOUR_PROJECT_REF
+supabase db push --linked</code></pre>
+        <pre><code>COMPOSE_PROFILES=
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLIC_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+FIZZ_ALLOW_INSECURE_HTTP=0
+FIZZ_AUTH_UPSTREAM=</code></pre>
+        <pre><code>docker compose -f deploy/docker-compose.yml up -d api worker</code></pre>
+        <p>SMTP and GitHub or Google sign-in are configured in the Supabase dashboard in this mode. Pulling a new checkout does not migrate a Cloud database. Run <code>supabase db push --linked</code> again.</p>
+
+        <h2 id="optional">Chat, calls, and billing</h2>
+        <p>Leave the keys empty and the site still stores readings.</p>
+        <ul>
+          <li><strong>Chat.</strong> Signed-in chat returns 503 and names <code>OPENAI_BASE_URL</code> or <code>AI_GATEWAY_API_KEY</code>. For Ollama on the Docker host: <code>OPENAI_BASE_URL=http://host.docker.internal:11434/v1</code> and <code>OPENAI_MODEL</code> set to a model that accepts JSON mode. <code>host.docker.internal</code> is mapped to the host.</li>
+          <li><strong>Voice.</strong> <code>GET /api/voice</code> is <code>{"available":false}</code> until <code>ELEVENLABS_API_KEY</code> is set.</li>
+          <li><strong>Calls.</strong> <code>AGENTPHONE_API_KEY</code> places US voice calls. There is no self-hosted dialer. Hobbyist plans do not place calls.</li>
+          <li><strong>Stripe.</strong> Set all four of <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_TINKERER</code>, and <code>STRIPE_PRICE_PRO</code>, or none. Unset, billing says paid plans are not available on this server.</li>
+        </ul>
+        <p>Restart after editing <code>deploy/.env</code>: <code>docker compose -f deploy/docker-compose.yml up -d</code>.</p>
+
+        <h2 id="operate">Upgrade, backups, and logs</h2>
+        <pre><code>git pull
+docker compose -f deploy/docker-compose.yml pull
+docker compose -f deploy/docker-compose.yml up -d</code></pre>
+        <p><code>git pull</code> is what brings new SQL. The migrate container applies files it has not applied before. An exited migrate container with code 0 is success.</p>
+        <pre><code>docker compose -f deploy/docker-compose.yml exec -T db \
+  pg_dump -U postgres -d postgres --format=custom &gt; fizzlayer.dump</code></pre>
+        <pre><code>docker compose -f deploy/docker-compose.yml logs --tail 100 api
+docker compose -f deploy/docker-compose.yml logs --tail 100 worker</code></pre>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+        <dl class="docs-faq">
+          <div><dt><code>database</code> is <code>unavailable</code>.</dt><dd>Wait until <code>docker compose logs migrate</code> says <code>migrations applied</code>. Then check <code>rest</code>, <code>gateway</code>, and <code>auth</code>.</dd></div>
+          <div><dt>The host is not configured.</dt><dd>Set <code>FIZZ_PUBLIC_HOST</code> to the host and port in the browser, and <code>FIZZ_PUBLIC_SCHEME</code> to <code>http</code> or <code>https</code>.</dd></div>
+          <div><dt>Ingest returns 401.</dt><dd>The header is <code>Authorization: Bearer</code> plus the sensor key from creation. The key is shown once.</dd></div>
+          <div><dt>MQTT connection refused.</dt><dd><code>curl -fsS http://localhost:8081/health</code> should include <code>"mqtt_tcp":true</code>, and port 1883 should be published.</dd></div>
+          <div><dt>Chat returns 503.</dt><dd>No model is configured. Readings and the dashboard do not need one.</dd></div>
+        </dl>
+        <p>More cases, including a password mismatch after <code>--force</code>, are in the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md#troubleshooting">repository guide</a>.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html">Docs</a><a href="/self-host" aria-current="page">Self-host</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+</body>
+</html>
