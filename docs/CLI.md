@@ -17,8 +17,10 @@ The installer supports x86_64, ARM64, ARMv7, and ARMv6 Linux. It downloads a bin
 To pin a published release or choose the destination:
 
 ```sh
-FIZZ_VERSION=cli-v0.1.1 FIZZ_INSTALL_DIR="$HOME/.local/bin" sh /tmp/fizz-install.sh
+FIZZ_VERSION=cli-v0.2.0 FIZZ_INSTALL_DIR="$HOME/.local/bin" sh /tmp/fizz-install.sh
 ```
+
+`FIZZ_VERSION=latest` (the default) installs the newest release whose tag starts with `cli-v`. It does not use GitHub's Latest release, which may be the Home Assistant integration.
 
 Rerun the installer to update the binary. Stop and restart any running Fizz service when updating; your pairing configuration is retained.
 
@@ -104,7 +106,7 @@ The installer download source is independent of `FIZZ_API`: it still fetches off
 | `FIZZ_API` | Override the API origin; unpaired devices default to `https://fizzlayer.com`. |
 | `FIZZ_CONFIG` | Use a specific configuration file. |
 | `XDG_CONFIG_HOME` | Base config directory when `FIZZ_CONFIG` is unset. |
-| `FIZZ_VERSION` | Installer only: published release tag, or `latest` (default). |
+| `FIZZ_VERSION` | Installer only: a `cli-v*` tag, or `latest` (default), which means the newest `cli-v*` release. |
 | `FIZZ_INSTALL_DIR` | Installer only: binary destination directory. |
 
 The default configuration is `$XDG_CONFIG_HOME/fizz/device.json`, or `~/.config/fizz/device.json` when `XDG_CONFIG_HOME` is unset. It contains the sensor ID, device key, API origin, and pairing metadata. The CLI writes it with mode `600` and rejects symlinks or files owned by another user or accessible to other users. Keep it private and run commands as the same user who paired the device.
@@ -145,6 +147,10 @@ cargo install --locked --path cli
 
 The CLI is a separate Cargo package from the API. `cargo install` places `fizz` in Cargo's binary directory, normally `~/.cargo/bin`.
 
-Maintainers publish releases with a `cli-v<VERSION>` tag matching `cli/Cargo.toml`. The [CLI release workflow](../.github/workflows/cli-release.yml) tests the CLI, cross-compiles four Linux musl targets, and publishes binaries plus `SHA256SUMS`. Release assets must be publicly downloadable for the installer to work.
+## 0.2.0
+
+`fizz run` and `fizz send` still post over HTTPS. `--stream` keeps one WebSocket open, `--mqtt` publishes MQTT, and `fizz tail` prints live readings for the paired device. The device key is unchanged.
+
+Maintainers publish releases with a `cli-v<VERSION>` tag matching `cli/Cargo.toml`. The [CLI release workflow](../.github/workflows/cli-release.yml) tests the CLI, cross-compiles four Linux musl targets, and publishes binaries plus `SHA256SUMS`. Release assets must be publicly downloadable for the installer to work. Do not mark a non-CLI release as the only way to install `fizz`; the installer looks up `cli-v*` tags itself.
 
 ESP32 and other microcontrollers cannot run this Linux CLI. Create an API sensor in Fizzlayer and send readings directly to `/api/ingest` instead.

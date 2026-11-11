@@ -1,6 +1,6 @@
 # Build the Fizz CLI for Raspberry Pi and Linux and publish it as a GitHub Release.
 # Push a tag matching cli/Cargo.toml's version, e.g.:  git tag cli-v0.1.0 && git push origin cli-v0.1.0
-# install.sh downloads fizz-<target> and verifies it against SHA256SUMS from the latest release.
+# install.sh downloads fizz-<target> and verifies it against SHA256SUMS from the newest cli-v* release.
 name: CLI release
 
 on:
