@@ -80,7 +80,7 @@ fizz send --mqtt temperature_c 22.4
 fizz tail
 ```
 
-`--stream` and `--mqtt` cannot be combined. `FIZZ_MQTT_URL` overrides the discovered MQTT address (`mqtt://host:1883`, `ws://`, or `wss://`). `fizz tail --mqtt` expects a WebSocket URL.
+`--stream` and `--mqtt` cannot be combined. Both ask `GET /api/stream` for the addresses. On fizzlayer.com that is a WebSocket under `/compute/v1/fizz-worker`, and `mqtt_tcp_url` is null, so `--mqtt` and `fizz tail --mqtt` use MQTT over WebSocket (subprotocol `mqtt`). `FIZZ_MQTT_URL` overrides that URL (`ws://` or `wss://`, or `mqtt://host:port` only when you run your own TCP broker).
 
 To move a device to another account, run `fizz unpair` first, then pair again. `fizz pair --force` replaces the saved pairing after approval but does **not** revoke the previous device key; revoke the previous device separately if you use it.
 

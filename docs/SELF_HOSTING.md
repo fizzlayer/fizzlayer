@@ -85,8 +85,8 @@ Add these server-side environment variables to each environment you use:
 | `AGENTPHONE_AGENT_ID` | Sometimes | Required when the AgentPhone account has multiple agents; a sole agent is selected automatically |
 | `CRON_SECRET` | For silence alerts and call retries | Long random secret. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` on `GET /api/cron`. Use the same value if an external scheduler calls that path |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
-| `FIZZ_STREAM_URL` | For live sockets and MQTT | Public base URL of the `fizz-worker` Compute service, including any gateway path. Example: `https://YOUR_PROJECT_REF.supabase.co/workers/v1/fizz-worker`. Empty leaves streaming off; HTTPS ingest is unchanged |
-| `FIZZ_MQTT_TCP_URL` | No | Advertised plain MQTT URL, such as `mqtt://mqtt.example.com:1883`, when that port is actually reachable. Leave unset on the Compute public URL |
+| `FIZZ_STREAM_URL` | For live sockets and MQTT | Public base URL of the `fizz-worker` Compute service, including the gateway path and no trailing slash. Production is `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. The path is `/compute/v1/fizz-worker`, not `/workers/v1/`. Empty leaves streaming off; HTTPS ingest is unchanged. Devices should read `GET /api/stream` instead of hardcoding this host |
+| `FIZZ_MQTT_TCP_URL` | No | Leave unset. Production `GET /api/stream` returns `mqtt_tcp_url: null`. The hosted worker has no plain TCP port 1883 |
 
 Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls. Pairing calls and alert calls use the same `AGENTPHONE_API_KEY` and `AGENTPHONE_AGENT_ID`. No new variable is required. Hobbyist accounts are not able to place either call.
 
@@ -213,9 +213,9 @@ Checked against Supabase's announcement and product page, not against a producti
 | Lifetime | No wall-clock limit of the kind Edge Functions have (400 seconds). A service can still be restarted at any time, so readings live in Postgres |
 | Idle | A public service suspends when idle and is described as resuming in under a second. Open sockets keep it awake; clients reconnect after a suspend |
 | Missing | No autoscaling, GPU, or persistent disk. Agent sandboxes are not in the alpha. Every service receives all of the project's secrets |
-| URL | Dashboard snippets use `https://<project-ref>.supabase.co/workers/v1/<name>`. Read the URL on the Compute page after the first push and do not guess if it differs |
+| URL | Production is served at `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. Confirm the base with `GET /api/stream` (strip `wss://` back to `https://` and remove `/v1/stream`). Do not use `/workers/v1/` |
 
-The public URL is HTTP. It does not publish TCP port 1883. MQTT clients on that URL use WebSocket (`wss://.../mqtt`, subprotocol `mqtt`). ESP-IDF can do that with `MQTT_TRANSPORT_OVER_WSS`. Home Assistant's MQTT integration and Arduino `PubSubClient` speak TCP. For those, run this same image somewhere you can publish port 1883 (`MQTT_TCP_PORT=1883`) or wait until Compute exposes extra ports. Set `FIZZ_MQTT_TCP_URL` only when that address is reachable.
+The public URL is HTTPS. It does not publish TCP port 1883, and production `mqtt_tcp_url` is null. MQTT clients use WebSocket (`wss://…/compute/v1/fizz-worker/mqtt`, subprotocol `mqtt`). ESP-IDF can do that with `MQTT_TRANSPORT_OVER_WSS`. Arduino `PubSubClient` and Home Assistant's MQTT integration speak TCP, so on the hosted service they should use `POST /api/ingest` or the Fizzlayer Home Assistant integration. A self-hosted copy of this image can still set `MQTT_TCP_PORT=1883`; do not advertise that address as `FIZZ_MQTT_TCP_URL` unless clients can actually reach it.
 
 ### Deploy the worker
 
@@ -231,7 +231,7 @@ Do this in the Supabase project you mean to use. Nothing in this repository depl
    ```
 
    The image is `supabase/compute/fizz-worker`. It listens on `PORT` (the platform sets this; locally it defaults to 8080). `GET /health` returns `{"service":"fizz-worker","status":"ok"}`.
-5. Copy the public URL from the Compute page. On Vercel, set `FIZZ_STREAM_URL` to that base, for example `https://YOUR_PROJECT_REF.supabase.co/workers/v1/fizz-worker`, with no trailing slash. Redeploy the API. `GET /api/stream` should then return `"enabled": true`.
+5. Copy the public URL from the Compute page. On Vercel, set `FIZZ_STREAM_URL` to that base with no trailing slash. Production is `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. Redeploy the API. `GET /api/stream` should then return `"enabled": true` and `wss://` URLs under `/compute/v1/fizz-worker`.
 6. The site's Content-Security-Policy allows `https://*.supabase.co` and `wss://*.supabase.co`. If the public URL is on another host, add that host to `connect-src` in `vercel.json`.
 
 A streamed reading still creates alert rows in the database. The worker does not dial AgentPhone. `/api/cron` places queued calls, so a call that follows a socket or MQTT reading can wait until the next cron run instead of leaving on the ingest request itself.

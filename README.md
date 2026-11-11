@@ -145,7 +145,7 @@ curl https://fizzlayer.com/api/ingest \
 
 Use a new `event_id` for each sample; retrying the same ID is idempotent. Keys are scoped to a single sensor. This endpoint also supports microcontrollers that cannot run the CLI. See the [sensor API reference](docs/REFERENCE.md#sensor-api) for routes, phone pairing, and alert behavior.
 
-The same readings can stay on one connection instead of a request per sample. `fizz run --stream` and `fizz send --stream` use a WebSocket. `fizz run --mqtt` and `fizz send --mqtt` publish MQTT. `fizz tail` prints live readings for the paired sensor. HTTPS ingest keeps working. The socket and the MQTT listener run on the `fizz-worker` Supabase Compute service, because a Vercel function cannot hold the connection. Setup is in the [self-hosting guide](docs/SELF_HOSTING.md#live-stream-and-mqtt).
+The same readings can stay on one connection instead of a request per sample. `fizz run --stream` and `fizz send --stream` use a WebSocket. `fizz run --mqtt` and `fizz send --mqtt` publish MQTT. `fizz tail` prints live readings for the paired sensor. HTTPS ingest keeps working. Clients learn the addresses from `GET /api/stream`. On fizzlayer.com those are WebSockets under `/compute/v1/fizz-worker`, and there is no plain TCP MQTT port, so Arduino PubSubClient and Home Assistant's MQTT integration should keep using HTTPS or the Home Assistant integration. Setup is in the [self-hosting guide](docs/SELF_HOSTING.md#live-stream-and-mqtt).
 
 ## Development
 
