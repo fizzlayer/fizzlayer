@@ -8,10 +8,13 @@ RUN cargo build --release --locked --bin fizz-serve --jobs 2
 
 FROM public.ecr.aws/docker/library/debian:bookworm-slim
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates \
+  && apt-get install -y --no-install-recommends ca-certificates postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/target/release/fizz-serve /usr/local/bin/fizz-serve
 COPY public /app/public
+COPY supabase/migrations /migrations
+COPY deploy/migrate.sh /migrate.sh
+RUN chmod 755 /migrate.sh
 ENV FIZZ_PUBLIC_DIR=/app/public
 ENV PORT=8080
 USER 65532:65532

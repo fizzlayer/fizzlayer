@@ -62,17 +62,18 @@ The CLI remembers that origin. The [CLI guide](docs/CLI.md) covers supported arc
 [![fizzlayer-api](https://img.shields.io/docker/v/fizzlayer/fizzlayer-api?label=fizzlayer-api&sort=semver)](https://hub.docker.com/r/fizzlayer/fizzlayer-api)
 [![fizzlayer-worker](https://img.shields.io/docker/v/fizzlayer/fizzlayer-worker?label=fizzlayer-worker&sort=semver)](https://hub.docker.com/r/fizzlayer/fizzlayer-worker)
 
-Pull the published images and start the stack. No Rust toolchain is required:
+No clone and no compiler. Download the compose file, generate secrets, and start:
 
 ```sh
-git clone https://github.com/fizzlayer/fizzlayer.git
-cd fizzlayer
-./scripts/selfhost-init.sh
-docker compose -f deploy/docker-compose.yml pull
-docker compose -f deploy/docker-compose.yml up -d
+mkdir fizzlayer && cd fizzlayer
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.yml -o compose.yml
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/deploy/compose.env.example -o .env.example
+curl -fsSL https://raw.githubusercontent.com/fizzlayer/fizzlayer/main/scripts/selfhost-init.sh -o selfhost-init.sh
+sh selfhost-init.sh
+docker compose up -d
 ```
 
-Open `http://localhost:8080` and create an account. The [self-hosting guide](docs/SELF_HOSTING.md) covers every `.env` variable, sending readings over HTTP, WebSocket, and MQTT 1883, HTTPS with Caddy, Supabase Cloud, backups, and logs. The same page is on the website at `/self-host`. `docker compose -f deploy/docker-compose.yml up -d --build` compiles the images from this checkout instead of pulling them.
+Open `http://localhost:8080` and create an account. The [self-hosting guide](docs/SELF_HOSTING.md) covers every `.env` variable, sending readings over HTTP, WebSocket, and MQTT 1883, HTTPS with Caddy, Supabase Cloud, backups, and logs. The same page is on the website at `/self-host`. Cloning the repo and `docker compose -f deploy/docker-compose.yml up -d --build` is the path for changing the server.
 
 Images: [fizzlayer/fizzlayer-api](https://hub.docker.com/r/fizzlayer/fizzlayer-api) and [fizzlayer/fizzlayer-worker](https://hub.docker.com/r/fizzlayer/fizzlayer-worker). The same tags are on `ghcr.io/fizzlayer/`.
 
