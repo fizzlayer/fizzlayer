@@ -14,6 +14,20 @@ const passkeysSupported = window.fizzPasskey.supported;
 // ones turned on in Supabase, so a self-hosted instance never shows a button that can't work.
 const oauthProviders = { google: 'Google', github: 'GitHub' };
 let oauthEnabled = Object.keys(oauthProviders);
+// Same names, prices, and limits as the pricing page. Paid rows stay hidden when Stripe is unset.
+const signupPlans = [
+  { id: 'hobbyist', name: 'Hobbyist', tag: 'For your first sensors', price: '$0', detail: '3 connected devices · 10 Fizz credits / month · Phone calls: Dashboard only' },
+  { id: 'tinkerer', name: 'Tinkerer', tag: 'For the home lab', price: '$10', period: '/ month', detail: '10 connected devices · 100 Fizz credits / month · Phone calls: Included', paid: true },
+  { id: 'pro', name: 'Pro', tag: 'For serious setups', price: '$25', period: '/ month', detail: '50 connected devices · 1,000 Fizz credits / month · Phone calls: Included', paid: true },
+  { id: 'enterprise', name: 'Enterprise', tag: 'For teams and sites', price: 'Custom', detail: 'Custom connected devices · Custom Fizz credits · Phone calls: Included', href: '/enterprise' },
+];
+const PLAN_KEY = 'fizz.signupPlan';
+const requestedPlan = new URLSearchParams(location.search).get('plan');
+let billingAvailable = false;
+let chosenPlan = ['hobbyist', 'tinkerer', 'pro'].includes(requestedPlan) ? requestedPlan : 'hobbyist';
+const billingNotice = ['success', 'cancelled'].includes(new URLSearchParams(location.search).get('billing'))
+  ? new URLSearchParams(location.search).get('billing') : '';
+let billingKnown = Promise.resolve();
 const modes = {
   create: {
     label: 'NEW ACCOUNT', title: 'Create your account', intro: 'Enter your email and choose a password.',
@@ -79,7 +93,130 @@ function render(intro) {
   $('password').autocomplete = mode === 'sign-in' ? 'current-password' : 'new-password';
   $('email').autocomplete = mode === 'sign-in' ? 'username' : 'email';
   $('password-help').hidden = mode === 'sign-in';
+  renderPlans();
   showError('');
+}
+
+function paidPlan(id) {
+  return id === 'tinkerer' || id === 'pro';
+}
+
+function planBody(plan) {
+  const body = document.createDocumentFragment();
+  for (const [className, text] of [
+    ['plan-option-name', plan.name],
+    ['plan-option-price', plan.period ? `${plan.price} ${plan.period}` : plan.price],
+    ['plan-option-tag', plan.tag],
+    ['plan-option-detail', plan.detail],
+  ]) {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    body.append(span);
+  }
+  return body;
+}
+
+function renderPlans() {
+  const picker = $('plan-picker');
+  const show = mode === 'create' && billingAvailable;
+  picker.hidden = !show;
+  if (!show) return;
+  const box = $('plan-options');
+  box.className = 'plan-options';
+  box.replaceChildren();
+  for (const plan of signupPlans) {
+    if (plan.href) {
+      const link = document.createElement('a');
+      link.className = 'plan-option plan-option-link';
+      link.href = plan.href;
+      link.setAttribute('aria-label', 'Enterprise, contact us');
+      if (requestedPlan === 'enterprise') link.classList.add('plan-option-current');
+      link.append(planBody(plan));
+      box.append(link);
+      continue;
+    }
+    const label = document.createElement('label');
+    label.className = 'plan-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'plan';
+    input.value = plan.id;
+    input.checked = plan.id === chosenPlan;
+    input.addEventListener('change', () => { chosenPlan = plan.id; });
+    const check = document.createElement('span');
+    check.className = 'plan-option-check';
+    check.setAttribute('aria-hidden', 'true');
+    label.append(input, check, planBody(plan));
+    box.append(label);
+  }
+}
+
+function rememberSignupPlan() {
+  if (mode !== 'create' || !billingAvailable || !paidPlan(chosenPlan)) {
+    localStorage.removeItem(PLAN_KEY);
+    return;
+  }
+  localStorage.setItem(PLAN_KEY, JSON.stringify({ plan: chosenPlan, at: Date.now() }));
+}
+
+function takeSignupPlan() {
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); } catch { stored = null; }
+  localStorage.removeItem(PLAN_KEY);
+  if (!stored || !paidPlan(stored.plan)) return null;
+  if (typeof stored.at !== 'number' || Date.now() - stored.at > 24 * 60 * 60 * 1000) return null;
+  return stored.plan;
+}
+
+async function showWorkspace(username) {
+  signedInUsername = username;
+  let sensors = [];
+  try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
+  $('upgrade-prompt').hidden = true;
+  showDashboard(sensors);
+}
+
+async function showBillingReturn(username) {
+  await billingKnown;
+  if (!billingAvailable) {
+    await showWorkspace(username);
+    return;
+  }
+  signedInUsername = username;
+  let sensors = [];
+  try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
+  showDashboard(sensors);
+  const note = $('upgrade-prompt');
+  note.replaceChildren();
+  if (billingNotice === 'cancelled') {
+    note.append('Checkout cancelled. Your plan has not changed. ');
+    const link = document.createElement('a');
+    link.href = '/settings.html';
+    link.textContent = 'Finish upgrading';
+    note.append(link, ' whenever you’re ready.');
+  } else {
+    note.textContent = 'Payment received. Your plan will update shortly; refresh this page in a minute.';
+  }
+  note.hidden = false;
+}
+
+async function continueAfterSignup(username) {
+  await billingKnown;
+  const plan = takeSignupPlan();
+  // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. The new account opens the dashboard.
+  if (!billingAvailable) {
+    await showWorkspace(username);
+    return;
+  }
+  if (plan) {
+    try {
+      const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
+      location.assign(result.url);
+      return;
+    } catch { /* Checkout did not start. The account stays on Hobbyist. */ }
+  }
+  showSetup(username);
 }
 
 function setMode(next, intro) {
@@ -191,6 +328,8 @@ form.addEventListener('submit', async (event) => {
   if (fields.includes('password') && !validPassword()) return;
   const email = $('email').value.trim();
   const password = $('password').value;
+  if (mode === 'create') rememberSignupPlan();
+  else localStorage.removeItem(PLAN_KEY);
   const body = {
     create: { action: 'sign_up', email, password },
     'sign-in': { action: 'sign_in', email, password },
@@ -204,8 +343,10 @@ form.addEventListener('submit', async (event) => {
     const result = await send('/api/auth', 'POST', body);
     if (result.username) {
       resetToken = '';
+      const created = mode === 'create';
       form.reset();
-      showSetup(result.username);
+      if (created) await continueAfterSignup(result.username);
+      else showSetup(result.username);
     } else if (mode === 'forgot') {
       pending = { action: 'recover', email };
       setMode('check-email', `If ${email} has a Fizzlayer account, we sent it a link to choose a new password.`);
@@ -255,6 +396,7 @@ $('passkey').addEventListener('click', async () => {
     const start = await send('/api/auth', 'POST', { action: 'passkey_options' });
     const credential = await window.fizzPasskey.credential(start.options, false);
     const result = await send('/api/auth', 'POST', { action: 'passkey_sign_in', challenge_id: start.challenge_id, credential });
+    localStorage.removeItem(PLAN_KEY);
     showSetup(result.username);
   } catch (error) {
     if (!window.fizzPasskey.cancelled(error)) showError(error instanceof DOMException ? 'That passkey didn’t work. Try again.' : error.message);
@@ -269,7 +411,11 @@ $('forgot').addEventListener('click', () => setMode(mode === 'forgot' ? 'sign-in
 $('back-to-sign-in').addEventListener('click', () => setMode('sign-in'));
 // Google and GitHub sign-in leave the page. A new account gets a Fizzlayer account on return.
 for (const provider of Object.keys(oauthProviders)) {
-  $(provider).addEventListener('click', () => location.assign(`/api/auth?provider=${provider}`));
+  $(provider).addEventListener('click', () => {
+    if (mode === 'create') rememberSignupPlan();
+    else localStorage.removeItem(PLAN_KEY);
+    location.assign(`/api/auth?provider=${provider}`);
+  });
 }
 // If this fails, every button stays: /api/auth?provider= still refuses a disabled provider.
 fetch('/api/auth?providers', { credentials: 'same-origin' })
@@ -384,7 +530,7 @@ if (linkToken && hash.get('type') === 'recovery') {
   mode = 'sign-in';
   render('Confirming your email…');
   send('/api/auth', 'POST', { action: 'link', access_token: linkToken })
-    .then((result) => showSetup(result.username))
+    .then((result) => continueAfterSignup(result.username))
     .catch((error) => {
       render();
       showError(error.message);
@@ -398,6 +544,20 @@ if (linkToken && hash.get('type') === 'recovery') {
   if (authError) showError(authErrors[authError] || authErrors.failed);
   fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
     .then((response) => response.ok ? response.json() : null)
-    .then((data) => { if (data?.username) showSetup(data.username); })
+    .then((data) => {
+      if (!data?.username) return;
+      if (billingNotice) return showBillingReturn(data.username);
+      if (localStorage.getItem(PLAN_KEY)) return continueAfterSignup(data.username);
+      showSetup(data.username);
+    })
     .catch(() => {});
 }
+
+billingKnown = fetch('/api/billing', { credentials: 'same-origin', cache: 'no-store' })
+  .then((response) => (response.ok ? response.json() : { available: false }))
+  .then((data) => {
+    billingAvailable = data.available === true;
+    if (!billingAvailable) chosenPlan = 'hobbyist';
+    renderPlans();
+  })
+  .catch(() => { billingAvailable = false; chosenPlan = 'hobbyist'; });

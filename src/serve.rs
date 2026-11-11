@@ -97,10 +97,10 @@ async fn api(request: Request<Incoming>) -> vercel_runtime::Response<ResponseBod
         "/api/agents" => agents::handle(request).await,
         "/api/alerts" => agent::alerts(request).await,
         "/api/billing" => {
-            if method == Method::POST {
+            if method == Method::GET || method == Method::POST {
                 billing::handle(request).await
             } else {
-                customer::error(405, "method_not_allowed", "Use POST.")
+                customer::error(405, "method_not_allowed", "Use GET or POST.")
             }
         }
         "/api/chat" => {

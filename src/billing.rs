@@ -123,9 +123,30 @@ fn unavailable() -> Response<ResponseBody> {
     )
 }
 
+/// Where Stripe sends the browser after checkout. Only these two app paths are allowed.
+fn checkout_return_path(return_to: Option<&str>) -> Option<&'static str> {
+    match return_to {
+        None | Some("settings") => Some("/settings.html"),
+        Some("app") => Some("/app.html"),
+        Some(_) => None,
+    }
+}
+
+/// `GET /api/billing` reports whether paid checkout is configured, with no session.
 /// `POST /api/billing` with `{"action": "checkout", "plan": "tinkerer" | "pro"}` or
 /// `{"action": "portal"}`. Both answer with a Stripe-hosted `url` to open.
+/// Checkout accepts `return_to` of `"settings"` (the default) or `"app"`.
 pub async fn handle(request: Request) -> Response<ResponseBody> {
+    if request.method().as_str() == "GET" {
+        return reply(
+            200,
+            json!({ "available": Stripe::from_env().is_some() }),
+            None,
+        );
+    }
+    if request.method().as_str() != "POST" {
+        return error(405, "method_not_allowed", "Use GET or POST.");
+    }
     let Some(token) = session_token(&request) else {
         return error(401, "unauthorized", "Sign in to continue.");
     };
@@ -171,7 +192,14 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     else {
         return unavailable();
     };
-    let return_url = format!("{origin}/settings.html");
+    let Some(return_path) = checkout_return_path(data["return_to"].as_str()) else {
+        return error(
+            400,
+            "invalid_return",
+            "Choose where to return after checkout.",
+        );
+    };
+    let return_url = format!("{origin}{return_path}");
     match data["action"].as_str() {
         Some("checkout") => {
             let Some(price) = data["plan"]
@@ -475,6 +503,18 @@ mod tests {
         assert_eq!(period_end(&item), Some(20));
         assert_eq!(period_end(&json!({"current_period_end": 10})), Some(10));
         assert_eq!(period_end(&json!({})), None);
+    }
+
+    #[test]
+    fn checkout_returns_only_to_the_app_or_settings() {
+        assert_eq!(checkout_return_path(None), Some("/settings.html"));
+        assert_eq!(
+            checkout_return_path(Some("settings")),
+            Some("/settings.html")
+        );
+        assert_eq!(checkout_return_path(Some("app")), Some("/app.html"));
+        assert_eq!(checkout_return_path(Some("https://evil.example")), None);
+        assert_eq!(checkout_return_path(Some("/app.html")), None);
     }
 
     #[test]
