@@ -26,6 +26,22 @@ pub enum StoreError {
     Unavailable,
 }
 
+fn public_supabase_url(value: &str) -> Option<Url> {
+    let mut url = Url::parse(value.trim()).ok()?;
+    let local = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
+    let http_ok = url.scheme() == "http" && (local || crate::security::allow_insecure_http());
+    if url.scheme() != "https" && !http_ok {
+        return None;
+    }
+    if url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+    url.set_path("/");
+    url.set_query(None);
+    url.set_fragment(None);
+    Some(url)
+}
+
 impl Supabase {
     #[cfg(test)]
     pub(crate) fn test_store(url: &str) -> Self {
@@ -49,12 +65,12 @@ impl Supabase {
         }
 
         let mut rest_url = Url::parse(&project_url).map_err(|_| ConnectionError::InvalidUrl)?;
+        let local = matches!(
+            rest_url.host_str(),
+            Some("localhost" | "127.0.0.1" | "[::1]")
+        );
         if rest_url.scheme() != "https"
-            && !(rest_url.scheme() == "http"
-                && matches!(
-                    rest_url.host_str(),
-                    Some("localhost" | "127.0.0.1" | "[::1]")
-                ))
+            && !(rest_url.scheme() == "http" && (local || crate::security::allow_insecure_http()))
         {
             return Err(ConnectionError::InvalidUrl);
         }
@@ -129,10 +145,25 @@ impl Supabase {
         Err(StoreError::Unavailable)
     }
 
+    /// Origin the browser can open. `SUPABASE_URL` may be an internal Docker name;
+    /// `SUPABASE_PUBLIC_URL` is that same Auth API as reached from a browser.
+    fn browser_base(&self) -> Url {
+        if let Ok(value) = env::var("SUPABASE_PUBLIC_URL") {
+            if let Some(url) = public_supabase_url(&value) {
+                return url;
+            }
+        }
+        let mut url = self.rest_url.clone();
+        url.set_path("/");
+        url.set_query(None);
+        url.set_fragment(None);
+        url
+    }
+
     /// Where the browser starts a Supabase Auth OAuth sign-in. Supabase sends it back to
     /// `redirect_to` with a single-use `code` that only the holder of the PKCE verifier can use.
     pub fn authorize_url(&self, provider: &str, redirect_to: &str, code_challenge: &str) -> Url {
-        let mut url = self.rest_url.clone();
+        let mut url = self.browser_base();
         url.set_path("/auth/v1/authorize");
         url.query_pairs_mut()
             .append_pair("provider", provider)

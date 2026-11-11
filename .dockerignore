@@ -1,0 +1,6 @@
+.git
+target
+cli/target
+supabase/compute/fizz-worker/target
+**/*.md
+deploy/.env

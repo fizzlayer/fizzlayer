@@ -246,6 +246,14 @@ impl Db {
 }
 
 fn safe_supabase_url(url: &str) -> bool {
+    let allow_insecure = matches!(
+        env::var("FIZZ_ALLOW_INSECURE_HTTP").ok().as_deref(),
+        Some("1") | Some("true")
+    );
+    safe_supabase_url_with(url, allow_insecure)
+}
+
+fn safe_supabase_url_with(url: &str, allow_insecure: bool) -> bool {
     let Some((scheme, rest)) = url.split_once("://") else {
         return false;
     };
@@ -254,7 +262,7 @@ fn safe_supabase_url(url: &str) -> bool {
     }
     let host = rest.rsplit_once(':').map(|(host, _)| host).unwrap_or(rest);
     let local = matches!(host, "localhost" | "127.0.0.1" | "[::1]");
-    (scheme == "https" || (scheme == "http" && local)) && !host.is_empty()
+    (scheme == "https" || (scheme == "http" && (local || allow_insecure))) && !host.is_empty()
 }
 
 fn accept_http(listener: TcpListener, app: Arc<App>) {
@@ -1240,6 +1248,19 @@ impl Hub {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supabase_url_allows_a_private_http_host_only_when_asked() {
+        assert!(safe_supabase_url_with("https://ref.supabase.co", false));
+        assert!(safe_supabase_url_with("http://127.0.0.1:54321", false));
+        assert!(safe_supabase_url_with("http://gateway:8000", true));
+        assert!(!safe_supabase_url_with("http://gateway:8000", false));
+        assert!(!safe_supabase_url_with("http://user@gateway:8000", true));
+        assert!(!safe_supabase_url_with(
+            "https://ref.supabase.co/rest/v1",
+            true
+        ));
+    }
 
     #[test]
     fn websocket_accept_matches_the_rfc_sample() {

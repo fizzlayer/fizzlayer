@@ -90,8 +90,48 @@ async fn drain_queue(store: &Supabase, started: Instant) -> DispatchReport {
     total
 }
 
-pub async fn handle(request: Request) -> Response<ResponseBody> {
+struct Tick {
+    ok: bool,
+    silence: Value,
+    notifications: Value,
+}
+
+async fn tick(store: &Supabase) -> Tick {
     let started = Instant::now();
+    let silence = match store
+        .rpc("fizz_scan_silence_alerts", json!({"p_limit": 50}))
+        .await
+    {
+        Ok(value) => value,
+        Err(problem) => {
+            eprintln!("Fizz silence scan failed: {problem:?}");
+            json!({"error": "scan_failed"})
+        }
+    };
+    // Dispatch even when the scan failed, so retries do not wait on it.
+    let report = drain_queue(store, started).await;
+    let failed = silence.get("error").is_some();
+    Tick {
+        ok: !failed,
+        silence,
+        notifications: notifications(report),
+    }
+}
+
+/// One scheduler pass. The self-host server calls this every minute. There is no
+/// HTTP secret here: the process is already inside the deployment. `GET /api/cron`
+/// still requires `CRON_SECRET`.
+pub async fn run_scheduled() -> Result<(), String> {
+    let store = Supabase::from_env().map_err(|_| "database is not configured".to_owned())?;
+    let tick = tick(&store).await;
+    if tick.ok {
+        Ok(())
+    } else {
+        Err("silence scan failed".to_owned())
+    }
+}
+
+pub async fn handle(request: Request) -> Response<ResponseBody> {
     if !matches!(request.method().as_str(), "GET" | "POST") {
         return error(405, "method_not_allowed", "Use GET or POST.");
     }
@@ -119,25 +159,13 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             "Alerts are temporarily unavailable.",
         );
     };
-    let silence = match store
-        .rpc("fizz_scan_silence_alerts", json!({"p_limit": 50}))
-        .await
-    {
-        Ok(value) => value,
-        Err(problem) => {
-            eprintln!("Fizz silence scan failed: {problem:?}");
-            json!({"error": "scan_failed"})
-        }
-    };
-    // Dispatch even when the scan failed, so retries do not wait on it.
-    let report = drain_queue(&store, started).await;
-    let failed = silence.get("error").is_some();
+    let tick = tick(&store).await;
     reply(
-        if failed { 503 } else { 200 },
+        if tick.ok { 200 } else { 503 },
         json!({
-            "ok": !failed,
-            "silence": silence,
-            "notifications": notifications(report),
+            "ok": tick.ok,
+            "silence": tick.silence,
+            "notifications": tick.notifications,
         }),
         None,
     )

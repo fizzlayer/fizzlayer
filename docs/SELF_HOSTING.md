@@ -1,8 +1,58 @@
 # Self-host Fizzlayer
 
-Run your own Fizzlayer instance with your own Vercel project and Supabase project. Vercel serves the web app and Rust API; Supabase provides PostgreSQL, Auth, and storage. Devices and agents connect to your instance's HTTPS origin.
+Two ways to run your own instance:
 
-This is the deployment path supported by the repository today. It does not include a standalone application server or a Docker Compose stack for running the entire product on a VPS. HTTPS ingest, the dashboard, and MCP work without the Compute worker. Live sockets and MQTT need the `fizz-worker` service described below. See the [technical reference](REFERENCE.md) for API and authentication details.
+- **Docker Compose** on one machine. This is the five-minute path below. It starts Postgres, GoTrue, PostgREST, the API (which also serves the website), and the live worker, including plain MQTT on port 1883.
+- **Vercel and Supabase**, later in this document. That path keeps the API as Vercel functions and can use Supabase Compute for the worker.
+
+Devices and agents connect to your instance's origin. See the [technical reference](REFERENCE.md) for API and authentication details.
+
+## Five-minute Docker Compose
+
+From a checkout of this repository:
+
+```sh
+./scripts/selfhost-init.sh
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+The init script writes `deploy/.env` (mode 600) with a Postgres password, a JWT secret, an anon key, a service-role JWT, and `CRON_SECRET`. Open `http://localhost:8080`, create an account, and add a sensor. Email confirmation is off by default (`MAILER_AUTOCONFIRM=true`) so sign-up does not need an SMTP server. The first build compiles the Rust images and takes a while; later starts reuse them.
+
+`GET http://localhost:8080/api/status` should report `"database": "connected"`. `GET /api/stream` returns the worker WebSocket on port 8081 and `mqtt://localhost:1883`. Send a reading with the sensor key:
+
+```sh
+curl -fsS -H "Authorization: Bearer fizz_…" -H "Content-Type: application/json" \
+  -d '{"sensor_id":"SENSOR_UUID","event_id":"1","metrics":{"temperature_c":21.5}}' \
+  http://localhost:8080/api/ingest
+```
+
+Stop the stack with `docker compose -f deploy/docker-compose.yml down`. The database volume remains until `down -v`.
+
+### What runs, and what stays outside
+
+| Dependency | How a self-host runs it |
+| --- | --- |
+| Website (`public/`) | The `api` image serves it on port 8080, including `/docs`, `/pricing`, `/status`, and `/enterprise` |
+| Rust API | Same image. One process calls the existing handlers and runs the minute alert scan in-process. `GET /api/cron` still accepts `CRON_SECRET` if an external scheduler calls it |
+| Postgres | `postgres:17` in the `local` profile. Schema comes from `supabase/migrations` on first boot |
+| Auth (GoTrue) | `supabase/gotrue` in the `local` profile. The API proxies `/auth/v1` for browser OAuth. Email sign-up can auto-confirm |
+| PostgREST | `postgrest/postgrest` in the `local` profile. The API and worker call `/rest/v1`. The browser never gets a Supabase key |
+| Live WebSocket and MQTT | The existing `fizz-worker` image. HTTP and MQTT-over-WebSocket on port 8081, plain MQTT 3.1.1 on port 1883 |
+| TLS | Optional `tls` profile: Caddy on ports 80 and 443 with a local certificate (`deploy/Caddyfile.tls`). Replace `tls internal` with `tls you@example.com` for a public name |
+| Supabase Cloud | Leave `COMPOSE_PROFILES` empty and set `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY`. Start `api` and `worker` only. Set `FIZZ_ALLOW_INSECURE_HTTP=0` and clear `FIZZ_AUTH_UPSTREAM` |
+| Fizz chat | Optional. Unset, chat answers 503 and says it is not configured. Set `OPENAI_BASE_URL` to an OpenAI-compatible `/v1` root (Ollama: `http://host.docker.internal:11434/v1`) and `OPENAI_MODEL`. `AI_GATEWAY_API_KEY` still selects the Vercel AI Gateway when no base URL is set. The model must accept JSON mode |
+| Voice (ElevenLabs) | Optional. Unset, voice replies that it is not configured |
+| Phone calls (AgentPhone) | Optional. Unset, alerts stay in the dashboard and queued calls are not dialed. There is no self-hosted phone provider |
+| Paid checkout (Stripe) | Optional. Unset, billing stays hidden. Prices are still the plan rows in the database |
+| GitHub or Google sign-in | Optional GoTrue settings (`GITHUB_*`, `GOOGLE_*`). The provider callback is `${PUBLIC_URL}/auth/v1/callback` |
+| SMTP | Optional. Required only when `MAILER_AUTOCONFIRM=false` |
+| Kong, Realtime, Storage, Studio | Not used. The app does not call them |
+
+A custom hostname needs `FIZZ_PUBLIC_HOST` (comma-separated) and, for plain HTTP, `FIZZ_PUBLIC_SCHEME=http`. Loopback is already allowed. The Content-Security-Policy matches the hosted site, and the self-host server adds the worker origin from `FIZZ_STREAM_URL`. `upgrade-insecure-requests` is sent only when the request arrived as HTTPS (`X-Forwarded-Proto`), so `http://localhost:8080` still loads.
+
+Published images, after the repository secrets exist, are `ghcr.io/fizzlayer/fizzlayer-api`, `ghcr.io/fizzlayer/fizzlayer-worker`, and `${DOCKERHUB_NAMESPACE}/fizzlayer-api` plus `${DOCKERHUB_NAMESPACE}/fizzlayer-worker` (`fizzlayer` unless the `DOCKERHUB_NAMESPACE` variable says otherwise). Tags are `sha-<commit>` always, `latest` on `main`, and the tag name on `v*` tags. The publish workflow skips Docker Hub when `DOCKERHUB_USERNAME` or `DOCKERHUB_TOKEN` is missing and still pushes to GHCR.
+
+To point Compose at those images instead of building, set `image:` and drop the `build:` block, or pull them and retag as `fizzlayer-api:local` and `fizzlayer-worker:local`.
 
 ## Prerequisites
 
@@ -86,7 +136,11 @@ Add these server-side environment variables to each environment you use:
 | `CRON_SECRET` | For silence alerts and call retries | Long random secret. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` on `GET /api/cron`. Use the same value if an external scheduler calls that path |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
 | `FIZZ_STREAM_URL` | For live sockets and MQTT | Public base URL of the `fizz-worker` Compute service, including the gateway path and no trailing slash. Production is `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. The path is `/compute/v1/fizz-worker`, not `/workers/v1/`. Empty leaves streaming off; HTTPS ingest is unchanged. Devices should read `GET /api/stream` instead of hardcoding this host |
-| `FIZZ_MQTT_TCP_URL` | No | Leave unset. Production `GET /api/stream` returns `mqtt_tcp_url: null`. The hosted worker has no plain TCP port 1883 |
+| `FIZZ_MQTT_TCP_URL` | No | Leave unset on Vercel. Production `GET /api/stream` returns `mqtt_tcp_url: null`. The hosted worker has no plain TCP port 1883. The Docker Compose stack sets `mqtt://localhost:1883` |
+| `OPENAI_BASE_URL` | No | OpenAI-compatible `/v1` root, such as `http://127.0.0.1:11434/v1` for Ollama. `AI_GATEWAY_BASE_URL` is the same setting. Unset uses `https://ai-gateway.vercel.sh/v1`. Set `OPENAI_MODEL` or `AI_GATEWAY_MODEL` to a model that accepts JSON mode. `OPENAI_API_KEY` is accepted; a custom base with no key sends a placeholder bearer for servers that ignore it |
+| `FIZZ_PUBLIC_HOST` | For a custom Docker hostname | Comma-separated `Host` values the API accepts besides localhost and the Vercel hosts. `FIZZ_PUBLIC_SCHEME=http` serves that host over HTTP |
+| `FIZZ_ALLOW_INSECURE_HTTP` | For the Docker gateway | Set to `1` to allow an `http://` Supabase URL that is not loopback, and an `http://` chat base on another host. Leave unset in production |
+| `SUPABASE_PUBLIC_URL` | When the browser cannot open `SUPABASE_URL` | Browser OAuth origin. The Docker stack sets this to `http://localhost:8080` while the API calls GoTrue at `http://gateway:8000` |
 
 Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls. Pairing calls and alert calls use the same `AGENTPHONE_API_KEY` and `AGENTPHONE_AGENT_ID`. No new variable is required. Hobbyist accounts are not able to place either call.
 
@@ -157,7 +211,7 @@ scripts/dev.sh --local-db
 
 This starts Supabase with `supabase start` if it is not already running, then writes a temporary `.env` with the local URL and service-role key. `vercel dev` uses that file instead of the project's cloud variables. The script removes the file when it exits and refuses to overwrite a `.env` it did not create. Because that file replaces the project's cloud variables, the script copies any `STRIPE_*` variables from your shell into it; see [billing with Stripe](REFERENCE.md#billing-with-stripe) for testing checkout locally. Startup applies the migrations to a fresh local database; use `supabase migration up --local` for subsequent migrations. Create an account at the app URL; Studio is at `http://127.0.0.1:54323`. Confirmation emails arrive in the local inbox at `http://127.0.0.1:54324`. Supabase keeps running after the script exits; stop it with `supabase stop`.
 
-The local `supabase/config.toml` disables Google and GitHub sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. GitHub works the same way with `SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET`, and `[auth.external.github]`, using a separate GitHub OAuth App whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. The app accepts HTTP Supabase URLs only on loopback. Production Supabase connections require HTTPS.
+The local `supabase/config.toml` disables Google and GitHub sign-in and seeding, and uses `http://localhost:3000` for Auth redirects. To test Google sign-in locally, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, then enable `[auth.external.google]`. GitHub works the same way with `SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET`, and `[auth.external.github]`, using a separate GitHub OAuth App whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. The app accepts HTTP Supabase URLs on loopback. Set `FIZZ_ALLOW_INSECURE_HTTP=1` to allow HTTP to another host, which the Docker Compose gateway uses. Production Supabase connections leave that unset and use HTTPS.
 
 ## Verify and operate
 
@@ -215,7 +269,7 @@ Checked against Supabase's announcement and product page, not against a producti
 | Missing | No autoscaling, GPU, or persistent disk. Agent sandboxes are not in the alpha. Every service receives all of the project's secrets |
 | URL | Production is served at `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. Confirm the base with `GET /api/stream` (strip `wss://` back to `https://` and remove `/v1/stream`). Do not use `/workers/v1/` |
 
-The public URL is HTTPS. It does not publish TCP port 1883, and production `mqtt_tcp_url` is null. MQTT clients use WebSocket (`wss://…/compute/v1/fizz-worker/mqtt`, subprotocol `mqtt`). ESP-IDF can do that with `MQTT_TRANSPORT_OVER_WSS`. Arduino `PubSubClient` and Home Assistant's MQTT integration speak TCP, so on the hosted service they should use `POST /api/ingest` or the Fizzlayer Home Assistant integration. A self-hosted copy of this image can still set `MQTT_TCP_PORT=1883`; do not advertise that address as `FIZZ_MQTT_TCP_URL` unless clients can actually reach it.
+The public URL is HTTPS. It does not publish TCP port 1883, and production `mqtt_tcp_url` is null. MQTT clients use WebSocket (`wss://…/compute/v1/fizz-worker/mqtt`, subprotocol `mqtt`). ESP-IDF can do that with `MQTT_TRANSPORT_OVER_WSS`. Arduino `PubSubClient` and Home Assistant's MQTT integration speak TCP, so on the hosted service they should use `POST /api/ingest` or the Fizzlayer Home Assistant integration. A self-hosted copy of this image can set `MQTT_TCP_PORT=1883`. Advertise that address as `FIZZ_MQTT_TCP_URL` only when clients can reach it. The Docker Compose stack publishes port 1883 and sets `FIZZ_MQTT_TCP_URL=mqtt://localhost:1883`.
 
 ### Deploy the worker
 

@@ -1,6 +1,8 @@
 /target/
 /.vercel/
 .env*
+!.env.example
+!deploy/.env.example
 /supabase/.temp/
 /cli/target/
 /supabase/compute/fizz-worker/target/
