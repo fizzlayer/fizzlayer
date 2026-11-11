@@ -355,7 +355,7 @@
     },
     {
       name: 'get_device_setup',
-      description: 'Commands to install the Fizzlayer CLI on a Linux device (including Raspberry Pi) and start pairing it.',
+      description: 'Commands to install the Fizzlayer CLI on a Linux device (including Raspberry Pi) and start pairing it. stream is HTTPS every 60 seconds. stream_socket, mqtt, and tail use the live connection. Read the addresses from GET /api/stream. Hosted MQTT is WebSocket only; there is no TCP port 1883.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       async execute() {
@@ -364,7 +364,11 @@
           install: `curl -fsSL ${absolute('/install.sh')} | sh`,
           pair: custom ? `FIZZ_API=${origin} fizz pair` : 'fizz pair',
           stream: 'fizz run --every 60',
-          steps: ['Run the install and pair commands on the device.', 'Call pair_device with the code it prints.', 'Approve the request in the device terminal, then run the stream command.'],
+          stream_socket: 'fizz run --stream --every 15',
+          mqtt: 'fizz send --mqtt temperature_c 22.4',
+          tail: 'fizz tail',
+          live: 'GET /api/stream',
+          steps: ['Run the install and pair commands on the device.', 'Call pair_device with the code it prints.', 'Approve the request in the device terminal, then run stream, stream_socket, or mqtt.', 'Use tail to print live readings. Hosted MQTT has no TCP port 1883.'],
         });
       },
     },

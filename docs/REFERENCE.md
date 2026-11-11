@@ -142,11 +142,23 @@ curl -X POST https://fizzlayer.com/api/ingest \
 
 ### Live socket and MQTT
 
-`GET /api/stream` returns `{"enabled": false}` until `FIZZ_STREAM_URL` is set on the API. When it is set, the response includes `websocket_url`, `live_url`, and `mqtt_ws_url`. `POST /api/stream` with the session cookie, or `Authorization: Bearer fizz_agent_...`, returns a `fizz_stream_` token that lasts 15 minutes. The body may be `{}` or `{"sensor_id": "<uuid>"}`. A token without a sensor id can subscribe to every sensor in that workspace. A token with a sensor id can subscribe only to that sensor. Issuing is limited to 60 tokens an hour per workspace and 30 an hour per agent. The token cannot publish.
+Call `GET /api/stream` for the addresses. Do not hardcode the host. Until `FIZZ_STREAM_URL` is set, the body is `{"enabled": false}`. Production currently returns:
+
+```json
+{
+  "enabled": true,
+  "websocket_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/stream",
+  "live_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/live",
+  "mqtt_ws_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/mqtt",
+  "mqtt_tcp_url": null
+}
+```
+
+The gateway prefix is `/compute/v1/fizz-worker`, not `/workers/v1/`. `POST /api/stream` with the session cookie, or `Authorization: Bearer fizz_agent_...`, returns a `fizz_stream_` token that lasts 15 minutes. The body may be `{}` or `{"sensor_id": "<uuid>"}`. A token without a sensor id can subscribe to every sensor in that workspace. A token with a sensor id can subscribe only to that sensor. Issuing is limited to 60 tokens an hour per workspace and 30 an hour per agent. The token cannot publish.
 
 Devices publish with the sensor API key, not the stream token. On the WebSocket at `websocket_url`, the first text frame is `{"op":"auth","key":"fizz_..."}` (or the same key in `Authorization: Bearer` on the upgrade). Each reading is `{"op":"reading","sensor_id","event_id","metrics","observed_at"?}`. The server answers `{"op":"ack","event_id"}` or `{"op":"error","error","event_id"}`. `live_url` is the subscribe socket: after auth, send `{"op":"subscribe","sensor_id"?}`. Readings arrive as `{"op":"reading",...}` without a customer id.
 
-MQTT uses protocol 3.1.1, QoS 0 or 1, and no wildcards. Connect with username set to the sensor id and password set to the sensor key. Publish JSON `{"event_id","metrics","observed_at"?}` to `fizz/v1/<sensor-id>/readings`. Subscribe to `fizz/v1/<sensor-id>/live`. A stream token or agent token connects with that token as the password and may only subscribe. The Compute public URL exposes MQTT on the WebSocket path `mqtt_ws_url` (subprotocol `mqtt`). Plain TCP `mqtt://host:1883` is available only when `MQTT_TCP_PORT` is reachable; set `FIZZ_MQTT_TCP_URL` on the API if you want `GET /api/stream` to advertise it.
+MQTT uses protocol 3.1.1, QoS 0 or 1, and no wildcards, on the WebSocket URL from `GET /api/stream` with subprotocol `mqtt`. Connect with username set to the sensor id and password set to the sensor key. Publish JSON `{"event_id","metrics","observed_at"?}` to `fizz/v1/<sensor-id>/readings`. Subscribe to `fizz/v1/<sensor-id>/live`. A stream token or agent token connects with that token as the password and may only subscribe. Production `mqtt_tcp_url` is null: there is no plain TCP port 1883. Arduino PubSubClient and Home Assistant's MQTT integration should use `POST /api/ingest` or the Fizzlayer Home Assistant integration. ESP-IDF can use `MQTT_TRANSPORT_OVER_WSS` against `mqtt_ws_url`.
 
 The dashboard mints a workspace token and subscribes in the browser. `fizz tail` does the same with the device key. Threshold alerts still run in the database trigger. A call queued by a streamed reading is placed by `/api/cron`, which already scans about once a minute, rather than inside the worker.
 

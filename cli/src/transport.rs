@@ -425,8 +425,8 @@ mod tests {
         let body = json!({
             "enabled": true,
             "websocket_url": "wss://evil.example/v1/stream",
-            "live_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/workers/v1/fizz-worker/v1/live",
-            "mqtt_ws_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/workers/v1/fizz-worker/mqtt"
+            "live_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/live",
+            "mqtt_ws_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/mqtt"
         });
         // The root is derived from websocket_url, then checked against that same URL, so a
         // well-formed URL passes. A URL that is not the stream path fails closed.

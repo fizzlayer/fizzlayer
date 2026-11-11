@@ -968,14 +968,14 @@ mod tests {
     #[test]
     fn stream_urls_keep_the_gateway_prefix_and_reject_secrets_in_the_url() {
         let urls =
-            stream_urls("https://bbmdkpzzzalkvthwgsek.supabase.co/workers/v1/fizz-worker").unwrap();
+            stream_urls("https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker").unwrap();
         assert_eq!(
             urls.websocket_url,
-            "wss://bbmdkpzzzalkvthwgsek.supabase.co/workers/v1/fizz-worker/v1/stream"
+            "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/stream"
         );
         assert_eq!(
             urls.mqtt_ws_url,
-            "wss://bbmdkpzzzalkvthwgsek.supabase.co/workers/v1/fizz-worker/mqtt"
+            "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/mqtt"
         );
         assert!(stream_urls("http://fizzlayer.com").is_err());
         assert!(stream_urls("https://user:secret@fizzlayer.com").is_err());
@@ -987,7 +987,7 @@ mod tests {
     #[test]
     fn http_routes_ignore_a_gateway_prefix() {
         assert_eq!(
-            http_route("/workers/v1/fizz-worker/v1/stream"),
+            http_route("/compute/v1/fizz-worker/v1/stream"),
             Some(HttpRoute::Stream)
         );
         assert_eq!(http_route("/health"), Some(HttpRoute::Health));

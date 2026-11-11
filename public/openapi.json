@@ -51,7 +51,7 @@
         "tags": ["Readings"],
         "operationId": "getStream",
         "summary": "Live stream and MQTT addresses",
-        "description": "Returns enabled:false until FIZZ_STREAM_URL is set. When streaming is on, websocket_url, live_url, and mqtt_ws_url are absolute wss URLs. Devices still authenticate with the sensor API key on the socket itself.",
+        "description": "Discover live addresses here instead of hardcoding a host. Returns enabled:false until FIZZ_STREAM_URL is set. The hosted service uses the /compute/v1/fizz-worker prefix (not /workers/v1/) and mqtt_tcp_url null: MQTT is WebSocket only (subprotocol mqtt), with no TCP port 1883. Device sockets and MQTT publish use the sensor API key. Viewer sockets use a 15-minute token from POST /api/stream.",
         "security": [],
         "responses": {
           "200": {
@@ -69,7 +69,19 @@
                   },
                   "required": ["enabled"]
                 },
-                "example": { "enabled": false }
+                "examples": {
+                  "hosted": {
+                    "summary": "Production fizzlayer.com",
+                    "value": {
+                      "enabled": true,
+                      "websocket_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/stream",
+                      "live_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/v1/live",
+                      "mqtt_ws_url": "wss://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker/mqtt",
+                      "mqtt_tcp_url": null
+                    }
+                  },
+                  "disabled": { "summary": "Streaming not configured", "value": { "enabled": false } }
+                }
               }
             }
           }

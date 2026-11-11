@@ -18,7 +18,7 @@ The public interactive demo uses simulated data and local replies. It does not r
 
 A sensor instance belongs to one customer and has a type, name, mode, and current status. Supported types are Water, Gas, Radio, Temperature, Pressure, Humidity, Sound, Phone, and Custom.
 
-1. API sensors and paired CLI devices send readings to `POST /api/ingest` with a key scoped to their sensor, or hold a WebSocket or MQTT connection on `fizz-worker` that calls the same ingest function. Phone devices send readings through `/api/phone` using their paired device credentials.
+1. API sensors and paired CLI devices send readings to `POST /api/ingest` with a key scoped to their sensor, or hold a WebSocket or MQTT-over-WebSocket connection on `fizz-worker`. Clients learn the addresses from `GET /api/stream` (production uses `/compute/v1/fizz-worker` and does not offer TCP 1883). Those connections call the same ingest function. Phone devices send readings through `/api/phone` using their paired device credentials.
 2. Rust validates the request and calls Supabase RPCs. The database validates credentials, ownership, metrics, and event identity before storing readings.
 3. Numeric readings trigger database evaluation of enabled threshold rules. A separate minute scan evaluates silence rules (no reading for N minutes). Matching events appear in the dashboard. A call is queued only when the plan includes calls and the number is still paired, and the sender checks both again immediately before dialing.
 4. The dashboard requests current values and recent history. Chat and MCP requests retrieve customer-scoped context from the same stored data.

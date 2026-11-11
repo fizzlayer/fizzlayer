@@ -34,6 +34,7 @@ Usage:
 Add --stream to run or send to keep one WebSocket open instead of an HTTPS request
 per reading. Add --mqtt to publish those readings over MQTT. tail uses the live
 socket; tail --mqtt subscribes over MQTT. Both use this device's sensor key.
+Addresses come from GET /api/stream. Hosted Fizzlayer MQTT is WebSocket only.
 
 Environment:
   FIZZ_API       Fizz base URL (default https://fizzlayer.com)

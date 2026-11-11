@@ -1275,7 +1275,7 @@ mod tests {
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
         stream
-            .write_all(b"GET /workers/v1/fizz-worker/health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .write_all(b"GET /compute/v1/fizz-worker/health HTTP/1.1\r\nHost: localhost\r\n\r\n")
             .unwrap();
         let mut body = String::new();
         stream.read_to_string(&mut body).unwrap();
