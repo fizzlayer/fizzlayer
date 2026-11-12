@@ -43,10 +43,6 @@
           <button type="button" id="sign-in-mode" aria-pressed="false">Sign in</button>
         </div>
         <form id="account-form" novalidate>
-          <fieldset class="plan-picker" id="plan-picker" hidden>
-            <legend>Plan</legend>
-            <div id="plan-options"></div>
-          </fieldset>
           <div id="email-wrap">
             <label for="email">Email</label>
             <input id="email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" required placeholder="you@example.com">
@@ -74,6 +70,18 @@
         </div>
         <p class="legal-note">By continuing, you agree to the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
       </div>
+    </section>
+    <section class="setup-screen plan-screen" id="plan-screen" aria-labelledby="plan-screen-title" hidden>
+      <header class="setup-bar">
+        <span>FIZZLAYER // CHOOSE A PLAN</span>
+        <div class="setup-account"><span id="plan-username"></span><button class="setup-sign-out" id="plan-sign-out" type="button">Sign out</button></div>
+      </header>
+      <p class="setup-eyebrow">YOUR PLAN</p>
+      <h1 class="setup-title" id="plan-screen-title">Choose a plan</h1>
+      <p class="setup-intro">Hobbyist is free. You can change this later in Settings.</p>
+      <div id="plan-options" class="plan-options"></div>
+      <p class="setup-error" id="plan-screen-error" role="alert" hidden></p>
+      <button class="text-button" type="button" id="plan-skip">Skip for now</button>
     </section>
     <section class="setup-screen" id="setup" aria-labelledby="setup-title" hidden>
       <header class="setup-bar">
@@ -122,7 +130,7 @@
         <div class="dashboard-account"><span class="account-avatar" aria-hidden="true"><span class="fa fa-user"></span></span><span id="dashboard-username"></span><button type="button" id="dashboard-sign-out">Sign out</button></div>
       </header>
       <div class="workspace-content" id="workspace-content" tabindex="-1"><div class="workspace-topbar"><div class="workspace-breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Overview</strong></div><span><span class="status-dot" aria-hidden="true"></span> Personal workspace</span></div>
-      <div class="dashboard-heading"><div><p class="setup-eyebrow">YOUR PHYSICAL WORLD, IN FOCUS</p><h1 id="dashboard-title">Your world, at a glance.</h1><p id="dashboard-subtitle" role="status">Connecting to your sensors…</p></div><div class="heading-actions"><button class="secondary" type="button" id="dashboard-refresh"><span class="fa fa-arrows-rotate ui-icon" aria-hidden="true"></span> Refresh</button><a class="primary" href="/sensors.html"><span class="fa fa-plus ui-icon" aria-hidden="true"></span> Add sensor</a></div></div>
+      <div class="dashboard-heading"><div><p class="setup-eyebrow">YOUR PHYSICAL WORLD, IN FOCUS</p><h1 id="dashboard-title">Your world, at a glance.</h1><p id="dashboard-subtitle" role="status">Connecting to your sensors…</p></div><div class="heading-actions"><button class="secondary" type="button" id="choose-plan" hidden>Choose plan</button><button class="secondary" type="button" id="dashboard-refresh"><span class="fa fa-arrows-rotate ui-icon" aria-hidden="true"></span> Refresh</button><a class="primary" href="/sensors.html"><span class="fa fa-plus ui-icon" aria-hidden="true"></span> Add sensor</a></div></div>
       <div class="stats-grid" aria-label="Workspace summary"><div class="stat-card"><div class="stat-top"><span>Total sensors</span><span class="fa fa-tower-broadcast ui-icon" aria-hidden="true"></span></div><strong id="total-sensors">…</strong><p>In your workspace</p></div><div class="stat-card"><div class="stat-top"><span>Live devices</span><span class="fa fa-microchip ui-icon" aria-hidden="true"></span></div><strong id="live-devices">…</strong><p>API & phone sensors</p></div><div class="stat-card"><div class="stat-top"><span>Sample sensors</span><span class="fa fa-flask ui-icon" aria-hidden="true"></span></div><strong id="sample-sensors">…</strong><p>Simulated streams</p></div><div class="stat-card"><div class="stat-top"><span>Active alerts</span><span class="fa fa-triangle-exclamation ui-icon" aria-hidden="true"></span></div><strong id="active-alerts">…</strong><p>Enabled rules</p></div></div><p class="sample-notice" id="upgrade-prompt" role="status" hidden></p>
       <p class="sample-notice" id="sample-notice" hidden><span class="fa fa-circle-info ui-icon" aria-hidden="true"></span><span>Your workspace includes sample data. Simulated sensors are labeled.</span><a href="/sensors.html">Connect a device <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></a></p>
       <div class="dashboard-grid">

@@ -22,9 +22,9 @@ const signupPlans = [
   { id: 'enterprise', name: 'Enterprise', tag: 'For teams and sites', price: 'Custom', detail: 'Custom connected devices · Custom Fizz credits · Phone calls: Included', href: '/enterprise' },
 ];
 const PLAN_KEY = 'fizz.signupPlan';
+const SIGNUP_FLAG = 'fizz.expectSignup';
 const requestedPlan = new URLSearchParams(location.search).get('plan');
 let billingAvailable = false;
-let chosenPlan = ['hobbyist', 'tinkerer', 'pro'].includes(requestedPlan) ? requestedPlan : 'hobbyist';
 const billingNotice = ['success', 'cancelled'].includes(new URLSearchParams(location.search).get('billing'))
   ? new URLSearchParams(location.search).get('billing') : '';
 let billingKnown = Promise.resolve();
@@ -93,7 +93,6 @@ function render(intro) {
   $('password').autocomplete = mode === 'sign-in' ? 'current-password' : 'new-password';
   $('email').autocomplete = mode === 'sign-in' ? 'username' : 'email';
   $('password-help').hidden = mode === 'sign-in';
-  renderPlans();
   showError('');
 }
 
@@ -117,13 +116,15 @@ function planBody(plan) {
   return body;
 }
 
-function renderPlans() {
-  const picker = $('plan-picker');
-  const show = mode === 'create' && billingAvailable;
-  picker.hidden = !show;
-  if (!show) return;
+// A pricing link such as /app.html?plan=pro is remembered before GitHub sends the browser away.
+if (paidPlan(requestedPlan)) {
+  localStorage.setItem(PLAN_KEY, JSON.stringify({ plan: requestedPlan, at: Date.now() }));
+} else if (requestedPlan === 'hobbyist') {
+  localStorage.removeItem(PLAN_KEY);
+}
+
+function renderPlanChoices() {
   const box = $('plan-options');
-  box.className = 'plan-options';
   box.replaceChildren();
   for (const plan of signupPlans) {
     if (plan.href) {
@@ -131,33 +132,53 @@ function renderPlans() {
       link.className = 'plan-option plan-option-link';
       link.href = plan.href;
       link.setAttribute('aria-label', 'Enterprise, contact us');
-      if (requestedPlan === 'enterprise') link.classList.add('plan-option-current');
       link.append(planBody(plan));
       box.append(link);
       continue;
     }
-    const label = document.createElement('label');
-    label.className = 'plan-option';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'plan';
-    input.value = plan.id;
-    input.checked = plan.id === chosenPlan;
-    input.addEventListener('change', () => { chosenPlan = plan.id; });
-    const check = document.createElement('span');
-    check.className = 'plan-option-check';
-    check.setAttribute('aria-hidden', 'true');
-    label.append(input, check, planBody(plan));
-    box.append(label);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'plan-option';
+    button.append(planBody(plan));
+    button.addEventListener('click', () => {
+      if (plan.paid) startCheckout(plan.id, button);
+      else finishPlanChoice();
+    });
+    box.append(button);
   }
 }
 
-function rememberSignupPlan() {
-  if (mode !== 'create' || !billingAvailable || !paidPlan(chosenPlan)) {
-    localStorage.removeItem(PLAN_KEY);
-    return;
+function showPlanScreen(username) {
+  signedInUsername = username;
+  $('plan-username').textContent = username;
+  $('account-panel').hidden = true;
+  $('setup').hidden = true;
+  $('dashboard').hidden = true;
+  $('plan-screen').hidden = false;
+  $('plan-screen-error').hidden = true;
+  document.querySelector('.shell').classList.add('plan-active');
+  document.querySelector('.shell').classList.remove('setup-active', 'dashboard-active');
+  document.title = 'Choose a plan · Fizzlayer';
+  renderPlanChoices();
+}
+
+async function finishPlanChoice() {
+  $('plan-screen').hidden = true;
+  document.querySelector('.shell').classList.remove('plan-active');
+  await showWorkspace(signedInUsername);
+}
+
+async function startCheckout(plan, button) {
+  if (button) button.disabled = true;
+  $('plan-screen-error').hidden = true;
+  try {
+    const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
+    location.assign(result.url);
+  } catch (error) {
+    $('plan-screen-error').textContent = error.message;
+    $('plan-screen-error').hidden = false;
+    if (button) button.disabled = false;
   }
-  localStorage.setItem(PLAN_KEY, JSON.stringify({ plan: chosenPlan, at: Date.now() }));
 }
 
 function takeSignupPlan() {
@@ -201,9 +222,10 @@ async function showBillingReturn(username) {
   note.hidden = false;
 }
 
-async function continueAfterSignup(username) {
+async function continueAfterSignup(username, signup) {
   await billingKnown;
   const plan = takeSignupPlan();
+  sessionStorage.removeItem(SIGNUP_FLAG);
   // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. The new account opens the dashboard.
   if (!billingAvailable) {
     await showWorkspace(username);
@@ -216,7 +238,8 @@ async function continueAfterSignup(username) {
       return;
     } catch { /* Checkout did not start. The account stays on Hobbyist. */ }
   }
-  showSetup(username);
+  if (signup) showPlanScreen(username);
+  else showSetup(username);
 }
 
 function setMode(next, intro) {
@@ -295,7 +318,7 @@ function showSetup(username) {
   $('dashboard').hidden = true;
   $('setup').hidden = false;
   document.querySelector('.shell').classList.add('setup-active');
-  document.querySelector('.shell').classList.remove('dashboard-active');
+  document.querySelector('.shell').classList.remove('dashboard-active', 'plan-active');
   $('setup-username').textContent = username;
   loadSetup();
 }
@@ -303,8 +326,10 @@ function showSetup(username) {
 function showDashboard(sensors) {
   $('account-panel').hidden = true;
   $('setup').hidden = true;
+  $('plan-screen').hidden = true;
   $('dashboard').hidden = false;
-  document.querySelector('.shell').classList.remove('setup-active');
+  $('choose-plan').hidden = !billingAvailable;
+  document.querySelector('.shell').classList.remove('setup-active', 'plan-active');
   document.querySelector('.shell').classList.add('dashboard-active');
   window.fizzDashboard.start(signedInUsername, sensors);
 }
@@ -328,8 +353,7 @@ form.addEventListener('submit', async (event) => {
   if (fields.includes('password') && !validPassword()) return;
   const email = $('email').value.trim();
   const password = $('password').value;
-  if (mode === 'create') rememberSignupPlan();
-  else localStorage.removeItem(PLAN_KEY);
+  if (mode === 'create') sessionStorage.setItem(SIGNUP_FLAG, '1');
   const body = {
     create: { action: 'sign_up', email, password },
     'sign-in': { action: 'sign_in', email, password },
@@ -345,7 +369,7 @@ form.addEventListener('submit', async (event) => {
       resetToken = '';
       const created = mode === 'create';
       form.reset();
-      if (created) await continueAfterSignup(result.username);
+      if (created || localStorage.getItem(PLAN_KEY)) await continueAfterSignup(result.username, created);
       else showSetup(result.username);
     } else if (mode === 'forgot') {
       pending = { action: 'recover', email };
@@ -396,8 +420,8 @@ $('passkey').addEventListener('click', async () => {
     const start = await send('/api/auth', 'POST', { action: 'passkey_options' });
     const credential = await window.fizzPasskey.credential(start.options, false);
     const result = await send('/api/auth', 'POST', { action: 'passkey_sign_in', challenge_id: start.challenge_id, credential });
-    localStorage.removeItem(PLAN_KEY);
-    showSetup(result.username);
+    if (localStorage.getItem(PLAN_KEY)) await continueAfterSignup(result.username, false);
+    else showSetup(result.username);
   } catch (error) {
     if (!window.fizzPasskey.cancelled(error)) showError(error instanceof DOMException ? 'That passkey didn’t work. Try again.' : error.message);
   } finally {
@@ -412,8 +436,7 @@ $('back-to-sign-in').addEventListener('click', () => setMode('sign-in'));
 // Google and GitHub sign-in leave the page. A new account gets a Fizzlayer account on return.
 for (const provider of Object.keys(oauthProviders)) {
   $(provider).addEventListener('click', () => {
-    if (mode === 'create') rememberSignupPlan();
-    else localStorage.removeItem(PLAN_KEY);
+    if (mode === 'create') sessionStorage.setItem(SIGNUP_FLAG, '1');
     location.assign(`/api/auth?provider=${provider}`);
   });
 }
@@ -488,16 +511,19 @@ async function signOut() {
     await send('/api/session', 'DELETE');
     window.fizzDashboard.stop();
     $('setup').hidden = true;
+    $('plan-screen').hidden = true;
     $('dashboard').hidden = true;
     $('account-panel').hidden = false;
-    document.querySelector('.shell').classList.remove('setup-active');
-    document.querySelector('.shell').classList.remove('dashboard-active');
+    document.querySelector('.shell').classList.remove('setup-active', 'dashboard-active', 'plan-active');
     chosenKinds = [];
     setMode('sign-in');
   } catch { /* Keep the signed-in view if the server could not revoke the session. */ }
 }
 $('sign-out').addEventListener('click', signOut);
+$('plan-sign-out').addEventListener('click', signOut);
 $('dashboard-sign-out').addEventListener('click', signOut);
+$('plan-skip').addEventListener('click', () => { finishPlanChoice(); });
+$('choose-plan').addEventListener('click', () => { if (billingAvailable) showPlanScreen(signedInUsername); });
 
 // Arriving here can carry state in the URL fragment:
 // - #sign-in from the landing page's Sign in link.
@@ -530,7 +556,7 @@ if (linkToken && hash.get('type') === 'recovery') {
   mode = 'sign-in';
   render('Confirming your email…');
   send('/api/auth', 'POST', { action: 'link', access_token: linkToken })
-    .then((result) => continueAfterSignup(result.username))
+    .then((result) => continueAfterSignup(result.username, true))
     .catch((error) => {
       render();
       showError(error.message);
@@ -547,7 +573,8 @@ if (linkToken && hash.get('type') === 'recovery') {
     .then((data) => {
       if (!data?.username) return;
       if (billingNotice) return showBillingReturn(data.username);
-      if (localStorage.getItem(PLAN_KEY)) return continueAfterSignup(data.username);
+      const signup = sessionStorage.getItem(SIGNUP_FLAG) === '1';
+      if (signup || localStorage.getItem(PLAN_KEY)) return continueAfterSignup(data.username, signup);
       showSetup(data.username);
     })
     .catch(() => {});
@@ -557,7 +584,7 @@ billingKnown = fetch('/api/billing', { credentials: 'same-origin', cache: 'no-st
   .then((response) => (response.ok ? response.json() : { available: false }))
   .then((data) => {
     billingAvailable = data.available === true;
-    if (!billingAvailable) chosenPlan = 'hobbyist';
-    renderPlans();
+    const choose = $('choose-plan');
+    if (choose && !$('dashboard').hidden) choose.hidden = !billingAvailable;
   })
-  .catch(() => { billingAvailable = false; chosenPlan = 'hobbyist'; });
+  .catch(() => { billingAvailable = false; });
