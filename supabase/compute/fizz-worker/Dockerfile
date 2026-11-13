@@ -1,10 +1,10 @@
-FROM public.ecr.aws/docker/library/rust:1.94-bookworm AS build
+FROM docker.io/library/rust:1.94-bookworm AS build
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo build --release --locked --bin fizz-worker
 
-FROM public.ecr.aws/docker/library/debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*

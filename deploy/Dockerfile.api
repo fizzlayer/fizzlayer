@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/rust:1.94-bookworm AS build
+FROM docker.io/library/rust:1.94-bookworm AS build
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
@@ -6,7 +6,7 @@ COPY api ./api
 COPY supabase/compute/fizz-worker/src/protocol.rs supabase/compute/fizz-worker/src/protocol.rs
 RUN cargo build --release --locked --bin fizz-serve --jobs 2
 
-FROM public.ecr.aws/docker/library/debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates postgresql-client \
   && rm -rf /var/lib/apt/lists/*

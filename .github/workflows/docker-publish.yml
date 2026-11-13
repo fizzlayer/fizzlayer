@@ -1,5 +1,17 @@
 name: Container images
 on:
+  pull_request:
+    paths:
+      - .github/workflows/docker-publish.yml
+      - deploy/Dockerfile.api
+      - deploy/migrate.sh
+      - supabase/compute/fizz-worker/**
+      - supabase/migrations/**
+      - Cargo.toml
+      - Cargo.lock
+      - src/**
+      - api/**
+      - public/**
   push:
     branches: [main]
     tags: ["v*"]
@@ -10,6 +22,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The API and worker builds do not depend on each other.
     strategy:
       fail-fast: false
       matrix:
@@ -34,14 +47,17 @@ jobs:
             echo "push=true" >> "$GITHUB_OUTPUT"
           else
             echo "push=false" >> "$GITHUB_OUTPUT"
-            echo "DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is unset. Skipping Docker Hub and publishing only to ghcr.io."
+            echo "DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is unset. Pulls and local builds still use the public Docker Hub images."
           fi
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Authenticate before the build so base-image pulls use Docker Hub's higher limit.
+      # The Dockerfiles keep a public docker.io FROM, so a local build needs no login.
       - name: Log in to Docker Hub
         if: steps.hub.outputs.push == 'true'
         uses: docker/login-action@v3
@@ -79,10 +95,55 @@ jobs:
           echo "tags=${tags}" >> "$GITHUB_OUTPUT"
           echo "Publishing ${tags}"
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
+        env:
+          IMAGE_NAME: ${{ matrix.name }}
+          IMAGE_CONTEXT: ${{ matrix.context }}
+          IMAGE_FILE: ${{ matrix.file }}
+          IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
+          PUBLISH: ${{ github.event_name != 'pull_request' }}
+        run: |
+          set -euo pipefail
+          platforms="linux/amd64,linux/arm64"
+          cmd=(docker buildx build --pull --file "$IMAGE_FILE")
+          if [ "$PUBLISH" = "true" ]; then
+            if [ -z "${IMAGE_TAGS}" ]; then
+              echo "No tags to publish."
+              exit 1
+            fi
+            IFS=',' read -ra tags <<< "$IMAGE_TAGS"
+            for tag in "${tags[@]}"; do
+              cmd+=(--tag "$tag")
+            done
+            # Tags are applied only by this build. A failed attempt does not retag an older image.
+            cmd+=(--push --platform "$platforms")
+          else
+            mkdir -p /tmp/image-build
+            cmd+=(--platform linux/amd64 --output "type=oci,dest=/tmp/image-build/${IMAGE_NAME}.oci")
+          fi
+          cmd+=("$IMAGE_CONTEXT")
+          rate_limited() {
+            grep -Eq '429 Too Many Requests|toomanyrequests|Rate exceeded' "$1"
+          }
+          attempt=1
+          max=3
+          while true; do
+            log="$(mktemp)"
+            set +e
+            "${cmd[@]}" 2>&1 | tee "$log"
+            status="${PIPESTATUS[0]}"
+            set -e
+            if [ "$status" -eq 0 ]; then
+              rm -f "$log"
+              exit 0
+            fi
+            if [ "$attempt" -ge "$max" ] || ! rate_limited "$log"; then
+              echo "Build failed (attempt ${attempt}/${max}, exit ${status})."
+              rm -f "$log"
+              exit "$status"
+            fi
+            wait="$((attempt * 30))"
+            echo "Registry rate limit (attempt ${attempt}/${max}). Retrying the same checkout in ${wait}s."
+            rm -f "$log"
+            attempt="$((attempt + 1))"
+            sleep "$wait"
+          done
