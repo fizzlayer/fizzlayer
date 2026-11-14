@@ -425,13 +425,186 @@ pub struct DispatchReport {
     pub failed: u32,
 }
 
-/// Send queued alert calls. Reading writers call this after storing data, so a
-/// threshold notification can go out on the same request that triggered it.
-/// The scheduled cron path calls it too, which is what delivers silence alerts
-/// and retries when no further readings arrive. A call is claimed once, so the
-/// two paths cannot both place it. Failures never affect ingestion.
+/// Send queued alert calls, then any queued email and webhook notices.
+/// Reading writers call this after storing data, so a threshold notification
+/// can go out on the same request that triggered it. The cron path calls the
+/// two queues itself. A notice is claimed once, so the two paths cannot both
+/// send it. Failures never affect ingestion.
 pub async fn dispatch(store: &Supabase) -> DispatchReport {
-    dispatch_limited(store, 3).await
+    let report = dispatch_limited(store, 3).await;
+    dispatch_channels(store, 3).await;
+    report
+}
+
+/// Email and webhook queue. Phone calls stay in [`dispatch_limited`].
+/// Email rows are left pending when `RESEND_API_KEY` or `FIZZ_ALERT_FROM` is
+/// unset, the same way calls wait when AgentPhone is unset.
+pub async fn dispatch_channels(store: &Supabase, limit: i64) -> DispatchReport {
+    let mut report = DispatchReport {
+        configured: true,
+        claimed: 0,
+        sent: 0,
+        retry: 0,
+        failed: 0,
+    };
+    let include_email = crate::mail::configured();
+    let batch = match store
+        .rpc(
+            "fizz_claim_alert_deliveries",
+            json!({"p_limit": limit.clamp(1, 10), "p_include_email": include_email}),
+        )
+        .await
+    {
+        Ok(batch) => batch,
+        Err(problem) => {
+            eprintln!("Fizz alert channel queue could not be claimed: {problem:?}");
+            return report;
+        }
+    };
+    let mailer = crate::mail::ResendMailer::from_env();
+    for alert in batch.as_array().into_iter().flatten() {
+        let Some(id) = alert.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        report.claimed += 1;
+        match store
+            .rpc("fizz_alert_delivery_still_due", json!({"p_id": id}))
+            .await
+        {
+            Ok(value) if value["send"] == true => {}
+            Ok(_) => continue,
+            Err(problem) => {
+                eprintln!(
+                    "Fizz alert delivery {id} was not sent; the pre-send check failed: {problem:?}"
+                );
+                finish_delivery(
+                    store,
+                    id,
+                    "pending",
+                    "Could not confirm the alert was still active.",
+                    None,
+                    &mut report,
+                )
+                .await;
+                continue;
+            }
+        }
+        let channel = alert.get("channel").and_then(Value::as_str).unwrap_or("");
+        let outcome = if channel == "webhook" {
+            send_webhook(alert).await
+        } else if channel == "email" {
+            send_email(mailer.as_ref(), alert).await
+        } else {
+            DeliveryOutcome::Failed("Unknown notification channel.".into())
+        };
+        match outcome {
+            DeliveryOutcome::Sent(status) => {
+                report.sent += 1;
+                finish_delivery(store, id, "sent", "", status, &mut report).await;
+            }
+            DeliveryOutcome::Retry(message) => {
+                let attempts = alert.get("attempts").and_then(Value::as_i64).unwrap_or(1);
+                if attempts >= 3 {
+                    report.failed += 1;
+                    finish_delivery(store, id, "failed", &message, None, &mut report).await;
+                } else {
+                    finish_delivery(store, id, "pending", &message, None, &mut report).await;
+                }
+            }
+            DeliveryOutcome::Failed(message) => {
+                report.failed += 1;
+                eprintln!("Fizz alert delivery {id} failed: {message}");
+                finish_delivery(store, id, "failed", &message, None, &mut report).await;
+            }
+        }
+    }
+    report
+}
+
+enum DeliveryOutcome {
+    Sent(Option<u16>),
+    Retry(String),
+    Failed(String),
+}
+
+async fn finish_delivery(
+    store: &Supabase,
+    id: &str,
+    status: &str,
+    error: &str,
+    response_status: Option<u16>,
+    report: &mut DispatchReport,
+) {
+    if status == "pending" {
+        report.retry += 1;
+    }
+    let error = if status == "sent" || error.is_empty() {
+        Value::Null
+    } else {
+        Value::String(error.to_owned())
+    };
+    if let Err(problem) = store
+        .rpc(
+            "fizz_finish_alert_delivery",
+            json!({
+                "p_id": id,
+                "p_status": status,
+                "p_error": error,
+                "p_response_status": response_status,
+            }),
+        )
+        .await
+    {
+        eprintln!("Fizz alert delivery {id} status could not be saved: {problem:?}");
+    }
+}
+
+async fn send_webhook(alert: &Value) -> DeliveryOutcome {
+    let url = alert
+        .get("webhook_url")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let secret = alert
+        .get("webhook_secret")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if secret.is_empty() {
+        return DeliveryOutcome::Failed("Webhook signing secret is missing.".into());
+    }
+    let Ok(target) = crate::webhook::webhook_target(url) else {
+        return DeliveryOutcome::Failed("Webhook URL is not allowed.".into());
+    };
+    let address = match crate::webhook::public_address(&target).await {
+        Ok(Some(address)) => address,
+        Ok(None) => return DeliveryOutcome::Failed("Webhook URL is not allowed.".into()),
+        Err(()) => return DeliveryOutcome::Retry("Could not resolve the webhook host.".into()),
+    };
+    let body = crate::webhook::alert_body(alert);
+    match crate::webhook::deliver(secret, &body, &target, address).await {
+        Ok(status) => DeliveryOutcome::Sent(Some(status.as_u16())),
+        Err(crate::webhook::DeliveryError::Transient(message)) => DeliveryOutcome::Retry(message),
+        Err(crate::webhook::DeliveryError::Redirect) => {
+            DeliveryOutcome::Failed("Webhook redirects are not followed.".into())
+        }
+        Err(crate::webhook::DeliveryError::Rejected(status)) => {
+            DeliveryOutcome::Failed(format!("Webhook returned HTTP {status}."))
+        }
+    }
+}
+
+async fn send_email(mailer: Option<&crate::mail::ResendMailer>, alert: &Value) -> DeliveryOutcome {
+    let Some(mailer) = mailer else {
+        return DeliveryOutcome::Retry("Email is not configured on this server.".into());
+    };
+    let Some(to) = alert.get("email").and_then(Value::as_str) else {
+        return DeliveryOutcome::Failed("Account email is not verified.".into());
+    };
+    let (subject, text) = crate::webhook::email_text(alert);
+    match crate::mail::AlertMailer::send(mailer, to, &subject, &text).await {
+        Ok(()) => DeliveryOutcome::Sent(None),
+        Err(crate::mail::MailFailure::Retry(message)) => DeliveryOutcome::Retry(message),
+        Err(crate::mail::MailFailure::Permanent(message)) => DeliveryOutcome::Failed(message),
+    }
 }
 
 /// `limit` is how many calls this pass may claim. The cron path uses 1 so one
