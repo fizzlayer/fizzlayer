@@ -16,7 +16,6 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 
@@ -135,39 +134,46 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    def _show_link(self) -> dict[str, Any]:
+        """Show the 6-digit code on a form step.
+
+        An external step does not show it. Home Assistant 2024.11 looks up that
+        step's description at ``config.<step_id>.description``, while these
+        strings live at ``config.step.<step_id>.description``, and the external
+        step title is localized without description placeholders. The Allow page
+        at ``/ha.html`` asks the person to type the code from this screen, so
+        the title, the description, and a prefilled field all carry it.
+        """
+        code = self._confirm_code
+        url = f"{self._base_url}/ha.html?state={self._state}"
+        return self.async_show_form(
+            step_id="link",
+            data_schema=vol.Schema(
+                {vol.Required("code", default=code): str},
+                extra=vol.ALLOW_EXTRA,
+            ),
+            description_placeholders={
+                "url": url,
+                "code": code,
+                "version": INTEGRATION_VERSION,
+                "base_url": self._base_url,
+            },
+        )
+
     async def async_step_link(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
         if user_input is None:
             self._state = secrets.token_hex(32)
             self._confirm_code = f"{secrets.randbelow(1_000_000):06d}"
-            url = f"{self._base_url}/ha.html?state={self._state}"
             self._poll_task = self.hass.async_create_task(self._poll())
-            return self.async_external_step(
-                step_id="link",
-                url=url,
-                description_placeholders={
-                    "url": url,
-                    "code": self._confirm_code,
-                    "version": INTEGRATION_VERSION,
-                    "base_url": self._base_url,
-                },
-            )
-        # Home Assistant only allows an external step to move to "external step done".
-        # The following step (the entity picker, or an abort) runs after that.
-        failed = user_input.get("error")
-        if not failed:
+            return self._show_link()
+        # The poll submits the device key. A form submit before that only has
+        # the prefilled code, so show the same code again and keep waiting.
+        if user_input.get("error") and not user_input.get("api_key"):
+            return self.async_abort(reason=str(user_input["error"]))
+        if user_input.get("api_key") and user_input.get("connection_id"):
             self._link = user_input
-        else:
-            self._abort_reason = str(failed)
-        if self.cur_step and self.cur_step.get("type") == FlowResultType.EXTERNAL_STEP:
-            return self.async_external_step_done(
-                next_step_id="link_failed" if failed else "entities"
-            )
-        if failed:
-            return self.async_abort(reason=self._abort_reason)
-        return await self.async_step_entities()
-
-    async def async_step_link_failed(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
-        return self.async_abort(reason=getattr(self, "_abort_reason", "timeout"))
+            return await self.async_step_entities()
+        return self._show_link()
 
     async def _poll(self) -> None:
         assert self._state is not None

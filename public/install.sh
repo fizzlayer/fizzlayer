@@ -2,7 +2,7 @@
 # Fizz CLI installer — https://fizzlayer.com/install.sh
 #
 # Downloads the `fizz` binary for this device from GitHub Releases
-# (https://github.com/nisargap/Fizz/releases), checks its SHA-256 checksum, and installs it.
+# (https://github.com/fizzlayer/fizzlayer/releases), checks its SHA-256 checksum, and installs it.
 # Read it first if you like:  curl -fsSL https://fizzlayer.com/install.sh | less
 #
 # Options (environment variables):
@@ -10,7 +10,7 @@
 #   FIZZ_INSTALL_DIR=DIR      install somewhere other than /usr/local/bin or ~/.local/bin
 set -eu
 
-REPO="nisargap/Fizz"
+REPO="fizzlayer/fizzlayer"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'fizz install: %s\n' "$*" >&2; exit 1; }

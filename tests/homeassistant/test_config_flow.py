@@ -9,7 +9,7 @@ pytest.importorskip("pytest_homeassistant_custom_component")
 
 from homeassistant.data_entry_flow import FlowResultType  # noqa: E402
 
-from custom_components.fizzlayer.const import DOMAIN  # noqa: E402
+from custom_components.fizzlayer.const import DOMAIN, INTEGRATION_VERSION  # noqa: E402
 from custom_components.fizzlayer.mapping import plan_entity  # noqa: E402
 
 
@@ -84,14 +84,18 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
         "custom_components.fizzlayer.config_flow.post_json", side_effect=fake_post
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
-        assert result["type"] is FlowResultType.EXTERNAL_STEP
-        assert "ha.html?state=" in result["url"]
-        assert "code=" not in result["url"]
-        assert "fizzlayer.com" in result["url"]
-        expected["code"] = result["description_placeholders"]["code"]
-        assert expected["code"].isdigit() and len(expected["code"]) == 6
-        assert result["description_placeholders"]["version"] == "1.1.0"
+        assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "link"
+        placeholders = result["description_placeholders"]
+        assert "ha.html?state=" in placeholders["url"]
+        assert "code=" not in placeholders["url"]
+        assert placeholders["url"].startswith("https://fizzlayer.com/ha.html?state=")
+        expected["code"] = placeholders["code"]
+        assert expected["code"].isdigit() and len(expected["code"]) == 6
+        assert placeholders["version"] == INTEGRATION_VERSION == "1.2.0"
+        # The dialog renders this default. An external step would not.
+        shown = result["data_schema"]({"api_key": "ignored", "connection_id": "ignored"})
+        assert shown["code"] == expected["code"]
         flow_id = result["flow_id"]
         await hass.async_block_till_done()
         result = await hass.config_entries.flow.async_configure(flow_id)
@@ -116,10 +120,12 @@ async def test_advanced_mode_shows_the_code_instead_of_a_url_form(hass, enable_c
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     finally:
         del FizzlayerConfigFlow.show_advanced_options
-    assert result["type"] is FlowResultType.EXTERNAL_STEP
+    assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "link"
     placeholders = result["description_placeholders"]
     assert placeholders["code"].isdigit() and len(placeholders["code"]) == 6
-    assert placeholders["version"] == "1.1.0"
+    assert placeholders["version"] == INTEGRATION_VERSION
     assert placeholders["url"].startswith("https://fizzlayer.com/ha.html?state=")
+    shown = result["data_schema"]({})
+    assert shown["code"] == placeholders["code"]
     assert "base_url" not in result

@@ -16,7 +16,7 @@ This integration lives in the Fizzlayer repository under `custom_components/fizz
 - `zip_release` is not set. HACS then downloads the repository archive and copies `custom_components/fizzlayer`. A zip release would need a zip of the integration files attached to every GitHub release, which this repository does not publish from CI.
 - `render_readme` is `true`, so HACS shows the repository README.
 
-HACS versions the integration from a GitHub **release**, not from a git tag alone. Until a release is published, HACS installs the default branch, or an older release if one is already marked latest. Publish a release whose tag matches `manifest.json` (currently `1.1.0`, for example `v1.1.0`) when you want HACS to offer that version. The version on the code screen and under Settings, Devices & services is the installed copy.
+HACS versions the integration from a GitHub **release**, not from a git tag alone. Until a release is published, HACS installs the default branch, or an older release if one is already marked latest. Publish a release whose tag matches `manifest.json` (currently `1.2.0`, for example `v1.2.0`) when you want HACS to offer that version. The version on the code screen and under Settings, Devices & services is the installed copy.
 
 **Restart Home Assistant** after HACS finishes installing.
 
@@ -26,13 +26,13 @@ You can also add the repository by hand in HACS: Integrations, then the menu, th
 
 [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer)
 
-Do this only after the restart. Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Type that code there. The page also shows this install's name and version. You do not copy a device token, and a code from a message is not accepted unless it is the one on this screen.
+Do this only after the restart. Home Assistant shows a 6-digit code in the dialog title and in the pairing-code field. Open the Allow page from the link in that dialog and type the code there. The page also shows this install's name and version. You do not copy a device token, and a code from a message is not accepted unless it is the one on this screen.
 
 The first time, My Home Assistant asks you to confirm your instance URL. If the browser blocks the window, use the link in the Home Assistant dialog.
 
 Temperature, humidity, power, energy, battery, door, and leak sensors start selected. Each entity counts toward the Fizzlayer device limit.
 
-Add integration shows a 6-digit code and a button that opens the Allow page, including when Advanced Mode is on. The server on that screen is fizzlayer.com. The same screen shows the integration version from `manifest.json`.
+Add integration shows the 6-digit code in the dialog title and in the pairing-code field, including when Advanced Mode is on. The link in that dialog opens the Allow page. The server on that screen is fizzlayer.com. The same screen shows the integration version from `manifest.json`.
 
 ## Install without HACS
 

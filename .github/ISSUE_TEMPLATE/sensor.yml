@@ -1,0 +1,36 @@
+name: Sensor or integration request
+description: A sensor type, a device, or an integration Fizzlayer does not accept yet.
+title: "[Sensor] "
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device or integration
+      description: For example a meter, a Home Assistant device class, or a protocol.
+    validations:
+      required: true
+  - type: textarea
+    id: readings
+    attributes:
+      label: What it reports
+      description: Metric names, units, and the range of values. Say whether a value is a number, true or false, or text.
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: How would it send readings?
+      options:
+        - HTTPS POST /api/ingest
+        - Home Assistant entity
+        - Phone page
+        - Linux CLI
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this one
+    validations:
+      required: false

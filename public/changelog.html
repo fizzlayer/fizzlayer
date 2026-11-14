@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fcfdfd">
+  <title>Changelog | Fizzlayer</title>
+  <meta name="description" content="What landed on Fizzlayer from November 2 through November 13, 2026. Each entry is a merged pull request.">
+  <link rel="canonical" href="https://fizzlayer.com/changelog">
+  <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/design.css">
+  <link rel="stylesheet" href="/landing.css">
+  <meta http-equiv="origin-trial" content="AxF27oYssyj8cvJlJbnS48Y6Bj5Z1+hBUowrfkKCmhgiBfYx7KCn/0+kiAsKPfmxho2LSMztNGgIIHF+pAbBuggAAABheyJvcmlnaW4iOiJodHRwczovL2ZpenpsYXllci5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
+  <script src="/webmcp.js" defer></script>
+  <script src="/nav.js" defer></script>
+  <script src="/analytics.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-nav">
+    <nav class="container" aria-label="Main">
+      <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="/docs">Gateway docs</a></li>
+        <li><a href="/sensors">Sensors</a></li>
+        <li><a href="/sensors/docs">Sensors docs</a></li>
+        <li><a href="/self-host">Self-host</a></li>
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="/enterprise">Enterprise</a></li>
+        <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
+        <li><a class="nav-sign-in" href="/app.html#sign-in">Sign in</a></li>
+        <li><a class="button button-dark nav-cta" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main-content">
+    <section class="section container" aria-labelledby="changelog-title">
+      <p class="eyebrow-label">Changelog</p>
+      <h1 id="changelog-title">What shipped.</h1>
+      <p class="lede">November 2 through November 13, 2026. Each line is a merged pull request. The date is the commit timestamp in US Pacific. The same list is in <a href="https://github.com/fizzlayer/fizzlayer/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+      <h2>November 13, 2026</h2>
+      <ul>
+        <li>Fail CI when a tracked file is build output. (#34)</li>
+        <li>Add a Gleam Lustre SPA skeleton at /app. (#31)</li>
+        <li>Rebrand the homepage around Gateway and move Sensors to /sensors. (#27)</li>
+        <li>Return new accounts to sensor selection after the plan step. (#26)</li>
+      </ul>
+      <h2>November 12, 2026</h2>
+      <ul>
+        <li>Retry image publishes when the base-image registry rate-limits. (#25)</li>
+        <li>Ask for a plan after the account exists. (#24)</li>
+      </ul>
+      <h2>November 10, 2026</h2>
+      <ul>
+        <li>Choose a plan while creating an account. (#23)</li>
+        <li>Add a GitHub link to the public navigation. (#22)</li>
+        <li>Generate self-host secrets inside the API image and drop the demo recorder. (#21)</li>
+        <li>Run Fizzlayer from a compose file that does not need a checkout. (#20)</li>
+        <li>Document Docker self-hosting and license the project under Apache 2.0. (#19)</li>
+        <li>Add a Docker Compose self-host stack and image publish workflow. (#18)</li>
+        <li>Add pricing, status, and enterprise pages. (#17)</li>
+        <li>Document the production live stream paths. (#16)</li>
+        <li>Release the CLI as 0.2.0 and install the newest cli-v tag. (#15)</li>
+        <li>Add live WebSocket and MQTT streaming on Supabase Compute. (#14)</li>
+        <li>Serve the Home Assistant badges from the site. (#13)</li>
+        <li>Show the Home Assistant code even when Advanced Mode is on. (#12)</li>
+        <li>Install the Home Assistant integration before adding it. (#11)</li>
+      </ul>
+      <h2>November 9, 2026</h2>
+      <ul>
+        <li>Match Home Assistant migrations to production. (#10)</li>
+        <li>Add a one-click Home Assistant integration. (#9)</li>
+      </ul>
+      <h2>November 3, 2026</h2>
+      <ul>
+        <li>Pair a phone before calling it, and limit calls to paid plans. (#8)</li>
+      </ul>
+      <h2>November 2, 2026</h2>
+      <ul>
+        <li>Add GitHub sign-in and sign-up. (#7)</li>
+        <li>Refresh the social preview card to match the current site. (#6)</li>
+        <li>Open sign-up, retire the waitlist, and tighten plan and request limits. (#5)</li>
+        <li>Call when a sensor goes silent, and send queued calls on a schedule. (#4)</li>
+        <li>Fix demo call preview, greenhouse readings, and Fizz answers. (#3)</li>
+      </ul>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs">Gateway docs</a><a href="/sensors/docs">Sensors docs</a><a href="/self-host">Self-host</a><a href="/pricing">Pricing</a><a href="/status">Status</a><a href="/changelog" aria-current="page">Changelog</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+</body>
+</html>

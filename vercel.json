@@ -55,6 +55,11 @@
       "permanent": true
     },
     {
+      "source": "/changelog",
+      "destination": "/changelog.html",
+      "permanent": true
+    },
+    {
       "source": "/enterprise",
       "destination": "/enterprise.html",
       "permanent": true

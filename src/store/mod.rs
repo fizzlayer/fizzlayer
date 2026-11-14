@@ -116,6 +116,31 @@ impl Supabase {
         }
     }
 
+    /// `GET /rest/v1/{path_and_query}` with the service role. `path_and_query` is a
+    /// table name plus a query string, such as `fizz_scheduler_status?select=last_scan_at`.
+    pub async fn rest_get(&self, path_and_query: &str) -> Result<Value, StoreError> {
+        let url = self
+            .rest_url
+            .join(path_and_query)
+            .map_err(|_| StoreError::Unavailable)?;
+        let response = self
+            .client
+            .get(url)
+            .header("apikey", &self.service_role_key)
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", self.service_role_key),
+            )
+            .header(header::ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|_| StoreError::Unavailable)?;
+        if !response.status().is_success() {
+            return Err(StoreError::Unavailable);
+        }
+        response.json().await.map_err(|_| StoreError::Unavailable)
+    }
+
     pub async fn rpc(&self, name: &str, payload: Value) -> Result<Value, StoreError> {
         let url = self
             .rest_url

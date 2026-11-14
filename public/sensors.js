@@ -1,6 +1,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const kinds = window.fizzKinds;
+  const firstReading = $('first-reading-cmd');
+  if (firstReading) {
+    firstReading.textContent = `curl -X POST ${location.origin}/api/ingest \\\n  -H 'Authorization: Bearer YOUR_SENSOR_API_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"sensor_id":"YOUR_SENSOR_ID","event_id":"first-reading","metrics":{"temperature_c":21.5}}'`;
+  }
   let sensors = [];
   let activeKind = 0;
   async function api(path, method = 'GET', body) {
@@ -233,8 +237,17 @@
     catch (error) { $('page-error').textContent = error.message; }
   });
   (async () => {
+    let me;
     try {
-      const me = await api('/api/me');
+      me = await api('/api/me');
+    } catch {
+      const note = $('signed-out-note');
+      if (note) note.hidden = false;
+      const signOut = $('sensors-sign-out');
+      if (signOut) signOut.hidden = true;
+      return;
+    }
+    try {
       $('sensors-username').textContent = me.username;
       await refresh();
       setInterval(() => {
@@ -242,6 +255,8 @@
         if (document.querySelector('.sensor-secret code')) void window.fizzVoiceClips.refresh(sensors);
         else refresh().catch(() => {});
       }, 15000);
-    } catch { location.href = '/app.html'; }
+    } catch (error) {
+      $('page-error').textContent = error.message;
+    }
   })();
 })();

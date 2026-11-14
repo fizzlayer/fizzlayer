@@ -1,0 +1,23 @@
+name: Feature
+description: A change to Sensors, the dashboard, the CLI, or the docs.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What do you want Fizzlayer to do?
+    validations:
+      required: true
+  - type: textarea
+    id: not
+    attributes:
+      label: What should it not do?
+      description: Optional. Call out limits, plans, or safety boundaries if they matter.
+    validations:
+      required: false

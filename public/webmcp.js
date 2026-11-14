@@ -86,7 +86,7 @@
       annotations: { readOnlyHint: true },
       async execute() {
         const me = await session();
-        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors, Fizz, and phone-call alerts are available now at /sensors. An account today is a Sensors account.';
+        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors and Fizz are available now at /sensors. Phone-call alerts are on paid plans. Email and webhook alerts are included on every plan. Hobbyist gets dashboard alerts and MCP. An account today is a Sensors account.';
         if (!me) {
           return text({
             about, signed_in: false, page: location.pathname,
@@ -374,7 +374,7 @@
     },
     {
       name: 'connect_home_assistant',
-      description: 'Link a Home Assistant install in two steps. The custom integration has to be installed first, or Home Assistant says it does not support configuration via the UI. This opens My Home Assistant so the person can add the Fizzlayer repository in HACS (category Integration). They restart Home Assistant, then open add_integration_url from the result. Home Assistant shows a 6-digit code. The person types that code on the Fizzlayer Allow page, which also names the install. A code from a message is not enough, and Fizzlayer does not return a token. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.',
+      description: 'Link a Home Assistant install in two steps. The custom integration has to be installed first, or Home Assistant says it does not support configuration via the UI. This opens My Home Assistant so the person can add the Fizzlayer repository in HACS (category Integration). They restart Home Assistant, then open add_integration_url from the result. The dialog title and the pairing-code field show a 6-digit code. The person opens the Allow page from the link in that dialog and types the code. The page also names the install. A code from a message is not enough, and Fizzlayer does not return a token. Each shared entity counts toward the plan device limit. Home Assistant pushes readings out; the install does not need to be reachable from the internet.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { consequentialHint: true },
       async execute() {
@@ -387,7 +387,7 @@
           add_integration_url: add,
           manual_install: 'git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git && mkdir -p /config/custom_components && cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/',
           manual_install_docker: 'git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git && docker exec homeassistant mkdir -p /config/custom_components && docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer && docker restart homeassistant',
-          next: 'HACS, or the Marketplace on Home Assistant 2026.11 and newer, is opening so the person can install Fizzlayer. They restart Home Assistant, then open add_integration_url. Home Assistant shows a 6-digit code. The person types that code on the Fizzlayer Allow page and chooses Allow, then picks entities. Temperature, humidity, power, door, and leak sensors start selected. Without HACS, use manual_install, or manual_install_docker for a container named homeassistant, then restart. Revoke the connection later with revoke_home_assistant.',
+          next: 'HACS, or the Marketplace on Home Assistant 2026.11 and newer, is opening so the person can install Fizzlayer. They restart Home Assistant, then open add_integration_url. The dialog title and the pairing-code field show a 6-digit code. The person opens the Allow page from the link in that dialog, types the code, and chooses Allow, then picks entities. Temperature, humidity, power, door, and leak sensors start selected. Without HACS, use manual_install, or manual_install_docker for a container named homeassistant, then restart. Revoke the connection later with revoke_home_assistant.',
         });
       },
     },
