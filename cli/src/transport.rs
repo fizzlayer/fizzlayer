@@ -15,6 +15,7 @@ use std::{
 use serde_json::{Map, Value, json};
 use tungstenite::{Message, stream::MaybeTlsStream};
 
+use crate::error::Error;
 use protocol::{
     AclOp, ClientOp, Packet, Principal, authorize, decode_packet, encode_packet, live_topic,
     parse_client_message, readings_topic, stream_urls,
@@ -30,14 +31,14 @@ pub struct StreamUrls {
     pub mqtt_tcp_url: Option<String>,
 }
 
-pub fn discover(get: impl Fn(&str) -> Result<(u16, Value), String>) -> Result<StreamUrls, String> {
+pub fn discover(get: impl Fn(&str) -> Result<(u16, Value), Error>) -> Result<StreamUrls, Error> {
     let (status, body) = get("/api/stream")?;
     if status != 200 {
         let message = body
             .pointer("/error/message")
             .and_then(Value::as_str)
             .unwrap_or("Fizz did not describe its live stream.");
-        return Err(message.to_owned());
+        return Err(message.to_owned().into());
     }
     if body.get("enabled") != Some(&Value::Bool(true)) {
         return Err(
@@ -88,14 +89,14 @@ fn arm(socket: &mut Socket) {
     }
 }
 
-fn connect_ws(url: &str) -> Result<Socket, String> {
+fn connect_ws(url: &str) -> Result<Socket, Error> {
     let (mut socket, _) =
         tungstenite::connect(url).map_err(|error| format!("Could not open {url}: {error}"))?;
     arm(&mut socket);
     Ok(socket)
 }
 
-fn read_text(socket: &mut Socket) -> Result<Value, String> {
+fn read_text(socket: &mut Socket) -> Result<Value, Error> {
     loop {
         match socket.read() {
             Ok(Message::Text(text)) => {
@@ -121,7 +122,7 @@ pub struct ReadingLink {
 }
 
 impl ReadingLink {
-    pub fn open(url: &str, sensor_id: &str, key: &str) -> Result<Self, String> {
+    pub fn open(url: &str, sensor_id: &str, key: &str) -> Result<Self, Error> {
         let mut socket = connect_ws(url)?;
         socket
             .send(Message::text(json!({"op": "auth", "key": key}).to_string()))
@@ -135,7 +136,7 @@ impl ReadingLink {
         }
     }
 
-    pub fn send(&mut self, metrics: &Map<String, Value>, event_id: &str) -> Result<(), String> {
+    pub fn send(&mut self, metrics: &Map<String, Value>, event_id: &str) -> Result<(), Error> {
         let body = json!({
             "op": "reading",
             "sensor_id": self.sensor_id,
@@ -155,7 +156,8 @@ impl ReadingLink {
                 .get("error")
                 .and_then(Value::as_str)
                 .unwrap_or("Fizz did not store the reading.")
-                .to_owned()),
+                .to_owned()
+                .into()),
             _ => Err("Fizz sent an unexpected stream reply.".into()),
         }
     }
@@ -166,7 +168,7 @@ pub fn tail_socket(
     sensor_id: &str,
     key: &str,
     mut on_line: impl FnMut(&str),
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut socket = connect_ws(url)?;
     socket
         .send(Message::text(json!({"op": "auth", "key": key}).to_string()))
@@ -191,7 +193,8 @@ pub fn tail_socket(
                     .get("error")
                     .and_then(Value::as_str)
                     .unwrap_or("The live stream stopped.")
-                    .to_owned());
+                    .to_owned()
+                    .into());
             }
             _ => {}
         }
@@ -222,7 +225,7 @@ pub fn mqtt_publish(
     key: &str,
     metrics: &Map<String, Value>,
     event_id: &str,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let payload = json!({"event_id": event_id, "metrics": metrics}).to_string();
     let topic = readings_topic(sensor_id);
     let device = Principal::Device {
@@ -242,14 +245,14 @@ pub fn mqtt_publish(
     }
 }
 
-fn mqtt_connect_packet(sensor_id: &str, key: &str) -> Result<Vec<u8>, String> {
+fn mqtt_connect_packet(sensor_id: &str, key: &str) -> Result<Vec<u8>, Error> {
     encode_packet(&Packet::Connect {
         client_id: format!("fizz-{sensor_id}"),
         username: Some(sensor_id.to_owned()),
         password: Some(key.to_owned()),
         keep_alive: 30,
     })
-    .map_err(|_| "Could not build the MQTT connect packet.".to_owned())
+    .map_err(|_| Error::from("Could not build the MQTT connect packet."))
 }
 
 fn mqtt_ws_publish(
@@ -258,7 +261,7 @@ fn mqtt_ws_publish(
     key: &str,
     topic: &str,
     payload: Vec<u8>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut socket = connect_ws(url)?;
     let connect = mqtt_connect_packet(sensor_id, key)?;
     socket
@@ -281,7 +284,7 @@ fn mqtt_ws_publish(
     }
 }
 
-fn read_mqtt_ws(socket: &mut Socket) -> Result<Vec<u8>, String> {
+fn read_mqtt_ws(socket: &mut Socket) -> Result<Vec<u8>, Error> {
     loop {
         match socket.read() {
             Ok(Message::Binary(bytes)) => return Ok(bytes.to_vec()),
@@ -302,7 +305,7 @@ fn mqtt_tcp_publish(
     key: &str,
     topic: &str,
     payload: Vec<u8>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let host = url.trim_start_matches("mqtt://").trim_end_matches('/');
     let (host, port) = host
         .rsplit_once(':')
@@ -341,14 +344,14 @@ fn mqtt_tcp_publish(
     }
 }
 
-fn read_mqtt_tcp(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
+fn read_mqtt_tcp(stream: &mut TcpStream) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     loop {
         let mut byte = [0];
         match stream.read(&mut byte) {
             Ok(0) => return Err("The MQTT connection closed.".into()),
             Ok(_) => buf.push(byte[0]),
-            Err(error) => return Err(format!("Could not read MQTT: {error}")),
+            Err(error) => return Err(format!("Could not read MQTT: {error}").into()),
         }
         if decode_packet(&buf)
             .map_err(|_| "The MQTT packet was not valid.")?
@@ -362,14 +365,14 @@ fn read_mqtt_tcp(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
     }
 }
 
-fn decode_one(buf: &[u8]) -> Result<Packet, String> {
+fn decode_one(buf: &[u8]) -> Result<Packet, Error> {
     match decode_packet(buf).map_err(|_| "The MQTT packet was not valid.")? {
         Some((packet, _)) => Ok(packet),
         None => Err("The MQTT packet was incomplete.".into()),
     }
 }
 
-fn expect_connack(buf: &mut [u8]) -> Result<(), String> {
+fn expect_connack(buf: &mut [u8]) -> Result<(), Error> {
     match decode_one(buf)? {
         Packet::Connack { code: 0 } => Ok(()),
         Packet::Connack { code: 5 } => Err("This sensor is paused.".into()),
@@ -386,7 +389,7 @@ pub fn tail_mqtt(
     sensor_id: &str,
     key: &str,
     mut on_line: impl FnMut(&str),
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let target = override_url.map_or_else(|| urls.mqtt_ws_url.clone(), str::to_owned);
     if !(target.starts_with("ws://") || target.starts_with("wss://")) {
         return Err("fizz tail --mqtt uses the WebSocket MQTT URL. Set FIZZ_MQTT_URL to a wss:// address if you override it.".into());
@@ -440,7 +443,7 @@ mod tests {
         });
         assert!(bad.is_err());
         let off = discover(|_| Ok((200, json!({"enabled": false}))));
-        assert!(off.unwrap_err().contains("HTTPS"));
+        assert!(off.unwrap_err().as_str().contains("HTTPS"));
     }
 
     #[test]

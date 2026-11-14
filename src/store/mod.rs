@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::{env, error::Error, fmt, time::Duration};
 
 use reqwest::{Client, Method, StatusCode, Url, header};
 use serde_json::Value;
@@ -20,11 +20,36 @@ pub enum ConnectionError {
     UnexpectedStatus,
 }
 
+impl fmt::Display for ConnectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::MissingConfiguration => "Supabase is not configured.",
+            Self::InvalidUrl => "The Supabase URL is invalid.",
+            Self::RequestFailed => "Could not reach Supabase.",
+            Self::Unauthorized => "Supabase rejected the service role key.",
+            Self::UnexpectedStatus => "Supabase returned an unexpected status.",
+        })
+    }
+}
+
+impl Error for ConnectionError {}
+
 #[derive(Debug)]
 pub enum StoreError {
     Conflict,
     Unavailable,
 }
+
+impl fmt::Display for StoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Conflict => "The write conflicted with an existing row.",
+            Self::Unavailable => "The database is unavailable.",
+        })
+    }
+}
+
+impl Error for StoreError {}
 
 fn public_supabase_url(value: &str) -> Option<Url> {
     let mut url = Url::parse(value.trim()).ok()?;
@@ -237,6 +262,32 @@ impl Supabase {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn connection_and_store_errors_implement_std_error() {
+        fn assert_error(error: &dyn Error, text: &str) {
+            assert_eq!(error.to_string(), text);
+        }
+        assert_error(
+            &ConnectionError::MissingConfiguration,
+            "Supabase is not configured.",
+        );
+        assert_error(&ConnectionError::InvalidUrl, "The Supabase URL is invalid.");
+        assert_error(&ConnectionError::RequestFailed, "Could not reach Supabase.");
+        assert_error(
+            &ConnectionError::Unauthorized,
+            "Supabase rejected the service role key.",
+        );
+        assert_error(
+            &ConnectionError::UnexpectedStatus,
+            "Supabase returned an unexpected status.",
+        );
+        assert_error(
+            &StoreError::Conflict,
+            "The write conflicted with an existing row.",
+        );
+        assert_error(&StoreError::Unavailable, "The database is unavailable.");
+    }
 
     #[test]
     fn authorize_url_targets_supabase_auth_with_an_encoded_redirect() {

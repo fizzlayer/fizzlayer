@@ -2,11 +2,36 @@
 //! The host only needs Docker. Random bytes and the service-role JWT are produced here.
 
 use std::{
-    fs,
+    error::Error,
+    fmt, fs,
     io::Write,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+/// Why `fizz-serve init` did not write the env file. Display is the sentence printed to stderr.
+#[derive(Debug)]
+pub struct InitError(String);
+
+impl fmt::Display for InitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Error for InitError {}
+
+impl From<String> for InitError {
+    fn from(message: String) -> Self {
+        Self(message)
+    }
+}
+
+impl From<&str> for InitError {
+    fn from(message: &str) -> Self {
+        Self(message.to_owned())
+    }
+}
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use ring::{
@@ -16,7 +41,7 @@ use ring::{
 
 const TEN_YEARS_SECS: u64 = 60 * 60 * 24 * 365 * 10;
 
-pub fn init(args: &[String]) -> Result<String, String> {
+pub fn init(args: &[String]) -> Result<String, InitError> {
     let mut out = None;
     let mut force = false;
     let mut iter = args.iter();
@@ -40,9 +65,9 @@ pub fn init(args: &[String]) -> Result<String, String> {
                 out = Some(path.to_owned());
             }
             other => {
-                return Err(format!(
-                    "Unknown argument `{other}`. Use: init [--force] --out PATH"
-                ));
+                return Err(
+                    format!("Unknown argument `{other}`. Use: init [--force] --out PATH").into(),
+                );
             }
         }
     }
@@ -50,18 +75,19 @@ pub fn init(args: &[String]) -> Result<String, String> {
     write_env(Path::new(&out), force)
 }
 
-fn write_env(path: &Path, force: bool) -> Result<String, String> {
+fn write_env(path: &Path, force: bool) -> Result<String, InitError> {
     if path.exists() && !force {
         return Err(format!(
             "{} already exists. Pass --force to replace it.",
             path.display()
-        ));
+        )
+        .into());
     }
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
         && !parent.exists()
     {
-        return Err(format!("Directory {} does not exist.", parent.display()));
+        return Err(format!("Directory {} does not exist.", parent.display()).into());
     }
     let rng = SystemRandom::new();
     let postgres_password = random_hex(&rng, 24)?;
@@ -139,7 +165,7 @@ STRIPE_PRICE_PRO=
     Ok(path.display().to_string())
 }
 
-fn random_hex(rng: &SystemRandom, nbytes: usize) -> Result<String, String> {
+fn random_hex(rng: &SystemRandom, nbytes: usize) -> Result<String, InitError> {
     let mut bytes = vec![0u8; nbytes];
     rng.fill(&mut bytes)
         .map_err(|_| "Could not read random bytes.".to_owned())?;
@@ -155,7 +181,7 @@ fn encode_hex(bytes: &[u8]) -> String {
     hex
 }
 
-fn jwt(secret: &str, role: &str) -> Result<String, String> {
+fn jwt(secret: &str, role: &str) -> Result<String, InitError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| "System clock is before 1970.".to_owned())?
@@ -199,7 +225,7 @@ mod tests {
         assert_eq!(token.matches('.').count(), 2);
         verify(&secret, &token);
         let again = init(&["--out".into(), path.to_str().unwrap().to_owned()]);
-        assert!(again.unwrap_err().contains("--force"));
+        assert!(again.unwrap_err().to_string().contains("--force"));
         let _ = fs::remove_dir_all(&dir);
     }
 

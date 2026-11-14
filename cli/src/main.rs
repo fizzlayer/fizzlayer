@@ -15,7 +15,10 @@ use std::{
 
 use serde_json::{Map, Value, json};
 
+mod error;
 mod transport;
+
+use error::Error;
 
 const DEFAULT_API: &str = "https://fizzlayer.com";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -41,7 +44,7 @@ Environment:
   FIZZ_CONFIG    Config file (default ~/.config/fizz/device.json)
   FIZZ_MQTT_URL  Override the discovered MQTT URL (mqtt://, ws://, or wss://)";
 
-type Result<T> = std::result::Result<T, String>;
+type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -61,9 +64,7 @@ fn main() -> ExitCode {
             println!("{HELP}");
             Ok(())
         }
-        Some(other) => Err(format!(
-            "Unknown command `{other}`. Run `fizz help` for usage."
-        )),
+        Some(other) => Err(format!("Unknown command `{other}`. Run `fizz help` for usage.").into()),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -201,10 +202,9 @@ fn check_config(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if !metadata.file_type().is_file() {
-                return Err(format!(
-                    "{} must be a regular file, not a symlink.",
-                    path.display()
-                ));
+                return Err(
+                    format!("{} must be a regular file, not a symlink.", path.display()).into(),
+                );
             }
             #[cfg(unix)]
             {
@@ -214,13 +214,14 @@ fn check_config(path: &Path) -> Result<()> {
                     return Err(format!(
                         "{} must be owned by you with mode 600. Run chmod 600 on it.",
                         path.display()
-                    ));
+                    )
+                    .into());
                 }
             }
             Ok(())
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("Could not inspect {}: {e}", path.display())),
+        Err(e) => Err(format!("Could not inspect {}: {e}", path.display()).into()),
     }
 }
 
@@ -250,14 +251,16 @@ fn load_config_at(path: &Path) -> Result<Option<Map<String, Value>>> {
                     "{} is not valid. Remove it and run fizz pair.",
                     path.display()
                 )
+                .into()
             }),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("Could not read {}: {e}", path.display())),
+        Err(e) => Err(format!("Could not read {}: {e}", path.display()).into()),
     }
 }
 
 fn require_config() -> Result<Map<String, Value>> {
-    load_config()?.ok_or_else(|| "This device is not paired yet. Run `fizz pair` first.".to_owned())
+    load_config()?
+        .ok_or_else(|| Error::from("This device is not paired yet. Run `fizz pair` first."))
 }
 
 /// The config holds this device's key, so it is written with owner-only permissions.
@@ -306,7 +309,9 @@ fn save_config_at(path: &Path, config: &Value) -> Result<()> {
 
 fn field<'a>(config: &'a Map<String, Value>, key: &str) -> Result<&'a str> {
     config.get(key).and_then(Value::as_str).ok_or_else(|| {
-        format!("The config is missing `{key}`. Run `fizz unpair`, then `fizz pair`.")
+        Error::from(format!(
+            "The config is missing `{key}`. Run `fizz unpair`, then `fizz pair`."
+        ))
     })
 }
 
@@ -371,7 +376,7 @@ fn flag_value(args: &[String], name: &str) -> Result<Option<String>> {
             .get(i + 1)
             .cloned()
             .map(Some)
-            .ok_or_else(|| format!("{name} needs a value.")),
+            .ok_or_else(|| Error::from(format!("{name} needs a value."))),
         None => Ok(None),
     }
 }
@@ -384,7 +389,8 @@ fn pair(args: &[String]) -> Result<()> {
             "This device is already paired as \"{}\" with account {}. Run `fizz unpair` first, or pass --force.",
             field(&config, "device_name").unwrap_or("?"),
             field(&config, "account").unwrap_or("?"),
-        ));
+        )
+        .into());
     }
     let name = printable(&flag_value(args, "--name")?.unwrap_or_else(hostname), 80);
     let base = api_base();
@@ -395,7 +401,7 @@ fn pair(args: &[String]) -> Result<()> {
         None,
     )?;
     if start.status != 201 {
-        return Err(start.message());
+        return Err(start.message().into());
     }
     let code = start.body["code"]
         .as_str()
@@ -426,7 +432,7 @@ fn pair(args: &[String]) -> Result<()> {
             }
         };
         if reply.status != 200 {
-            return Err(reply.message());
+            return Err(reply.message().into());
         }
         match reply.body["status"].as_str() {
             Some("waiting") => continue,
@@ -437,7 +443,8 @@ fn pair(args: &[String]) -> Result<()> {
             Some(other) => {
                 return Err(format!(
                     "Pairing ended unexpectedly ({other}). Run `fizz pair` again."
-                ));
+                )
+                .into());
             }
             None => return Err("Fizz sent an unexpected pairing status.".into()),
         }
@@ -469,7 +476,7 @@ fn pair(args: &[String]) -> Result<()> {
         None,
     )?;
     if decision.status != 200 {
-        return Err(decision.message());
+        return Err(decision.message().into());
     }
     if !approve {
         println!("  Pairing rejected. Nothing was connected.");
@@ -506,7 +513,7 @@ fn send_metrics(config: &Map<String, Value>, metrics: &Map<String, Value>) -> Re
     match reply.status {
         200..=299 if reply.body.get("error").is_none() => Ok(()),
         401 => Err("This device's key was revoked. Run `fizz unpair`, then `fizz pair`.".into()),
-        _ => Err(reply.message()),
+        _ => Err(reply.message().into()),
     }
 }
 
@@ -557,7 +564,7 @@ fn chosen_transport(args: &[String]) -> Result<Transport> {
 fn known_flags(args: &[String], allowed: &[&str]) -> Result<()> {
     for arg in args {
         if arg.starts_with("--") && !allowed.contains(&arg.as_str()) {
-            return Err(format!("Unknown flag `{arg}`. Run `fizz help` for usage."));
+            return Err(format!("Unknown flag `{arg}`. Run `fizz help` for usage.").into());
         }
     }
     Ok(())
@@ -575,7 +582,8 @@ fn metrics_from_pairs(args: &[String]) -> Result<Map<String, Value>> {
             return Err(format!(
                 "`{}` is not a metric name. Use lowercase letters, digits, and underscores, starting with a letter.",
                 pair[0]
-            ));
+            )
+            .into());
         }
         metrics.insert(pair[0].clone(), parse_value(&pair[1])?);
     }
@@ -768,7 +776,7 @@ fn run(args: &[String]) -> Result<()> {
         };
         match sent {
             Ok(()) => println!("{}  sent  {}", clock(), summary(&metrics)),
-            Err(e) if e.contains("revoked") => return Err(e),
+            Err(e) if e.as_str().contains("revoked") => return Err(e),
             Err(e) => {
                 eprintln!("{}  not sent: {e}", clock());
                 if transport == Transport::Socket
@@ -844,7 +852,7 @@ fn unpair() -> Result<()> {
     )?;
     // 401 means the key was already revoked from the dashboard; forgetting it is still right.
     if reply.status != 200 && reply.status != 401 {
-        return Err(reply.message());
+        return Err(reply.message().into());
     }
     let path = config_path()?;
     fs::remove_file(&path).map_err(|e| format!("Could not remove {}: {e}", path.display()))?;
