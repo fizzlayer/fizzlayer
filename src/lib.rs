@@ -9,6 +9,7 @@ pub mod contact;
 pub mod cron;
 pub mod customer;
 pub mod devices;
+pub mod gateway;
 pub mod homeassistant;
 pub mod live;
 pub mod mail;

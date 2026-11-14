@@ -7,40 +7,59 @@ publish = false
 description = "Fizzlayer gateway config generator, client JWTs, and fizz-guard"
 
 [dependencies]
-axum = "0.7"
+axum = { version = "0.7", optional = true }
 base64 = "0.22"
 hex = "0.4"
 jsonwebtoken = "9"
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
-prost = "0.13"
-prost-types = "0.13"
-rand_core = { version = "0.6", features = ["getrandom"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+p256 = { version = "0.14", features = ["ecdsa", "pem", "pkcs8"] }
+prost = { version = "0.13", optional = true }
+prost-types = { version = "0.13", optional = true }
+rand = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_yaml = "0.9"
+serde-saphyr = "2.1"
 sha2 = "0.10"
-tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
-tonic = "0.12"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"], optional = true }
+tokio-postgres = { version = "0.7", features = ["with-uuid-1"], optional = true }
+tonic = { version = "0.12", optional = true }
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = { version = "0.12", optional = true }
+
+# The Vercel API links this crate with default features off, so it does not
+# compile the gRPC guard or need protoc. Bins and local tests use `guard`.
+[features]
+default = ["guard"]
+guard = [
+  "dep:axum",
+  "dep:prost",
+  "dep:prost-types",
+  "dep:reqwest",
+  "dep:tokio",
+  "dep:tokio-postgres",
+  "dep:tonic",
+  "dep:tonic-build",
+]
 
 [[bin]]
 name = "fizz-config"
 path = "src/bin/fizz-config.rs"
+required-features = ["guard"]
 
 [[bin]]
 name = "fizz-guard"
 path = "src/bin/fizz-guard.rs"
+required-features = ["guard"]
 
 [[bin]]
 name = "sample-mcp"
 path = "src/bin/sample-mcp.rs"
+required-features = ["guard"]
 
 [[bin]]
 name = "fizz-mcp-probe"
 path = "src/bin/fizz-mcp-probe.rs"
+required-features = ["guard"]

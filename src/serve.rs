@@ -25,8 +25,8 @@ use tokio::net::TcpListener;
 use vercel_runtime::ResponseBody;
 
 use crate::{
-    account, agent, agents, auth, billing, call_phones, contact, cron, customer, devices, mcp,
-    phone, security, sensors, status, stream, voice,
+    account, agent, agents, auth, billing, call_phones, contact, cron, customer, devices, gateway,
+    mcp, phone, security, sensors, status, stream, voice,
 };
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -88,6 +88,9 @@ async fn api(request: Request<Incoming>) -> vercel_runtime::Response<ResponseBod
     }
     let path = request.uri().path();
     let method = request.method().clone();
+    if path == "/api/gateway" || path.starts_with("/api/gateway/") {
+        return gateway::handle(request).await;
+    }
     match path {
         "/api/status" => status::handle(request).await,
         "/api/auth" => match method.as_str() {
@@ -516,6 +519,8 @@ mod tests {
         assert_eq!(redirect_path("/install.sh"), None);
         assert_eq!(redirect_path("/api/ingest"), None);
         assert_eq!(redirect_path("/api/mcp"), None);
+        assert_eq!(redirect_path("/api/gateway/jwks"), None);
+        assert_eq!(redirect_path("/api/gateway/gateways"), None);
         assert_eq!(redirect_path("/ha.html"), None);
         assert_eq!(redirect_path("/.well-known/mcp.json"), None);
     }
