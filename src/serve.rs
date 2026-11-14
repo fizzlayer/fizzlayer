@@ -206,6 +206,8 @@ async fn freeze(response: vercel_runtime::Response<ResponseBody>) -> Response<Fu
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
+        // No proxy or invalid timeout is configured, so the builder cannot fail.
+        #[allow(clippy::expect_used)]
         reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(15))

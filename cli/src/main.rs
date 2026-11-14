@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 //! `fizz`: pair a device with Fizz and stream its readings.
 //!
 //! Pairing shows a short code. An agent (through Fizz's MCP server) or the Fizz dashboard claims

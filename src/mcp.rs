@@ -33,12 +33,13 @@ fn server_info() -> Value {
 }
 
 fn json_response(status: u16, body: Value) -> Response<ResponseBody> {
-    Response::builder()
-        .status(status)
-        .header("content-type", "application/json")
-        .header("cache-control", "no-store")
-        .body(ResponseBody::from(body))
-        .expect("valid response")
+    crate::customer::finish_response(
+        Response::builder()
+            .status(status)
+            .header("content-type", "application/json")
+            .header("cache-control", "no-store"),
+        body,
+    )
 }
 
 fn rpc_error(
@@ -56,19 +57,20 @@ fn rpc_error(
 }
 
 fn unauthorized() -> Response<ResponseBody> {
-    Response::builder()
-        .status(401)
-        .header("content-type", "application/json")
-        .header("cache-control", "no-store")
-        .header(
-            "www-authenticate",
-            r#"Bearer realm="fizz", error="invalid_token", error_description="Create an agent token on the Fizz Agents page""#,
-        )
-        .body(ResponseBody::from(json!({
+    crate::customer::finish_response(
+        Response::builder()
+            .status(401)
+            .header("content-type", "application/json")
+            .header("cache-control", "no-store")
+            .header(
+                "www-authenticate",
+                r#"Bearer realm="fizz", error="invalid_token", error_description="Create an agent token on the Fizz Agents page""#,
+            ),
+        json!({
             "jsonrpc": "2.0", "id": null,
             "error": {"code": -32000, "message": "Unauthorized. Send Authorization: Bearer <agent token> from the Fizz Agents page."}
-        })))
-        .expect("valid response")
+        }),
+    )
 }
 
 /// A successful result. Modern results identify the server in `_meta`; `resultType` is
@@ -249,11 +251,10 @@ fn tool_result(value: Value) -> Value {
 
 pub async fn handle(request: Request) -> Response<ResponseBody> {
     if request.method() != "POST" {
-        return Response::builder()
-            .status(405)
-            .header("allow", "POST")
-            .body(ResponseBody::from(()))
-            .expect("valid response");
+        return crate::customer::finish_response(
+            Response::builder().status(405).header("allow", "POST"),
+            (),
+        );
     }
     let header = |name: &str| {
         request
@@ -297,10 +298,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     };
     // Notifications (such as a legacy notifications/initialized) need no reply.
     let Some(id) = message.get("id").cloned() else {
-        return Response::builder()
-            .status(202)
-            .body(ResponseBody::from(()))
-            .expect("valid response");
+        return crate::customer::finish_response(Response::builder().status(202), ());
     };
     if !(id.is_string() || id.is_number()) {
         return rpc_error(

@@ -217,13 +217,14 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             );
         };
         return match provider.speak(text).await {
-            Ok(audio) => Response::builder()
-                .status(200)
-                .header("content-type", "audio/mpeg")
-                .header("cache-control", "no-store")
-                .header("x-content-type-options", "nosniff")
-                .body(ResponseBody::from(audio))
-                .expect("valid audio response"),
+            Ok(audio) => crate::customer::finish_response(
+                Response::builder()
+                    .status(200)
+                    .header("content-type", "audio/mpeg")
+                    .header("cache-control", "no-store")
+                    .header("x-content-type-options", "nosniff"),
+                audio,
+            ),
             Err(()) => error(
                 503,
                 "voice_unavailable",
@@ -234,7 +235,13 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     if bytes.is_empty() {
         return error(400, "invalid_audio", "Record a voice message first.");
     }
-    let (mime, extension) = audio.expect("validated audio content type");
+    let Some((mime, extension)) = audio else {
+        return error(
+            415,
+            "unsupported_media_type",
+            "Send an audio recording or a speech request.",
+        );
+    };
     match provider.transcribe(bytes.to_vec(), mime, extension).await {
         // A transcript becomes a chat message, so it has the same character limit.
         Ok(text)
