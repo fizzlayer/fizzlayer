@@ -1,0 +1,127 @@
+# Local Fizzlayer gateway. The data-plane image is upstream agentgateway,
+# pinned by digest in gateway/pins/agentgateway.toml.
+name: fizzlayer-gateway
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: fizz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: fizz
+    volumes:
+      - ./init/00-local-prereqs.sql:/docker-entrypoint-initdb.d/00-local-prereqs.sql:ro
+      - ../../supabase/migrations/20261114000000_gateway.sql:/docker-entrypoint-initdb.d/10-gateway.sql:ro
+      - ./init/20-runtime-login.sh:/docker-entrypoint-initdb.d/20-runtime-login.sh:ro
+      - ./init/30-seed.sql:/docker-entrypoint-initdb.d/30-seed.sql:ro
+      - ../../supabase/tests/gateway_rls.sql:/tests/gateway_rls.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fizz -d fizz"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  fizz-config:
+    image: fizzlayer-gateway-dev:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["fizz-config", "render"]
+    environment: &runtime-env
+      DATABASE_URL: ${DATABASE_URL}
+      FIZZ_SIGNING_KEY: /keys/signing.pem
+      FIZZ_JWKS_FILE: /config/jwks.json
+      FIZZ_CONFIG_OUT: /config/config.yaml
+      FIZZ_GUARD_HOST: fizz-guard:9001
+    volumes:
+      - keys:/keys
+      - config:/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  fizz-config-watch:
+    image: fizzlayer-gateway-dev:local
+    command: ["fizz-config", "watch"]
+    environment: *runtime-env
+    volumes:
+      - keys:/keys
+      - config:/config
+    depends_on:
+      fizz-config:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  fizz-guard:
+    image: fizzlayer-gateway-dev:local
+    command: ["fizz-guard", "serve"]
+    environment:
+      <<: *runtime-env
+      FIZZ_GUARD_LISTEN: 0.0.0.0:9001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/fizz-guard", "ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+
+  sample-mcp:
+    image: fizzlayer-gateway-dev:local
+    command: ["sample-mcp", "serve"]
+    environment:
+      SAMPLE_PORT: "8080"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/sample-mcp", "ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
+    restart: unless-stopped
+
+  agentgateway:
+    image: cr.agentgateway.dev/agentgateway@sha256:60216aafb03d37f94e952ff3d51d2f630a65b10ecaebdc0a864882f92610c45b
+    entrypoint: ["/app/agentgateway"]
+    command: ["-f", "/config/config.yaml"]
+    environment:
+      SESSION_KEY: disabled
+      RUST_LOG: warn
+    ports:
+      - "3000:3000"
+    volumes:
+      - config:/config:ro
+    depends_on:
+      fizz-config:
+        condition: service_completed_successfully
+      fizz-guard:
+        condition: service_healthy
+      sample-mcp:
+        condition: service_healthy
+    restart: unless-stopped
+
+  e2e:
+    image: fizzlayer-gateway-dev:local
+    command: ["fizz-mcp-probe"]
+    environment:
+      <<: *runtime-env
+      FIZZ_CONFIG_FILE: /config/config.yaml
+      SAMPLE_CALLS_URL: http://sample-mcp:8080/calls
+    volumes:
+      - keys:/keys
+      - config:/config:ro
+    depends_on:
+      agentgateway:
+        condition: service_started
+      fizz-guard:
+        condition: service_healthy
+      sample-mcp:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  keys:
+  config:

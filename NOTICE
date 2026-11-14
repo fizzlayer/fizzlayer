@@ -1,2 +1,16 @@
 Fizzlayer
 Copyright 2026 Fizzlayer LLC
+
+This repository is licensed under the Apache License, Version 2.0.
+The license text is the LICENSE file.
+
+The gateway data plane runs an unmodified build of the agentgateway project
+(https://github.com/agentgateway/agentgateway), also under the Apache License,
+Version 2.0. Copyright the agentgateway authors. Fizzlayer does not modify
+that image and does not use the agentgateway or Linux Foundation marks as a
+Fizzlayer brand. The pin, the unmodified ExtMcp protocol copy, and the upgrade
+steps are in gateway/UPSTREAM.md. Component attribution for the gateway
+directory is in gateway/NOTICE.
+
+This notice is not a statement of endorsement by The Linux Foundation, the
+Agentic AI Foundation, or the agentgateway authors.

@@ -1,0 +1,13 @@
+# Pin for the unmodified upstream data plane.
+# Update procedure: gateway/UPSTREAM.md
+# Compose must use image@digest. gateway tests compare this file to compose.
+
+version = "1.7.0"
+git_tag = "v1.7.0"
+git_commit = "26f5aebe99a36a037fe54f8080a608aca5547e15"
+image = "cr.agentgateway.dev/agentgateway"
+digest = "sha256:60216aafb03d37f94e952ff3d51d2f630a65b10ecaebdc0a864882f92610c45b"
+proto_path = "crates/protos/proto/ext_mcp.proto"
+proto_sha256 = "4ba750cca44e9ba68de2ad04e6d507b67f44b1728f09840b78d9e32f3f563584"
+# Official release binary, used only to validate generated YAML. Not our brand.
+linux_amd64_sha256 = "1b2fc01a2de29ca113bbb6258b5cae7b1eb3c724071c09d687a449132f2f42f8"
