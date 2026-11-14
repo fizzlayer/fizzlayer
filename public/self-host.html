@@ -194,7 +194,7 @@ FIZZ_AUTH_UPSTREAM=</code></pre>
           <li><strong>Chat.</strong> Signed-in chat returns 503 and names <code>OPENAI_BASE_URL</code> or <code>AI_GATEWAY_API_KEY</code>. For Ollama on the Docker host: <code>OPENAI_BASE_URL=http://host.docker.internal:11434/v1</code> and <code>OPENAI_MODEL</code> set to a model that accepts JSON mode. <code>host.docker.internal</code> is mapped to the host.</li>
           <li><strong>Voice.</strong> <code>GET /api/voice</code> is <code>{"available":false}</code> until <code>ELEVENLABS_API_KEY</code> is set.</li>
           <li><strong>Calls.</strong> <code>AGENTPHONE_API_KEY</code> places US voice calls. There is no self-hosted dialer. Hobbyist plans do not place calls.</li>
-          <li><strong>Stripe.</strong> Set all four of <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_TINKERER</code>, and <code>STRIPE_PRICE_PRO</code>, or none. Unset, sign-up skips the plan screen and checkout, and opens the dashboard. Billing says paid plans are not available on this server.</li>
+          <li><strong>Stripe.</strong> Set all four of <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>STRIPE_PRICE_TINKERER</code>, and <code>STRIPE_PRICE_PRO</code>, or none. Unset, sign-up skips the plan screen and checkout, and continues to sensor selection. Billing says paid plans are not available on this server.</li>
         </ul>
         <p>Restart after editing <code>.env</code>: <code>docker compose up -d</code>.</p>
 
