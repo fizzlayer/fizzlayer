@@ -59,10 +59,22 @@ select secret_id, server_id, decode('00', 'hex'), 'local' from gw_ids;
 insert into gateway.usage_daily(gateway_id, usage_date, tool_calls)
 select gateway_id, current_date, 1 from gw_ids;
 
+insert into gateway.pin_alerts(
+  gateway_id, workspace_id, server_id, tool_name, approved_sha256, observed_sha256,
+  description_preview, kind
+)
+select gateway_id, workspace_id, server_id, 'note', repeat('ab', 32), repeat('cd', 32),
+  'Leave a note.', 'changed'
+from gw_ids;
+
+insert into gateway.phone_calls(workspace_id, approval_id, status)
+select workspace_id, approval_id, 'skipped' from gw_ids;
+
 grant select on gw_ids to authenticated, anon, gateway_runtime;
 grant select, insert, update, delete on
   gateway.workspaces, gateway.gateways, gateway.servers, gateway.policies, gateway.tool_pins,
-  gateway.client_tokens, gateway.approvals, gateway.audit_log, gateway.usage_daily, gateway.secrets
+  gateway.client_tokens, gateway.approvals, gateway.audit_log, gateway.usage_daily, gateway.secrets,
+  gateway.pin_alerts, gateway.phone_calls
   to authenticated, anon;
 
 create temporary table gw_results(label text);
@@ -120,6 +132,8 @@ begin
   perform pg_temp.gw_assert((select count(*) from gateway.client_tokens) = 1, 'select own token');
   perform pg_temp.gw_assert((select count(*) from gateway.usage_daily) = 1, 'select own usage');
   perform pg_temp.gw_assert((select count(*) from gateway.tool_pins) = 1, 'select own pin');
+  perform pg_temp.gw_assert((select count(*) from gateway.pin_alerts) = 1, 'select own pin alert');
+  perform pg_temp.gw_assert((select count(*) from gateway.phone_calls) = 1, 'select own phone attempt');
   perform pg_temp.gw_assert((select count(*) from gateway.secrets) = 0, 'secrets stay hidden');
   perform pg_temp.gw_assert(
     (select count(*) from gateway.gateways where id = foreign_gateway) = 0,
@@ -161,6 +175,8 @@ do $$
 begin
   perform pg_temp.gw_assert((select count(*) from gateway.gateways) = 0, 'anonymous sees no gateways');
   perform pg_temp.gw_assert((select count(*) from gateway.audit_log) = 0, 'anonymous sees no audit');
+  perform pg_temp.gw_assert((select count(*) from gateway.pin_alerts) = 0, 'anonymous sees no pin alerts');
+  perform pg_temp.gw_assert((select count(*) from gateway.phone_calls) = 0, 'anonymous sees no phone attempts');
 end
 $$;
 
@@ -184,6 +200,15 @@ begin
   insert into gateway.audit_log (gateway_id, workspace_id, server_name, tool_name, args_hash, decision, args_preview)
   values (own_gateway, own_workspace, 'sample', 'admin_reset', repeat('11', 32), 'deny', 'keys:');
   perform pg_temp.gw_assert(true, 'runtime inserted audit');
+
+  perform pg_temp.gw_assert(
+    (gateway.phone_approval_budget(own_workspace) ->> 'allowed')::boolean is false,
+    'fixture without a paid plan cannot place a phone approval'
+  );
+  perform pg_temp.gw_assert(
+    gateway.phone_approval_budget(own_workspace) ? 'reachable',
+    'phone budget returns a document'
+  );
 end
 $$;
 
@@ -204,6 +229,7 @@ from gw_ids where n = 2;
 do $$
 begin
   perform pg_temp.gw_assert((select count(*) from gateway.audit_log) = 1, 'other owner does not see the new audit');
+  perform pg_temp.gw_assert((select count(*) from gateway.pin_alerts) = 1, 'other owner does not see the foreign pin alert');
 end
 $$;
 

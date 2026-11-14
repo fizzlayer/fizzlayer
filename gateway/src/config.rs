@@ -97,7 +97,10 @@ pub fn render_yaml(spec: &GatewaySpec) -> GatewayResult<String> {
     metadata.insert("ws".to_string(), "jwt.ws".to_string());
 
     let mut methods = BTreeMap::new();
+    // tools/list filtering is a response-phase mutation. Request-phase
+    // mutations on list methods are discarded by agentgateway.
     methods.insert("tools/call".to_string(), "request".to_string());
+    methods.insert("tools/list".to_string(), "response".to_string());
 
     let document = Document {
         config: StaticConfig {
@@ -463,6 +466,10 @@ mod tests {
         assert_eq!(processor["failureMode"].as_str(), Some("failClosed"));
         assert_eq!(processor["host"].as_str(), Some("fizz-guard:9001"));
         assert_eq!(processor["methods"]["tools/call"].as_str(), Some("request"));
+        assert_eq!(
+            processor["methods"]["tools/list"].as_str(),
+            Some("response")
+        );
         assert_eq!(processor["metadata"]["sub"].as_str(), Some("jwt.sub"));
         assert_eq!(
             processor["metadata"]["gateway"].as_str(),
