@@ -12,7 +12,7 @@ sh /tmp/fizz-install.sh
 fizz --version
 ```
 
-The installer supports x86_64, ARM64, ARMv7, and ARMv6 Linux. It downloads a binary from [GitHub Releases](https://github.com/nisargap/Fizz/releases), verifies it against the release's `SHA256SUMS`, and installs to `/usr/local/bin` when writable or `~/.local/bin` otherwise. It requires `curl` and either `sha256sum` or `shasum`. If necessary, add the install directory to your shell's `PATH`.
+The installer supports x86_64, ARM64, ARMv7, and ARMv6 Linux. It downloads a binary from [GitHub Releases](https://github.com/fizzlayer/fizzlayer/releases), verifies it against the release's `SHA256SUMS`, and installs to `/usr/local/bin` when writable or `~/.local/bin` otherwise. It requires `curl` and either `sha256sum` or `shasum`. If necessary, add the install directory to your shell's `PATH`.
 
 To pin a published release or choose the destination:
 

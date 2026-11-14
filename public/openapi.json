@@ -157,7 +157,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Whether the service and its database are working.",
+            "description": "Whether the service, its database, and the alert scheduler are working. The scheduler is healthy when its last successful run was under five minutes ago. recent lists up to eight of those runs, newest first. This is not an uptime history.",
             "content": {
               "application/json": {
                 "schema": {
@@ -166,11 +166,30 @@
                     "service": { "type": "string", "const": "fizz" },
                     "status": { "type": "string", "enum": ["ok", "degraded"] },
                     "database": { "type": "string", "enum": ["connected", "unavailable", "unconfigured"] },
+                    "scheduler": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["healthy", "stale", "unconfigured", "unknown"] },
+                        "last_success_at": { "type": ["string", "null"], "format": "date-time" },
+                        "recent": { "type": "array", "items": { "type": "string", "format": "date-time" }, "maxItems": 8 }
+                      },
+                      "required": ["status", "last_success_at", "recent"]
+                    },
                     "description": { "type": "string" }
                   },
-                  "required": ["service", "status", "database"]
+                  "required": ["service", "status", "database", "scheduler"]
                 },
-                "example": { "service": "fizz", "status": "ok", "database": "connected", "description": "The secure connection layer for AI agents" }
+                "example": {
+                  "service": "fizz",
+                  "status": "ok",
+                  "database": "connected",
+                  "scheduler": {
+                    "status": "healthy",
+                    "last_success_at": "2026-11-14T08:00:00Z",
+                    "recent": ["2026-11-14T08:00:00Z", "2026-11-14T07:59:00Z"]
+                  },
+                  "description": "The secure connection layer for AI agents"
+                }
               }
             }
           }
@@ -182,7 +201,7 @@
         "tags": ["Service"],
         "operationId": "contactSales",
         "summary": "Contact sales",
-        "description": "Ask the Fizzlayer team about the Enterprise plan or a business deployment. Anyone can create an account in the app; this endpoint is only for sales inquiries. Limited per network to stop abuse.",
+        "description": "Stores a row in fizz_business_interest. Enterprise uses it for a sales inquiry. The homepage private-beta form uses it with interest set to \"Gateway private beta\". The row is not emailed. A post with no company is the retired waitlist and is rejected. Limited per network to stop abuse.",
         "security": [],
         "requestBody": {
           "required": true,

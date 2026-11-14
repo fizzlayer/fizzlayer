@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Sensors documentation
+    url: https://fizzlayer.com/sensors/docs
+    about: Setup, ingest, alerts, Home Assistant, and MCP.
+  - name: Status
+    url: https://fizzlayer.com/status
+    about: The public API, alert scheduler, and live stream checks.

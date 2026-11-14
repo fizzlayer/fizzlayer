@@ -4,8 +4,7 @@ import json
 from pathlib import Path
 
 DOMAIN = "fizzlayer"
-# Shown on the code step and in the log, and it matches manifest.json so a
-# running install can be told apart from the 1.0.0 build.
+# Shown on the code step and in the log. It matches manifest.json.
 INTEGRATION_VERSION = json.loads(
     (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
 )["version"]

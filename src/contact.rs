@@ -17,8 +17,16 @@ fn clean_text(value: Option<&Value>, max_chars: usize, allow_newlines: bool) -> 
     valid.then(|| text.to_owned())
 }
 
-/// `POST /api/contact`: a business asks the team about Enterprise. The public waitlist
-/// is closed now that anyone can create an account.
+/// A post with no company is the retired public waitlist, unless it is explicitly
+/// marked as a business request. The homepage private-beta form sends `company`
+/// and `interest`, so it is stored with Enterprise inquiries.
+pub(crate) fn is_closed_waitlist(data: &Value) -> bool {
+    data.get("company").is_none() && data.get("kind").and_then(Value::as_str) != Some("business")
+}
+
+/// `POST /api/contact`: a business asks the team about Enterprise, or the homepage
+/// asks to join the gateway private beta. Both are stored in `fizz_business_interest`.
+/// Nothing is emailed. The public waitlist is closed now that anyone can create an account.
 pub async fn contact(request: Request) -> Response<ResponseBody> {
     let ip = client_ip(&request);
     let data = match json_body(request, 4096).await {
@@ -34,8 +42,7 @@ pub async fn contact(request: Request) -> Response<ResponseBody> {
     };
     // Cached copies of the old landing page and WebMCP tools still post waitlist sign-ups
     // here (through the /api/waitlist rewrite). Tell them the waitlist is closed.
-    if data.get("company").is_none() && data.get("kind").and_then(Value::as_str) != Some("business")
-    {
+    if is_closed_waitlist(&data) {
         return error(
             410,
             "waitlist_closed",
@@ -112,5 +119,19 @@ mod tests {
             Some("é".repeat(120))
         );
         assert_eq!(text(json!("x".repeat(501)), 500, true), None);
+    }
+
+    #[test]
+    fn gateway_beta_form_is_not_dropped_as_a_closed_waitlist() {
+        let posted = json!({
+            "email": "ada@example.com",
+            "company": "Ada",
+            "interest": "Gateway private beta"
+        });
+        assert!(!is_closed_waitlist(&posted));
+        assert!(is_closed_waitlist(&json!({"email": "ada@example.com"})));
+        assert!(!is_closed_waitlist(
+            &json!({"email": "ada@example.com", "kind": "business"})
+        ));
     }
 }

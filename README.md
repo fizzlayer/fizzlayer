@@ -15,7 +15,7 @@ Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings t
 - **Give agents access through MCP.** Issue revocable tokens to read sensor data and optionally create dashboard alerts.
 - **Let a browser agent do it for you.** Every page exposes [WebMCP](docs/REFERENCE.md#webmcp-browser-agents) tools, so an agent pointed at the site can onboard, manage sensors and alerts, and start a plan checkout. Agents that read first can start at [`/llms.txt`](https://fizzlayer.com/llms.txt).
 - **Ask Fizz about your readings.** Use typed chat or optional voice conversations to understand measurements and create threshold alerts.
-- **Act on changes.** Track alerts in the dashboard and optionally receive voice calls to US phone numbers.
+- **Act on changes.** Track alerts in the dashboard. Phone calls to US numbers are on paid plans. Hobbyist gets dashboard alerts and MCP.
 
 Fizzlayer includes a static web app, a Rust API deployed as Vercel Functions, a Supabase database and authentication layer, and a Rust device CLI. It monitors sensor data; physical actuator control is not implemented.
 
@@ -82,8 +82,8 @@ You can still deploy into your own **Vercel and Supabase accounts**. The `api/*.
 2. Create a Supabase project, link it, and apply the database migrations:
 
    ```sh
-   git clone https://github.com/nisargap/Fizz.git
-   cd Fizz
+   git clone https://github.com/fizzlayer/fizzlayer.git
+   cd fizzlayer
    supabase login
    supabase link --project-ref YOUR_PROJECT_REF
    supabase db push --linked
@@ -128,7 +128,7 @@ This opens HACS, or the Marketplace on Home Assistant 2026.11 and newer, and add
 
 [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer)
 
-Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Type that code there. The page also names the install. A code from a message is not enough, and there is no device token to copy. Then pick entities. Temperature, humidity, power, door, and leak sensors start selected. Each entity becomes a Fizzlayer sensor and counts toward the plan's device limit. A heartbeat about every 30 seconds keeps silence alerts working. Revoke the connection from the Sensors page or by removing the integration.
+Home Assistant shows a 6-digit code in the dialog title and in the pairing-code field. Open the Allow page from the link in that dialog and type the code there. The page also names the install. A code from a message is not enough, and there is no device token to copy. Then pick entities. Temperature, humidity, power, door, and leak sensors start selected. Each entity becomes a Fizzlayer sensor and counts toward the plan's device limit. A heartbeat about every 30 seconds keeps silence alerts working. Revoke the connection from the Sensors page or by removing the integration.
 
 The same steps are on the [Sensors page](https://fizzlayer.com/sensors#home-assistant) and in the [docs](https://fizzlayer.com/sensors/docs#home-assistant).
 

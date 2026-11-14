@@ -10,8 +10,14 @@
         }
       },
       "link": {
-        "title": "Type this code on Fizzlayer",
-        "description": "Your code is {code}. Type it on the Fizzlayer Allow page, then choose Allow. This Home Assistant waits until you do. [Open the Fizzlayer Allow page]({url}). Integration version {version}. Server: {base_url}."
+        "title": "Your code is {code}",
+        "description": "Type {code} on the Fizzlayer Allow page, then choose Allow. This screen waits until you do. [Open the Allow page]({url}). Integration version {version}. Server: {base_url}.",
+        "data": {
+          "code": "Pairing code"
+        },
+        "data_description": {
+          "code": "Type this code on the Allow page. Leave it as shown here."
+        }
       },
       "reauth_confirm": {
         "title": "Fizzlayer connection expired",

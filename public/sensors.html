@@ -31,6 +31,54 @@
       </header>
       <div class="workspace-content" id="workspace-content" tabindex="-1"><div class="workspace-topbar"><div class="workspace-breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Sensors</strong></div><span><span class="status-dot" aria-hidden="true"></span> Personal workspace</span></div>
   <div class="sensors-heading"><div><p class="setup-eyebrow">YOUR SIGNALS / YOUR RULES</p><h1 id="sensors-title">Sensors</h1><p>Give Fizz more ways to understand your world.</p></div><img src="/fizz-agent.svg" alt="" aria-hidden="true"></div>
+  <section class="dash-panel device-pairing first-reading" id="first-reading" aria-labelledby="first-reading-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">ABOUT FIVE MINUTES AFTER YOU SIGN IN</p><h2 id="first-reading-title">Send one real reading with curl</h2></div></div>
+    <p id="signed-out-note" hidden>Sign in to create the sensor and copy its key. <a href="/app.html">Create an account or sign in</a>. A new account has to confirm its email first.</p>
+    <p>This stores a reading on a real sensor. It is not a sample stream. Sample streams are simulated and labeled Simulated. Phone motion needs a separate permission, and Home Assistant needs an install and a restart, so this curl is the shortest path that works today.</p>
+    <ol class="pair-steps">
+      <li><strong>Add a Temperature sensor as a real device.</strong> In Add a sensor below, choose Temperature and Real device, not Sample stream. Copy the API key when it is shown. It is shown once. Copy the sensor ID from the card.</li>
+      <li><strong>Post one reading.</strong> Replace the two placeholders and run this from a terminal. A 202 means it was stored. The sensor card and the dashboard show it.</li>
+    </ol>
+    <div class="pair-command"><pre><code id="first-reading-cmd">curl -X POST https://fizzlayer.com/api/ingest \
+  -H 'Authorization: Bearer YOUR_SENSOR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"sensor_id":"YOUR_SENSOR_ID","event_id":"first-reading","metrics":{"temperature_c":21.5}}'</code></pre><button class="secondary" type="button" data-copy-command="first-reading-cmd" aria-label="Copy the first-reading curl">Copy</button></div>
+    <p>Phone-call alerts are on Tinkerer, Pro, and Enterprise. Hobbyist gets dashboard alerts and MCP.</p>
+  </section>
+  <section class="dash-panel path-cards" aria-labelledby="other-paths-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">ALSO AVAILABLE</p><h2 id="other-paths-title">Home Assistant and self-hosting</h2></div></div>
+    <div class="path-grid">
+      <article>
+        <h3><a href="#home-assistant">Home Assistant</a></h3>
+        <p>Install the integration, restart Home Assistant, then add it. The dialog shows a 6-digit code. Type that code on the Allow page. Each shared entity is a real sensor.</p>
+      </article>
+      <article>
+        <h3><a href="/sensors/self-host">Self-host</a></h3>
+        <p>The sensors stack runs from two published images, with no repository checkout. There is no Gateway image. Chat, voice, phone calls, and card checkout stay off until you add them.</p>
+      </article>
+    </div>
+  </section>
+  <section class="dash-panel use-cases" id="use-cases" aria-labelledby="uses-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">WHAT THE SENSOR TYPES ACCEPT</p><h2 id="uses-title">Water, temperature, and gas</h2></div></div>
+    <div class="use-grid">
+      <article class="use-card">
+        <h3>Water flow and leaks</h3>
+        <p>A Water sensor accepts <code>flow_l_min</code> from 0 to 200 and a true or false <code>leak</code> flag. A threshold shows on the dashboard when a reading crosses the limit you set.</p>
+        <p class="use-safety">Fizzlayer is not a safety system. Never rely on it alone to protect people or property.</p>
+      </article>
+      <article class="use-card">
+        <h3>Temperature, including a cold room</h3>
+        <p>A Temperature sensor accepts <code>temperature_c</code> from −100 to 200. The same sensor can watch a server closet or a cold room. The alert appears on the dashboard.</p>
+        <p class="use-safety">Fizzlayer is not a safety system. Never rely on it alone to protect people or property.</p>
+      </article>
+      <article class="use-card">
+        <h3>Gas concentration</h3>
+        <p>A Gas sensor accepts <code>concentration_ppm</code> from 0 to 10,000 and a true or false <code>alarm</code> flag. It stores those readings beside a detector you already have. It does not replace that detector.</p>
+        <p class="use-safety">Fizzlayer is not a safety system. Never rely on it alone to protect people or property.</p>
+      </article>
+    </div>
+    <p>Phone-call alerts for these are on Tinkerer, Pro, and Enterprise. Hobbyist gets dashboard alerts and MCP.</p>
+  </section>
   <section class="dash-panel device-pairing" id="pair-device" aria-labelledby="pair-title">
     <div class="section-heading"><div><p class="setup-eyebrow">PAIR A DEVICE</p><h2 id="pair-title">Pair a device</h2></div></div>
     <p class="pair-intro">Connect a Raspberry Pi or Linux computer as a live sensor. Enter the code from <code>fizz pair</code> below, then approve the connection in your device terminal.</p>
@@ -53,6 +101,7 @@
   <section class="dash-panel device-pairing" id="home-assistant" aria-labelledby="ha-title">
     <div class="section-heading"><div><p class="setup-eyebrow">HOME ASSISTANT</p><h2 id="ha-title">Connect Home Assistant</h2></div></div>
     <p class="pair-intro">Bring temperature, humidity, power, door, and leak sensors from a Home Assistant install into this workspace. Home Assistant pushes readings out, so the install can stay off the public internet. Each entity you share counts toward your plan's device limit.</p>
+    <p class="use-safety">Fizzlayer is not a safety system. Never rely on it alone to protect people or property.</p>
     <ol class="pair-steps">
       <li>
         <strong>Install via HACS</strong>
@@ -62,7 +111,7 @@
       </li>
       <li>
         <strong>Add the integration</strong>
-        <p>After the restart, add Fizzlayer. The first time, My Home Assistant asks you to confirm your instance URL. Home Assistant shows a 6-digit code and opens the Fizzlayer Allow page. Sign in if you need to. The page names this install and its version. Type the code from the Home Assistant screen, then choose Allow. A code from a message is not enough, and you never copy a device token. Then pick the entities to share. Temperature, humidity, power, door, and leak sensors start selected.</p>
+        <p>After the restart, add Fizzlayer. The first time, My Home Assistant asks you to confirm your instance URL. The dialog title and the pairing-code field show a 6-digit code. Open the Allow page from the link in that dialog. Sign in if you need to. The page names this install and its version. Type the code from the Home Assistant dialog, then choose Allow. A code from a message is not enough, and you never copy a device token. Then pick the entities to share. Temperature, humidity, power, door, and leak sensors start selected.</p>
         <p><a class="my-ha-badge" href="https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer" target="_blank" rel="noopener"><img src="/badges/config_flow_start.svg" alt="Add integration" height="40"></a></p>
       </li>
     </ol>
@@ -77,13 +126,13 @@ cp -a fizzlayer/custom_components/fizzlayer /config/custom_components/</code></p
 docker exec homeassistant mkdir -p /config/custom_components
 docker cp fizzlayer/custom_components/fizzlayer homeassistant:/config/custom_components/fizzlayer
 docker restart homeassistant</code></pre><button class="secondary" type="button" data-copy-command="ha-docker-cmd" aria-label="Copy Docker Home Assistant install commands">Copy</button></div>
-      <p class="pair-help">If your config directory is not <code>/config</code>, copy the folder into that directory's <code>custom_components</code> instead. Add integration shows a 6-digit code and opens the Fizzlayer Allow page for fizzlayer.com, including when Advanced Mode is on. The screen also shows the integration version.</p>
+      <p class="pair-help">If your config directory is not <code>/config</code>, copy the folder into that directory's <code>custom_components</code> instead. Add integration shows a 6-digit code in the dialog title and in the pairing-code field, including when Advanced Mode is on. The link in that dialog opens the Allow page for fizzlayer.com. The screen also shows the integration version.</p>
     </details>
     <p class="form-message" id="ha-connect-message" role="status"></p>
     <ul id="ha-connections" class="ha-connections" hidden></ul>
     <details id="ha-code-details">
       <summary>Where the code is shown</summary>
-      <p class="pair-help">Home Assistant shows a 6-digit code on its own screen and opens the Fizzlayer Allow page. Type the code from that Home Assistant screen, then choose Allow. A code from a message is not accepted. The screen also shows the integration version.</p>
+      <p class="pair-help">Home Assistant shows a 6-digit code in the dialog title and in the pairing-code field. Open the Allow page from the link in that dialog, type the code, then choose Allow. A code from a message is not accepted. The screen also shows the integration version.</p>
     </details>
   </section>
   <section class="dash-panel sensor-add" aria-labelledby="add-title"><div class="section-heading"><div><p class="setup-eyebrow">01 / EXPAND FIZZ</p><h2 id="add-title">Add a sensor</h2></div></div><form id="add-sensor-form" class="sensor-add-form"><div class="kind-field"><span class="field-label" id="new-kind-label">Type</span><input type="hidden" id="new-kind" value="water"><div class="kind-picker" id="kind-picker"><button type="button" class="kind-button" id="kind-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="kind-options" aria-labelledby="new-kind-label kind-button"></button><ul class="kind-options" id="kind-options" role="listbox" tabindex="-1" aria-labelledby="new-kind-label" hidden></ul></div></div><label for="new-name">Name<input id="new-name" maxlength="60" placeholder="e.g. Kitchen temperature"></label><fieldset class="source-field"><legend class="field-label">Data source</legend><div class="source-options"><label><input type="radio" name="new-source" value="real" checked><span>Real device</span></label><label><input type="radio" name="new-source" value="sample"><span>Sample stream</span></label></div></fieldset><button class="primary" type="submit" id="add-sensor-submit">Add sensor <span class="fa fa-plus" aria-hidden="true"></span></button></form><p class="source-help" id="source-help"></p><p class="form-message" id="add-message" role="status"></p></section>

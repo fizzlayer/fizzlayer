@@ -1,0 +1,25 @@
+name: Bug
+description: A Sensors, API, CLI, or Home Assistant problem, with what you expected.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where
+      description: Hosted fizzlayer.com, a self-hosted URL, the CLI version (`fizz --version`), or the Home Assistant integration version from the pairing dialog.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: A request id, a screenshot, or the sensor type. Leave out API keys, session cookies, and phone numbers.
+    validations:
+      required: false

@@ -111,6 +111,11 @@ async fn tick(store: &Supabase) -> Tick {
     // Dispatch even when the scan failed, so retries do not wait on it.
     let report = drain_queue(store, started).await;
     let failed = silence.get("error").is_some();
+    // The scan already writes last_scan_at. This appends that pass to the short
+    // history the status page reads. A missing migration must not fail the scan.
+    if !failed && let Err(problem) = store.rpc("fizz_note_scheduler_run", json!({})).await {
+        eprintln!("Fizz scheduler history was not recorded: {problem:?}");
+    }
     Tick {
         ok: !failed,
         silence,
