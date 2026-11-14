@@ -80,7 +80,7 @@ Rust 1.94.0 is the minimum supported compiler. It matches `deploy/Dockerfile.api
 
 ### Pedantic lints that are on
 
-`map_unwrap_or`, `manual_let_else`, `unreadable_literal`, `explicit_iter_loop`, `explicit_into_iter_loop`, `redundant_closure_for_method_calls`, `unnested_or_patterns`, `uninlined_format_args`, `ignored_unit_patterns`, `format_collect`, `assert_is_empty`, `cloned_instead_of_copied`, `flat_map_option`, `implicit_clone`, `inefficient_to_string`, `manual_assert`, `manual_string_new`, `semicolon_if_nothing_returned`, `trivially_copy_pass_by_ref`, `match_same_arms`, `single_match_else`.
+`map_unwrap_or`, `manual_let_else`, `unreadable_literal`, `explicit_iter_loop`, `explicit_into_iter_loop`, `redundant_closure_for_method_calls`, `unnested_or_patterns`, `uninlined_format_args`, `ignored_unit_patterns`, `format_collect`, `cloned_instead_of_copied`, `flat_map_option`, `implicit_clone`, `inefficient_to_string`, `manual_assert`, `manual_string_new`, `semicolon_if_nothing_returned`, `trivially_copy_pass_by_ref`, `match_same_arms`, `single_match_else`.
 
 `clippy::option_if_let_else` is not enabled. The suggested `map_or_else` rewrite is worse than an `if let` / `else` that returns an HTTP response, and Clippy does not apply most of those edits itself. `clippy::from_iter_instead_of_collect` was removed upstream and must not be turned back on.
 
