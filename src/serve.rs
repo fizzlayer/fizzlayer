@@ -233,7 +233,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let query = request
         .uri()
         .query()
-        .map_or_default(|query| format!("?{query}"));
+        .map_or(String::new(), |query| format!("?{query}"));
     let url = format!("{upstream}{path}{query}");
     let Ok(method) = reqwest::Method::from_bytes(request.method().as_str().as_bytes()) else {
         return text(StatusCode::METHOD_NOT_ALLOWED, "Method is not supported.");
@@ -462,7 +462,7 @@ fn stream_connect() -> String {
     {
         return String::new();
     }
-    let port = url.port().map_or_default(|port| format!(":{port}"));
+    let port = url.port().map_or(String::new(), |port| format!(":{port}"));
     let (http, ws) = if url.scheme() == "http" {
         ("http", "ws")
     } else if url.scheme() == "https" {

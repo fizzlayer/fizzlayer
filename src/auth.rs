@@ -47,7 +47,7 @@ pub async fn oauth(request: Request) -> Response<ResponseBody> {
         "http://fizz.invalid/?{}",
         request.uri().query().unwrap_or("")
     ))
-    .map_or_default(|url| url.query_pairs().into_owned().collect::<Vec<_>>());
+    .map_or(Vec::new(), |url| url.query_pairs().into_owned().collect());
     let find = |key: &str| {
         query
             .iter()

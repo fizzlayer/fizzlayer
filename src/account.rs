@@ -100,7 +100,7 @@ async fn details(
 fn passkey_list(body: &Value) -> Vec<Value> {
     body.as_array()
         .or_else(|| body.get("passkeys").and_then(Value::as_array))
-        .map_or_default(|list| {
+        .map_or(Vec::new(), |list| {
             list.iter()
                 .filter(|p| p.get("id").is_some_and(Value::is_string))
                 .map(|p| {

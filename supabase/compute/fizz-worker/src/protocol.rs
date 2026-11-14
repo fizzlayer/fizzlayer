@@ -434,7 +434,7 @@ fn split_host_port(host_port: &str) -> Result<(String, Option<u16>), &'static st
 }
 
 fn join_ws(url: &CheckedUrl, suffix: &str) -> String {
-    let port = url.port.map_or_default(|port| format!(":{port}"));
+    let port = url.port.map_or(String::new(), |port| format!(":{port}"));
     format!(
         "{}://{}{}{}{}",
         url.scheme, url.host, port, url.path, suffix
