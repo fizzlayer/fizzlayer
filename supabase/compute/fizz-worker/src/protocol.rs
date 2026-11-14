@@ -755,10 +755,13 @@ impl<'a> Cursor<'a> {
 }
 
 fn write_string(out: &mut Vec<u8>, value: &str) -> Result<(), DecodeError> {
-    if value.len() > u16::MAX as usize || value.as_bytes().contains(&0) {
+    let Ok(len) = u16::try_from(value.len()) else {
+        return Err(DecodeError::Malformed);
+    };
+    if value.as_bytes().contains(&0) {
         return Err(DecodeError::Malformed);
     }
-    out.extend_from_slice(&(value.len() as u16).to_be_bytes());
+    out.extend_from_slice(&len.to_be_bytes());
     out.extend_from_slice(value.as_bytes());
     Ok(())
 }
@@ -782,7 +785,8 @@ fn read_varint(buf: &[u8]) -> Option<(usize, usize)> {
 
 fn write_varint(out: &mut Vec<u8>, mut value: usize) {
     loop {
-        let mut byte = (value & 0x7f) as u8;
+        // `value & 0x7f` is at most 127.
+        let mut byte = u8::try_from(value & 0x7f).unwrap_or(0);
         value >>= 7;
         if value > 0 {
             byte |= 0x80;

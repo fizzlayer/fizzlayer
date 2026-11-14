@@ -815,6 +815,8 @@ fn tail(args: &[String]) -> Result<()> {
 }
 
 fn clock() -> String {
+    // Seconds since the epoch fit in u64 for any clock this process can read.
+    #[allow(clippy::cast_possible_truncation)]
     let secs = (now_millis() / 1000) as u64;
     format!(
         "{:02}:{:02}:{:02} UTC",

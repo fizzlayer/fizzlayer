@@ -445,7 +445,7 @@ async fn ingest_batch(key: String, data: Value) -> Response<ResponseBody> {
 mod tests {
     use super::*;
 
-    fn reading(metrics: Value) -> Value {
+    fn reading(metrics: &Value) -> Value {
         json!({"sensor_id":"4f1c7e2a-9b3d-4c5e-8f6a-1b2c3d4e5f60","event_id":"e1","metrics":metrics})
     }
 
@@ -453,52 +453,54 @@ mod tests {
     fn ingest_payloads_are_bounded() {
         assert!(
             check_reading(&reading(
-                json!({"temperature_c": 21.5, "door_open": true, "note": "ok"})
+                &json!({"temperature_c": 21.5, "door_open": true, "note": "ok"})
             ))
             .is_ok()
         );
         let many: serde_json::Map<String, Value> = (0..=MAX_METRICS_PER_READING)
             .map(|i| (format!("m{i}"), json!(1)))
             .collect();
-        assert!(check_reading(&reading(Value::Object(many))).is_err());
-        assert!(check_reading(&reading(json!({}))).is_err());
-        assert!(check_reading(&reading(json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES)}))).is_ok());
+        assert!(check_reading(&reading(&Value::Object(many))).is_err());
+        assert!(check_reading(&reading(&json!({}))).is_err());
+        assert!(
+            check_reading(&reading(&json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES)}))).is_ok()
+        );
         assert!(
             check_reading(&reading(
-                json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES + 1)})
+                &json!({"note": "x".repeat(MAX_TEXT_VALUE_BYTES + 1)})
             ))
             .is_err()
         );
         assert!(
             check_reading(&reading(
-                json!({"note": "é".repeat(MAX_TEXT_VALUE_BYTES / 2 + 1)})
+                &json!({"note": "é".repeat(MAX_TEXT_VALUE_BYTES / 2 + 1)})
             ))
             .is_err()
         );
         assert!(
-            check_reading(&reading(json!({"a".repeat(MAX_METRIC_NAME_BYTES + 1): 1}))).is_err()
+            check_reading(&reading(&json!({"a".repeat(MAX_METRIC_NAME_BYTES + 1): 1}))).is_err()
         );
-        assert!(check_reading(&reading(json!({"Temp": 1}))).is_err());
-        assert!(check_reading(&reading(json!({"": 1}))).is_err());
-        let checked = reading(json!({"t": 1}));
+        assert!(check_reading(&reading(&json!({"Temp": 1}))).is_err());
+        assert!(check_reading(&reading(&json!({"": 1}))).is_err());
+        let checked = reading(&json!({"t": 1}));
         let parsed = check_reading(&checked).unwrap();
         assert_eq!((parsed.event_id, parsed.metrics.len()), ("e1", 1));
         let batch: Vec<Value> = (0..MAX_INGEST_BATCH)
-            .map(|i| reading(json!({"value": i})))
+            .map(|i| reading(&json!({"value": i})))
             .collect();
         assert!(check_batch(&json!({"readings": batch})).is_ok());
         let oversized: Vec<Value> = (0..=MAX_INGEST_BATCH)
-            .map(|i| reading(json!({"value": i})))
+            .map(|i| reading(&json!({"value": i})))
             .collect();
         assert!(check_batch(&json!({"readings": oversized})).is_err());
         assert!(check_batch(&json!({"readings": []})).is_err());
         assert!(check_batch(&json!({"readings": [{"sensor_id": "nope"}]})).is_err());
-        assert!(check_reading(&reading(json!({"nested": {"a": 1}}))).is_err());
-        assert!(check_reading(&reading(json!({"list": [1, 2]}))).is_err());
-        let mut long_event = reading(json!({"t": 1}));
+        assert!(check_reading(&reading(&json!({"nested": {"a": 1}}))).is_err());
+        assert!(check_reading(&reading(&json!({"list": [1, 2]}))).is_err());
+        let mut long_event = reading(&json!({"t": 1}));
         long_event["event_id"] = json!("e".repeat(MAX_EVENT_ID_BYTES + 1));
         assert!(check_reading(&long_event).is_err());
-        let mut bad_id = reading(json!({"t": 1}));
+        let mut bad_id = reading(&json!({"t": 1}));
         bad_id["sensor_id"] = json!("not-a-uuid");
         assert!(check_reading(&bad_id).is_err());
     }

@@ -82,6 +82,8 @@ fn comparison(comparator: &str) -> &'static str {
 
 /// "1 minute" or "N minutes", rounded to whole minutes.
 pub fn minutes_phrase(value: f64) -> String {
+    // `as i64` saturates. The spoken phrase only receives small minute counts.
+    #[allow(clippy::cast_possible_truncation)]
     let minutes = value.round().max(0.0) as i64;
     if minutes == 1 {
         "1 minute".into()

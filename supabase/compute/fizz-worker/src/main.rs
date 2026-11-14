@@ -77,7 +77,7 @@ fn main() {
     let app = Arc::new(App::from_env());
     if app.db.is_some() {
         let poller = Arc::clone(&app);
-        thread::spawn(move || poll_loop(poller));
+        thread::spawn(move || poll_loop(&poller));
     } else {
         eprintln!(
             "fizz-worker: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing; streams will refuse work."
@@ -91,14 +91,14 @@ fn main() {
         match TcpListener::bind(format!("0.0.0.0:{port}")) {
             Ok(listener) => {
                 let mqtt = Arc::clone(&app);
-                thread::spawn(move || accept_mqtt(listener, mqtt));
+                thread::spawn(move || accept_mqtt(&listener, &mqtt));
             }
             Err(error) => {
                 eprintln!("fizz-worker: MQTT TCP port {port} is not available: {error}");
             }
         }
     }
-    accept_http(http, app);
+    accept_http(&http, &app);
 }
 
 impl App {
@@ -271,14 +271,14 @@ fn safe_supabase_url_with(url: &str, allow_insecure: bool) -> bool {
     (scheme == "https" || (scheme == "http" && (local || allow_insecure))) && !host.is_empty()
 }
 
-fn accept_http(listener: TcpListener, app: Arc<App>) {
+fn accept_http(listener: &TcpListener, app: &Arc<App>) {
     for stream in listener.incoming() {
         let Ok(stream) = stream else { continue };
-        if !acquire(&app) {
+        if !acquire(app) {
             let _ = write_text(&stream, 503, r#"{"error":"unavailable"}"#);
             continue;
         }
-        let app = Arc::clone(&app);
+        let app = Arc::clone(app);
         thread::spawn(move || {
             let _guard = ConnectionGuard(&app);
             if let Err(error) = stream.set_read_timeout(Some(Duration::from_secs(10))) {
@@ -291,13 +291,13 @@ fn accept_http(listener: TcpListener, app: Arc<App>) {
     }
 }
 
-fn accept_mqtt(listener: TcpListener, app: Arc<App>) {
+fn accept_mqtt(listener: &TcpListener, app: &Arc<App>) {
     for stream in listener.incoming() {
         let Ok(stream) = stream else { continue };
-        if !acquire(&app) {
+        if !acquire(app) {
             continue;
         }
-        let app = Arc::clone(&app);
+        let app = Arc::clone(app);
         thread::spawn(move || {
             let _guard = ConnectionGuard(&app);
             let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
@@ -314,7 +314,7 @@ impl Drop for ConnectionGuard<'_> {
     }
 }
 
-fn acquire(app: &App) -> bool {
+fn acquire(app: &Arc<App>) -> bool {
     let mut current = app.connections.load(Ordering::Relaxed);
     loop {
         if current >= MAX_CONNECTIONS {
@@ -1136,7 +1136,7 @@ fn mqtt_ws_packet(
     }
 }
 
-fn poll_loop(app: Arc<App>) {
+fn poll_loop(app: &Arc<App>) {
     let Some(db) = app.db.clone() else { return };
     loop {
         let (cursor_at, cursor_id, generation) = {
@@ -1283,7 +1283,7 @@ mod tests {
             connections: AtomicUsize::new(0),
             mqtt_tcp: false,
         });
-        thread::spawn(move || accept_http(listener, app));
+        thread::spawn(move || accept_http(&listener, &app));
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))
@@ -1318,7 +1318,7 @@ mod tests {
             connections: AtomicUsize::new(0),
             mqtt_tcp: false,
         });
-        thread::spawn(move || accept_http(listener, app));
+        thread::spawn(move || accept_http(&listener, &app));
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))

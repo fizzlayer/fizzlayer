@@ -43,7 +43,7 @@ fn json_response(status: u16, body: Value) -> Response<ResponseBody> {
 
 fn rpc_error(
     status: u16,
-    id: Value,
+    id: &Value,
     code: i64,
     message: &str,
     data: Option<Value>,
@@ -73,7 +73,7 @@ fn unauthorized() -> Response<ResponseBody> {
 
 /// A successful result. Modern results identify the server in `_meta`; `resultType` is
 /// required by 2026-07-28 and ignored by earlier clients.
-fn ok(id: Value, mut result: Value, modern: bool) -> Response<ResponseBody> {
+fn ok(id: &Value, mut result: Value, modern: bool) -> Response<ResponseBody> {
     result["resultType"] = json!("complete");
     if modern {
         result["_meta"] = json!({"io.modelcontextprotocol/serverInfo": server_info()});
@@ -210,7 +210,7 @@ async fn call(token: &str, ip: Option<&str>, tool: &str, args: &Value) -> Result
     }
 }
 
-fn call_failure(id: Value, error: CallError) -> Response<ResponseBody> {
+fn call_failure(id: &Value, error: &CallError) -> Response<ResponseBody> {
     match error {
         CallError::Unauthorized => unauthorized(),
         CallError::RateLimited => rpc_error(
@@ -229,7 +229,7 @@ fn call_failure(id: Value, error: CallError) -> Response<ResponseBody> {
 
 /// Tool outcomes: data becomes structured content plus a JSON text block; validation and
 /// lookup problems become tool errors the model can read and correct.
-fn tool_result(value: Value) -> Value {
+fn tool_result(value: &Value) -> Value {
     if let Some(result) = value.get("result") {
         let text = serde_json::to_string(result).unwrap_or_default();
         json!({"content": [{"type": "text", "text": text}], "structuredContent": result, "isError": false})
@@ -266,7 +266,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     if let Some(origin) = header("origin") {
         let expected = crate::security::request_origin(&request);
         if Some(origin.as_str()) != expected.as_deref() {
-            return rpc_error(403, Value::Null, -32600, "Origin not allowed.", None);
+            return rpc_error(403, &Value::Null, -32600, "Origin not allowed.", None);
         }
     }
     let Some(token) = bearer(&request) else {
@@ -278,22 +278,22 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let name_header = header("mcp-name");
 
     let Ok(body) = Limited::new(request.into_body(), 64 * 1024).collect().await else {
-        return rpc_error(413, Value::Null, -32600, "Request is too large.", None);
+        return rpc_error(413, &Value::Null, -32600, "Request is too large.", None);
     };
     let Ok(message) = serde_json::from_slice::<Value>(&body.to_bytes()) else {
-        return rpc_error(400, Value::Null, -32700, "Parse error.", None);
+        return rpc_error(400, &Value::Null, -32700, "Parse error.", None);
     };
     let Some(message) = message.as_object() else {
         return rpc_error(
             400,
-            Value::Null,
+            &Value::Null,
             -32600,
             "Send one JSON-RPC message per request.",
             None,
         );
     };
     let Some(method) = message.get("method").and_then(Value::as_str) else {
-        return rpc_error(400, Value::Null, -32600, "Invalid request.", None);
+        return rpc_error(400, &Value::Null, -32600, "Invalid request.", None);
     };
     // Notifications (such as a legacy notifications/initialized) need no reply.
     let Some(id) = message.get("id").cloned() else {
@@ -305,7 +305,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     if !(id.is_string() || id.is_number()) {
         return rpc_error(
             400,
-            Value::Null,
+            &Value::Null,
             -32600,
             "Request id must be a string or number.",
             None,
@@ -319,7 +319,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             .filter(|v| LEGACY_VERSIONS.contains(v))
             .unwrap_or(LEGACY_VERSIONS[0]);
         return ok(
-            id,
+            &id,
             json!({
                 "protocolVersion": version,
                 "capabilities": {"tools": {"listChanged": false}},
@@ -336,7 +336,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         if version_header.as_deref() != Some(version) {
             return rpc_error(
                 400,
-                id,
+                &id,
                 -32020,
                 "Header mismatch: MCP-Protocol-Version must match _meta protocolVersion.",
                 None,
@@ -345,7 +345,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         if method_header.as_deref() != Some(method) {
             return rpc_error(
                 400,
-                id,
+                &id,
                 -32020,
                 "Header mismatch: Mcp-Method must match the request method.",
                 None,
@@ -357,7 +357,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             if body_name.is_none() || header_name.as_deref() != body_name {
                 return rpc_error(
                     400,
-                    id,
+                    &id,
                     -32020,
                     "Header mismatch: Mcp-Name must match the tool name.",
                     None,
@@ -369,7 +369,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             supported.extend(LEGACY_VERSIONS);
             return rpc_error(
                 400,
-                id,
+                &id,
                 -32022,
                 "Unsupported protocol version",
                 Some(json!({"supported": supported, "requested": version})),
@@ -378,7 +378,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     } else if version_header.as_deref() == Some(MODERN_VERSION) {
         return rpc_error(
             400,
-            id,
+            &id,
             -32020,
             "Header mismatch: 2026-07-28 requests carry protocolVersion in _meta.",
             None,
@@ -390,7 +390,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             let mut supported = vec![MODERN_VERSION];
             supported.extend(LEGACY_VERSIONS);
             ok(
-                id,
+                &id,
                 json!({
                     "supportedVersions": supported,
                     "capabilities": {"tools": {}},
@@ -401,7 +401,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 modern,
             )
         }
-        "ping" => ok(id, json!({}), modern),
+        "ping" => ok(&id, json!({}), modern),
         "tools/list" => match call(&token, ip.as_deref(), "connection", &json!({})).await {
             Ok(value) => {
                 let can_create = value
@@ -410,34 +410,34 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     .unwrap_or(false);
                 // The list depends on this token's scope, so shared caches must not reuse it.
                 ok(
-                    id,
+                    &id,
                     json!({"tools": tools(can_create), "ttlMs": 60_000, "cacheScope": "private"}),
                     modern,
                 )
             }
-            Err(error) => call_failure(id, error),
+            Err(error) => call_failure(&id, &error),
         },
         "tools/call" => {
             let Some(name) = params.get("name").and_then(Value::as_str) else {
-                return rpc_error(200, id, -32602, "tools/call needs a tool name.", None);
+                return rpc_error(200, &id, -32602, "tools/call needs a tool name.", None);
             };
             if !TOOL_NAMES.contains(&name) {
                 // Protocol errors the spec does not tie to an HTTP status travel as HTTP 200, which
                 // every client era reads as a JSON-RPC error rather than a transport failure.
-                return rpc_error(200, id, -32602, &format!("Unknown tool: {name}"), None);
+                return rpc_error(200, &id, -32602, &format!("Unknown tool: {name}"), None);
             }
             let args = params
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
             match call(&token, ip.as_deref(), name, &args).await {
-                Ok(value) => ok(id, tool_result(value), modern),
-                Err(error) => call_failure(id, error),
+                Ok(value) => ok(&id, tool_result(&value), modern),
+                Err(error) => call_failure(&id, &error),
             }
         }
         _ => rpc_error(
             if modern { 404 } else { 200 },
-            id,
+            &id,
             -32601,
             "Method not found.",
             None,
@@ -519,13 +519,13 @@ mod tests {
     #[test]
     fn tool_errors_are_readable_by_the_model() {
         let error =
-            tool_result(json!({"error": "not_found", "message": "No sensor with that ID."}));
+            tool_result(&json!({"error": "not_found", "message": "No sensor with that ID."}));
         assert_eq!(error["isError"], json!(true));
         assert_eq!(
             error["content"][0]["text"],
             json!("No sensor with that ID.")
         );
-        let data = tool_result(json!({"result": {"sensors": []}}));
+        let data = tool_result(&json!({"result": {"sensors": []}}));
         assert_eq!(data["structuredContent"], json!({"sensors": []}));
         assert_eq!(data["isError"], json!(false));
     }
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn pairing_over_the_device_limit_explains_the_limit() {
         let error =
-            tool_result(json!({"error": "device_limit", "message": "That code is not valid."}));
+            tool_result(&json!({"error": "device_limit", "message": "That code is not valid."}));
         assert_eq!(
             error["content"][0]["text"],
             json!(crate::customer::DEVICE_LIMIT_MESSAGE)
