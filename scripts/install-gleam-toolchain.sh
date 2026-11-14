@@ -111,9 +111,13 @@ PY
 fi
 
 {
+  # ${PATH} and ${LD_LIBRARY_PATH} are written literally. env.sh expands them when sourced.
+  # shellcheck disable=SC2016
   printf 'export PATH="%s/bin:${PATH}"\n' "$prefix"
   if [[ "$installed_otp" -eq 1 ]]; then
+    # shellcheck disable=SC2016
     printf 'export PATH="%s/otp/OTP-27.3.4/bin:${PATH}"\n' "$prefix"
+    # shellcheck disable=SC2016
     printf 'export LD_LIBRARY_PATH="%s/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n' "$prefix"
   fi
 } > "$prefix/env.sh"
