@@ -61,30 +61,6 @@
   ],
   "rewrites": [
     {
-      "source": "/docs",
-      "destination": "/gateway-docs.html"
-    },
-    {
-      "source": "/self-host",
-      "destination": "/self-host-chooser.html"
-    },
-    {
-      "source": "/sensors",
-      "destination": "/sensors.html"
-    },
-    {
-      "source": "/sensors/docs",
-      "destination": "/docs.html"
-    },
-    {
-      "source": "/sensors/agents",
-      "destination": "/agents.html"
-    },
-    {
-      "source": "/sensors/self-host",
-      "destination": "/self-host.html"
-    },
-    {
       "source": "/.well-known/webmcp",
       "destination": "/.well-known/webmcp.json"
     },
