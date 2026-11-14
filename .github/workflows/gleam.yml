@@ -1,0 +1,29 @@
+name: Gleam SPA
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  gleam:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: "27.3.4"
+          gleam-version: "1.19.2"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Check formatting
+        working-directory: app
+        run: gleam format --check
+      - name: Test
+        working-directory: app
+        run: npm ci && gleam test
+      - name: Build
+        run: bash scripts/build-spa.sh

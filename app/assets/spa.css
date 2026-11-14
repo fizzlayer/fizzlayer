@@ -1,0 +1,132 @@
+:root {
+  color-scheme: light;
+  --ink: #1c1917;
+  --muted: #57534e;
+  --line: #e7e5e4;
+  --paper: #fafaf9;
+  --card: #ffffff;
+  --accent: #0f766e;
+  --danger: #9f1239;
+  --ok: #166534;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+}
+
+a { color: var(--accent); }
+
+.page { min-height: 100vh; }
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.preview {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.spacer { flex: 1; }
+
+.top a:not(.brand) { font-size: 0.95rem; }
+
+main {
+  width: min(40rem, calc(100% - 2rem));
+  margin: 2rem auto 3rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+h1 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 0.75rem; }
+
+.muted { color: var(--muted); }
+
+label {
+  display: block;
+  font-weight: 600;
+  margin: 1rem 0 0.35rem;
+}
+
+input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  background: var(--card);
+}
+
+.row, form .row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+
+button, .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button.primary, .button.primary {
+  background: var(--accent);
+  color: white;
+  border: 0;
+}
+
+button.ghost, .button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.alert, .info {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+}
+
+.alert { background: #fff1f2; color: var(--danger); }
+.info { background: #f0fdf4; color: var(--ok); }
+
+pre {
+  overflow: auto;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  .top { flex-wrap: wrap; }
+  .spacer { display: none; }
+}

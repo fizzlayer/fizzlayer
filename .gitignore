@@ -8,3 +8,9 @@
 /supabase/compute/fizz-worker/target/
 __pycache__/
 /output/
+/app/build/
+/app/dist/
+/app/.lustre/
+/app/node_modules/
+/app/assets/config.json
+/public/app/

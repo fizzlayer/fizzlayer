@@ -1,0 +1,33 @@
+name = "fizz_spa"
+version = "0.1.0"
+target = "javascript"
+description = "Fizzlayer Gleam SPA skeleton (Lustre, not published to Hex)."
+licences = ["Apache-2.0"]
+
+# Locked in manifest.toml: lustre 5.7.1, modem 2.1.3, lustre_dev_tools 2.4.0.
+# Gleam compiler used in CI and scripts/install-gleam-toolchain.sh: 1.19.2.
+
+[dependencies]
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+gleam_json = ">= 3.1.0 and < 4.0.0"
+lustre = ">= 5.7.1 and < 6.0.0"
+modem = ">= 2.1.3 and < 3.0.0"
+
+[dev_dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
+lustre_dev_tools = ">= 2.4.0 and < 3.0.0"
+simplifile = ">= 2.7.0 and < 3.0.0"
+
+[tools.lustre.build]
+minify = true
+outdir = "dist"
+
+[tools.lustre.dev]
+port = 1234
+# `from` is stripped and the rest is appended to `to`, so this keeps the /api prefix.
+proxy = { from = "/api", to = "http://localhost:3000/api" }
+
+[tools.lustre.html]
+title = "Fizzlayer"
+lang = "en"
+stylesheets = [{ href = "/spa.css" }]
