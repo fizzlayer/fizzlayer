@@ -84,7 +84,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     // Home Assistant entity sync posts a list of sensors, so this body is larger than a pairing.
     let data = match json_body(request, 16 * 1024).await {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let Ok(store) = Supabase::from_env() else {
         return error(

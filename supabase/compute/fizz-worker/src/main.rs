@@ -5,6 +5,10 @@
 //! `fizz_ingest_event` stored, including rows that arrived through HTTPS.
 //! Phone calls queued by those rows are sent by `/api/cron`, not by this process.
 
+// protocol.rs is also compiled by the API (`src/live.rs`) and the CLI
+// (`cli/src/transport.rs`). Those crates call items this binary does not.
+// Dead code in this file is still reported.
+#[allow(dead_code)]
 mod protocol;
 
 use std::{
@@ -81,16 +85,16 @@ fn main() {
     }
     let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
     let http = TcpListener::bind(format!("0.0.0.0:{port}")).expect("bind http");
-    if let Ok(mqtt_port) = env::var("MQTT_TCP_PORT") {
-        if let Ok(port) = mqtt_port.parse::<u16>() {
-            match TcpListener::bind(format!("0.0.0.0:{port}")) {
-                Ok(listener) => {
-                    let mqtt = Arc::clone(&app);
-                    thread::spawn(move || accept_mqtt(listener, mqtt));
-                }
-                Err(error) => {
-                    eprintln!("fizz-worker: MQTT TCP port {port} is not available: {error}")
-                }
+    if let Ok(mqtt_port) = env::var("MQTT_TCP_PORT")
+        && let Ok(port) = mqtt_port.parse::<u16>()
+    {
+        match TcpListener::bind(format!("0.0.0.0:{port}")) {
+            Ok(listener) => {
+                let mqtt = Arc::clone(&app);
+                thread::spawn(move || accept_mqtt(listener, mqtt));
+            }
+            Err(error) => {
+                eprintln!("fizz-worker: MQTT TCP port {port} is not available: {error}");
             }
         }
     }
@@ -102,19 +106,21 @@ impl App {
         let origins = env::var("FIZZ_STREAM_ORIGINS")
             .ok()
             .filter(|value| !value.trim().is_empty())
-            .map(|value| {
-                value
-                    .split(',')
-                    .map(|item| item.trim().to_owned())
-                    .filter(|item| !item.is_empty())
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                vec![
-                    "https://fizzlayer.com".into(),
-                    "https://www.fizzlayer.com".into(),
-                ]
-            });
+            .map_or_else(
+                || {
+                    vec![
+                        "https://fizzlayer.com".into(),
+                        "https://www.fizzlayer.com".into(),
+                    ]
+                },
+                |value| {
+                    value
+                        .split(',')
+                        .map(|item| item.trim().to_owned())
+                        .filter(|item| !item.is_empty())
+                        .collect()
+                },
+            );
         let mqtt_tcp = env::var("MQTT_TCP_PORT")
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
@@ -154,7 +160,7 @@ fn loopback_origin(origin: &str) -> bool {
         return false;
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or("");
-    let host = host.rsplit_once(':').map(|(host, _)| host).unwrap_or(host);
+    let host = host.rsplit_once(':').map_or(host, |(host, _)| host);
     matches!(host, "localhost" | "127.0.0.1" | "[::1]")
 }
 
@@ -217,7 +223,7 @@ impl Db {
                 "fizz_live_principal",
                 &json!({"p_credential": credential, "p_sensor_id": sensor_id}),
             )
-            .map_err(|_| PrincipalFailure::Unavailable)?;
+            .map_err(|()| PrincipalFailure::Unavailable)?;
         principal_from_json(&value)
     }
 
@@ -233,7 +239,7 @@ impl Db {
                     "p_metrics": body["metrics"],
                 })
             })
-            .map_err(|_| "unavailable")?;
+            .map_err(|()| "unavailable")?;
         match value.get("error").and_then(Value::as_str) {
             None => Ok(()),
             Some("unauthorized") => Err("unauthorized"),
@@ -248,7 +254,7 @@ impl Db {
 fn safe_supabase_url(url: &str) -> bool {
     let allow_insecure = matches!(
         env::var("FIZZ_ALLOW_INSECURE_HTTP").ok().as_deref(),
-        Some("1") | Some("true")
+        Some("1" | "true")
     );
     safe_supabase_url_with(url, allow_insecure)
 }
@@ -260,7 +266,7 @@ fn safe_supabase_url_with(url: &str, allow_insecure: bool) -> bool {
     if rest.contains('@') || rest.contains('#') || rest.contains('?') || rest.contains('/') {
         return false;
     }
-    let host = rest.rsplit_once(':').map(|(host, _)| host).unwrap_or(rest);
+    let host = rest.rsplit_once(':').map_or(rest, |(host, _)| host);
     let local = matches!(host, "localhost" | "127.0.0.1" | "[::1]");
     (scheme == "https" || (scheme == "http" && (local || allow_insecure))) && !host.is_empty()
 }
@@ -349,7 +355,7 @@ fn handle_http(mut stream: TcpStream, app: &App) -> std::io::Result<()> {
     let Some(key) = request.websocket_key else {
         return write_text(&stream, 400, r#"{"error":"invalid_request"}"#);
     };
-    write_upgrade(&stream, &key, route == HttpRoute::Mqtt)?;
+    write_upgrade(&stream, key, route == HttpRoute::Mqtt)?;
     stream
         .set_read_timeout(Some(Duration::from_millis(250)))
         .ok();
@@ -484,13 +490,11 @@ fn json_publish(
                     let _ = socket.send(Message::Text(error_frame("invalid_request", None).into()));
                     continue;
                 }
-                let value: Value = match serde_json::from_str(&text) {
-                    Ok(value) => value,
-                    Err(_) => {
-                        let _ =
-                            socket.send(Message::Text(error_frame("invalid_request", None).into()));
-                        continue;
-                    }
+                let value: Value = if let Ok(value) = serde_json::from_str(&text) {
+                    value
+                } else {
+                    let _ = socket.send(Message::Text(error_frame("invalid_request", None).into()));
+                    continue;
                 };
                 match parse_client_message(&value) {
                     Ok(ClientOp::Reading(reading)) => {
@@ -648,11 +652,6 @@ fn first_credential(
                     Ok(ClientOp::Auth { key }) if classify_credential(&key) == Some(kind) => {
                         return Ok(Some(key));
                     }
-                    Ok(ClientOp::Auth { .. }) | Err(_) => {
-                        let _ =
-                            socket.send(Message::Text(error_frame("unauthorized", None).into()));
-                        return Ok(None);
-                    }
                     _ => {
                         let _ =
                             socket.send(Message::Text(error_frame("unauthorized", None).into()));
@@ -676,13 +675,11 @@ fn read_any_credential(socket: &mut WebSocket<TcpStream>) -> std::io::Result<Opt
                 let Ok(value) = serde_json::from_str::<Value>(&text) else {
                     return Ok(None);
                 };
-                return match parse_client_message(&value) {
-                    Ok(ClientOp::Auth { key }) => Ok(Some(key)),
-                    _ => {
-                        let _ =
-                            socket.send(Message::Text(error_frame("unauthorized", None).into()));
-                        Ok(None)
-                    }
+                return if let Ok(ClientOp::Auth { key }) = parse_client_message(&value) {
+                    Ok(Some(key))
+                } else {
+                    let _ = socket.send(Message::Text(error_frame("unauthorized", None).into()));
+                    Ok(None)
                 };
             }
             WsRead::Binary(_) | WsRead::Control | WsRead::Timeout => {}
@@ -708,7 +705,6 @@ fn read_ws(socket: &mut WebSocket<TcpStream>) -> WsRead {
             let _ = socket.send(Message::Pong(payload));
             WsRead::Control
         }
-        Ok(Message::Pong(_)) => WsRead::Control,
         Ok(Message::Close(_)) => WsRead::Closed,
         Ok(_) => WsRead::Control,
         Err(WsError::Io(error))
@@ -761,20 +757,18 @@ fn mqtt_tcp(mut stream: TcpStream, app: &App) -> std::io::Result<()> {
                     state.principal.principal,
                     Principal::Viewer { sensor_id: None }
                 )
+                && let Ok(value) = serde_json::from_str::<Value>(&frame)
+                && let Some(sensor) = value.get("sensor_id").and_then(Value::as_str)
             {
-                if let Ok(value) = serde_json::from_str::<Value>(&frame)
-                    && let Some(sensor) = value.get("sensor_id").and_then(Value::as_str)
-                {
-                    let _ = write_mqtt(
-                        &mut stream,
-                        &Packet::Publish {
-                            topic: protocol::live_topic(sensor),
-                            payload: frame.into_bytes(),
-                            qos: 0,
-                            packet_id: None,
-                        },
-                    );
-                }
+                let _ = write_mqtt(
+                    &mut stream,
+                    &Packet::Publish {
+                        topic: protocol::live_topic(sensor),
+                        payload: frame.into_bytes(),
+                        qos: 0,
+                        packet_id: None,
+                    },
+                );
             }
         }
         let mut byte = [0];
@@ -933,7 +927,7 @@ fn mqtt_packet(
             write_mqtt(stream, &Packet::Pingresp)?;
             Ok(true)
         }
-        Packet::Disconnect => Ok(false),
+        // A clean disconnect and any other packet both end this read loop.
         _ => Ok(false),
     }
 }
@@ -961,9 +955,8 @@ fn mqtt_ws(mut socket: WebSocket<TcpStream>, app: &App) -> std::io::Result<()> {
             deliver_ws_reading(&mut bridge, state.as_ref(), &frame);
         }
         match read_ws(bridge.socket) {
-            WsRead::Text(_) => break,
             WsRead::Control | WsRead::Timeout => {}
-            WsRead::Closed => break,
+            WsRead::Text(_) | WsRead::Closed => break,
             WsRead::Binary(bytes) => raw.extend(bytes),
         }
         if raw.len() > protocol::MAX_PACKET_BYTES + 8 {
@@ -998,8 +991,8 @@ struct MqttBridge<'a> {
 fn deliver_ws_reading(bridge: &mut MqttBridge<'_>, state: Option<&MqttState>, frame: &str) {
     let Some(state) = state else { return };
     let sensor = match &state.principal.principal {
-        Principal::Device { sensor_id } => Some(sensor_id.clone()),
-        Principal::Viewer {
+        Principal::Device { sensor_id }
+        | Principal::Viewer {
             sensor_id: Some(sensor_id),
         } => Some(sensor_id.clone()),
         Principal::Viewer { sensor_id: None } => {
@@ -1138,7 +1131,7 @@ fn mqtt_ws_packet(
             bridge.send(&Packet::Pingresp)?;
             Ok(true)
         }
-        Packet::Disconnect => Ok(false),
+        // A clean disconnect and any other packet both end this read loop.
         _ => Ok(false),
     }
 }

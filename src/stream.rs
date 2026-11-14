@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::{
-    customer::{error, json_body, reply, session_token},
+    customer::{ApiError, error, json_body, reply, session_token},
     live::{CredentialKind, classify_credential, stream_urls},
     sensors::valid_uuid,
     store::Supabase,
@@ -20,13 +20,13 @@ fn bearer(request: &Request) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-fn urls() -> Result<Option<crate::live::StreamUrls>, Response<ResponseBody>> {
+fn urls() -> Result<Option<crate::live::StreamUrls>, ApiError> {
     match std::env::var("FIZZ_STREAM_URL") {
         Err(_) => Ok(None),
         Ok(value) if value.trim().is_empty() => Ok(None),
         Ok(value) => stream_urls(value.trim())
             .map(Some)
-            .map_err(|_| error(503, "unavailable", "Live streaming is misconfigured.")),
+            .map_err(|_| ApiError::new(503, "unavailable", "Live streaming is misconfigured.")),
     }
 }
 
@@ -44,14 +44,14 @@ pub fn config() -> Response<ResponseBody> {
     match urls() {
         Ok(Some(urls)) => reply(200, describe(&urls), None),
         Ok(None) => reply(200, json!({"enabled": false}), None),
-        Err(response) => response,
+        Err(failure) => failure.into_response(),
     }
 }
 
 pub async fn issue(request: Request) -> Response<ResponseBody> {
     let Some(urls) = (match urls() {
         Ok(urls) => urls,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     }) else {
         return error(
             503,
@@ -72,7 +72,7 @@ pub async fn issue(request: Request) -> Response<ResponseBody> {
     }
     let data = match json_body(request, 2048).await {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let sensor = match data.get("sensor_id").filter(|value| !value.is_null()) {
         None => None,
@@ -118,11 +118,6 @@ fn outcome(value: Value, urls: &crate::live::StreamUrls) -> Response<ResponseBod
             "rate_limited",
             "Too many stream tokens. Try again later.",
         ),
-        Some(_) => error(
-            503,
-            "database_unavailable",
-            "Live streaming is temporarily unavailable.",
-        ),
         None if value.get("token").and_then(Value::as_str).is_some() => {
             let mut body = value;
             if let Some(object) = body.as_object_mut() {
@@ -133,7 +128,8 @@ fn outcome(value: Value, urls: &crate::live::StreamUrls) -> Response<ResponseBod
             }
             reply(201, body, None)
         }
-        None => error(
+        // Unknown errors and a missing token are the same client-facing failure.
+        Some(_) | None => error(
             503,
             "database_unavailable",
             "Live streaming is temporarily unavailable.",

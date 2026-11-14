@@ -148,10 +148,10 @@ impl Supabase {
     /// Origin the browser can open. `SUPABASE_URL` may be an internal Docker name;
     /// `SUPABASE_PUBLIC_URL` is that same Auth API as reached from a browser.
     fn browser_base(&self) -> Url {
-        if let Ok(value) = env::var("SUPABASE_PUBLIC_URL") {
-            if let Some(url) = public_supabase_url(&value) {
-                return url;
-            }
+        if let Ok(value) = env::var("SUPABASE_PUBLIC_URL")
+            && let Some(url) = public_supabase_url(&value)
+        {
+            return url;
         }
         let mut url = self.rest_url.clone();
         url.set_path("/");

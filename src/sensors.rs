@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::{
-    customer::{error, reply, session_token},
+    customer::{ApiError, error, reply, session_token},
     notify,
     store::Supabase,
 };
@@ -31,18 +31,14 @@ pub fn valid_uuid(value: &str) -> bool {
 }
 
 /// Sensor endpoints have used `request_too_large` for oversized bodies since launch.
-async fn body(request: Request, max: usize) -> Result<Value, Response<ResponseBody>> {
+async fn body(request: Request, max: usize) -> Result<Value, ApiError> {
     crate::customer::json_body_with(request, max, "request_too_large").await
 }
 
-fn db() -> Result<Supabase, Response<ResponseBody>> {
-    Supabase::from_env().map_err(|_| {
-        error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        )
-    })
+/// `message` is the sentence this caller shows. Ingest and the dashboard
+/// describe the same outage differently.
+fn db(message: &'static str) -> Result<Supabase, ApiError> {
+    Supabase::from_env().map_err(|_| ApiError::new(503, "database_unavailable", message))
 }
 
 fn outcome(value: Value, success: u16) -> Response<ResponseBody> {
@@ -71,12 +67,9 @@ pub async fn list(request: Request) -> Response<ResponseBody> {
     let Some(token) = session_token(&request) else {
         return error(401, "unauthorized", "Sign in to continue.");
     };
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        );
+    let store = match db("Sensor data is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc("fizz_tick_simulated", json!({"p_token":token}))
@@ -113,7 +106,7 @@ pub async fn create(request: Request) -> Response<ResponseBody> {
     };
     let data = match body(request, 2048).await {
         Ok(v) => v,
-        Err(r) => return r,
+        Err(failure) => return failure.into_response(),
     };
     let kind = data.get("kind").and_then(Value::as_str).unwrap_or("");
     let mode = data
@@ -138,12 +131,9 @@ pub async fn create(request: Request) -> Response<ResponseBody> {
             "Choose a valid sensor type, mode, and name.",
         );
     }
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        );
+    let store = match db("Sensor data is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc(
@@ -167,7 +157,7 @@ pub async fn update(request: Request) -> Response<ResponseBody> {
     };
     let data = match body(request, 2048).await {
         Ok(v) => v,
-        Err(r) => return r,
+        Err(failure) => return failure.into_response(),
     };
     let id = data.get("id").and_then(Value::as_str).unwrap_or("");
     let name = data.get("name").and_then(Value::as_str);
@@ -184,12 +174,9 @@ pub async fn update(request: Request) -> Response<ResponseBody> {
     {
         return error(400, "invalid_request", "Check the sensor details.");
     }
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        );
+    let store = match db("Sensor data is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store.rpc("fizz_update_sensor",json!({"p_token":token,"p_id":id,"p_name":name,"p_mode":mode,"p_status":status,"p_rotate_key":rotate})).await {
         Ok(v)=>outcome(v,200),Err(_)=>error(503,"database_unavailable","Sensor data is temporarily unavailable.")
@@ -202,18 +189,15 @@ pub async fn delete(request: Request) -> Response<ResponseBody> {
     };
     let data = match body(request, 1024).await {
         Ok(v) => v,
-        Err(r) => return r,
+        Err(failure) => return failure.into_response(),
     };
     let id = data.get("id").and_then(Value::as_str).unwrap_or("");
     if !valid_uuid(id) {
         return error(400, "invalid_request", "Choose a sensor to remove.");
     }
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        );
+    let store = match db("Sensor data is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc("fizz_delete_sensor", json!({"p_token":token,"p_id":id}))
@@ -248,12 +232,9 @@ pub async fn readings(request: Request) -> Response<ResponseBody> {
     if !valid_uuid(id) {
         return error(400, "invalid_request", "Choose a sensor.");
     }
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Sensor data is temporarily unavailable.",
-        );
+    let store = match db("Sensor data is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc("fizz_tick_simulated", json!({"p_token":token}))
@@ -365,7 +346,7 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
     }
     let data = match body(request, MAX_INGEST_BYTES).await {
         Ok(v) => v,
-        Err(r) => return r,
+        Err(failure) => return failure.into_response(),
     };
     if data.get("readings").is_some() {
         return ingest_batch(key, data).await;
@@ -379,12 +360,9 @@ pub async fn ingest(request: Request) -> Response<ResponseBody> {
         Err(message) => return error(400, "invalid_request", message),
     };
     let observed = data.get("observed_at").and_then(Value::as_str);
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Ingestion is temporarily unavailable.",
-        );
+    let store = match db("Ingestion is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc(
@@ -430,12 +408,9 @@ async fn ingest_batch(key: String, data: Value) -> Response<ResponseBody> {
     if let Err(message) = check_batch(&data) {
         return error(400, "invalid_request", message);
     }
-    let Ok(store) = db() else {
-        return error(
-            503,
-            "database_unavailable",
-            "Ingestion is temporarily unavailable.",
-        );
+    let store = match db("Ingestion is temporarily unavailable.") {
+        Ok(store) => store,
+        Err(failure) => return failure.into_response(),
     };
     match store
         .rpc(

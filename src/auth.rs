@@ -24,7 +24,7 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::customer::{
-    SUPABASE_COOKIE, client_ip, cookie, error, json_body, normalize_email, reply_with,
+    ApiError, SUPABASE_COOKIE, client_ip, cookie, error, json_body, normalize_email, reply_with,
     session_cookie,
 };
 use crate::security::request_origin;
@@ -47,8 +47,7 @@ pub async fn oauth(request: Request) -> Response<ResponseBody> {
         "http://fizz.invalid/?{}",
         request.uri().query().unwrap_or("")
     ))
-    .map(|url| url.query_pairs().into_owned().collect::<Vec<_>>())
-    .unwrap_or_default();
+    .map_or(Vec::new(), |url| url.query_pairs().into_owned().collect());
     let find = |key: &str| {
         query
             .iter()
@@ -195,7 +194,7 @@ pub async fn action(request: Request) -> Response<ResponseBody> {
     // Passkey responses carry public keys and signatures, so allow a few kilobytes.
     let data = match json_body(request, 16 * 1024).await {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let (Ok(store), Some(origin)) = (Supabase::from_env(), origin) else {
         return unavailable();
@@ -243,21 +242,27 @@ impl Ctx {
         query: &[(&str, &str)],
         bearer: Option<&str>,
         body: Option<Value>,
-    ) -> Result<(StatusCode, Value), Response<ResponseBody>> {
+    ) -> Result<(StatusCode, Value), ApiError> {
         self.store
             .auth(method, path, query, bearer, body, self.ip.as_deref())
             .await
-            .map_err(|_| unavailable())
+            .map_err(|_| {
+                ApiError::new(
+                    503,
+                    "auth_unavailable",
+                    "Sign-in is temporarily unavailable. Try again.",
+                )
+            })
     }
 }
 
 async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBody> {
-    if let Err(response) = check_new_password(password) {
-        return response;
+    if let Err(failure) = check_new_password(password) {
+        return failure.into_response();
     }
     let (email, password) = match credentials(email, password) {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     // Limit sign-ups per network before Supabase sends a confirmation email.
     match ctx
@@ -289,7 +294,7 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBod
         .await
     {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     if !status.is_success() {
         return auth_failure(status, &body);
@@ -303,16 +308,13 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBod
 }
 
 async fn sign_in_with_password(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBody> {
-    let (email, password) = match credentials(email, password) {
-        Ok(value) => value,
-        // Do not say which part was malformed on sign-in.
-        Err(_) => {
-            return error(
-                401,
-                "invalid_credentials",
-                "Email or password is incorrect.",
-            );
-        }
+    // Do not say which part was malformed on sign-in.
+    let Ok((email, password)) = credentials(email, password) else {
+        return error(
+            401,
+            "invalid_credentials",
+            "Email or password is incorrect.",
+        );
     };
     let (status, session) = match ctx
         .auth(
@@ -325,7 +327,7 @@ async fn sign_in_with_password(ctx: &Ctx, email: &str, password: &str) -> Respon
         .await
     {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     if !status.is_success() {
         return auth_failure(status, &session);
@@ -356,7 +358,7 @@ async fn send_email(ctx: &Ctx, kind: &str, email: &str) -> Response<ResponseBody
     {
         Ok((status, _)) if status.is_success() => reply_with(200, json!({"ok": true}), &[]),
         Ok((status, body)) => auth_failure(status, &body),
-        Err(response) => response,
+        Err(failure) => failure.into_response(),
     }
 }
 
@@ -372,8 +374,8 @@ async fn open_email_link(
     }
     let result = match password {
         Some(password) => {
-            if let Err(response) = check_new_password(password) {
-                return response;
+            if let Err(failure) = check_new_password(password) {
+                return failure.into_response();
             }
             ctx.auth(
                 Method::PUT,
@@ -391,7 +393,7 @@ async fn open_email_link(
     };
     let (status, user) = match result {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     if !status.is_success() {
         return match error_code(&user) {
@@ -423,7 +425,7 @@ async fn passkey_options(ctx: &Ctx, token: Option<&str>) -> Response<ResponseBod
             &[],
         ),
         Ok((status, body)) => auth_failure(status, &body),
-        Err(response) => response,
+        Err(failure) => failure.into_response(),
     }
 }
 
@@ -449,7 +451,7 @@ async fn passkey_sign_in(ctx: &Ctx, data: &Value) -> Response<ResponseBody> {
             account_reply(signed_in(&ctx.store, ctx.ip.as_deref(), &session).await)
         }
         Ok((status, body)) => auth_failure(status, &body),
-        Err(response) => response,
+        Err(failure) => failure.into_response(),
     }
 }
 
@@ -492,7 +494,7 @@ async fn passkey_add(ctx: &Ctx, token: &str, data: &Value) -> Response<ResponseB
             reply_with(200, json!({"ok": true}), &[])
         }
         Ok((status, body)) => auth_failure(status, &body),
-        Err(response) => response,
+        Err(failure) => failure.into_response(),
     }
 }
 
@@ -696,11 +698,12 @@ fn auth_failure(status: StatusCode, body: &Value) -> Response<ResponseBody> {
 }
 
 fn unavailable() -> Response<ResponseBody> {
-    error(
+    ApiError::new(
         503,
         "auth_unavailable",
         "Sign-in is temporarily unavailable. Try again.",
     )
+    .into_response()
 }
 
 fn sign_in_again() -> Response<ResponseBody> {
@@ -719,20 +722,24 @@ fn link_expired() -> Response<ResponseBody> {
     )
 }
 
-fn credentials(email: &str, password: &str) -> Result<(String, String), Response<ResponseBody>> {
+fn credentials(email: &str, password: &str) -> Result<(String, String), ApiError> {
     let Some(email) = normalize_email(email) else {
-        return Err(error(400, "invalid_email", "Enter a valid email address."));
+        return Err(ApiError::new(
+            400,
+            "invalid_email",
+            "Enter a valid email address.",
+        ));
     };
     check_password(password)?;
     Ok((email, password.to_owned()))
 }
 
 /// Supabase stores passwords with bcrypt, which only reads the first 72 bytes.
-fn check_password(password: &str) -> Result<(), Response<ResponseBody>> {
+fn check_password(password: &str) -> Result<(), ApiError> {
     if (8..=72).contains(&password.len()) {
         Ok(())
     } else {
-        Err(error(
+        Err(ApiError::new(
             400,
             "weak_password",
             "Use a password of 8 to 72 characters.",
@@ -740,11 +747,11 @@ fn check_password(password: &str) -> Result<(), Response<ResponseBody>> {
     }
 }
 
-fn check_new_password(password: &str) -> Result<(), Response<ResponseBody>> {
+fn check_new_password(password: &str) -> Result<(), ApiError> {
     if password.chars().count() >= 12 && password.len() <= 72 {
         Ok(())
     } else {
-        Err(error(
+        Err(ApiError::new(
             400,
             "weak_password",
             "Use at least 12 characters, up to 72 bytes.",
@@ -797,7 +804,7 @@ mod tests {
         let settings =
             json!({"external": {"email": true, "google": false, "github": true, "apple": true}});
         assert_eq!(enabled_providers(&settings), ["github"]);
-        assert!(enabled_providers(&json!({})).is_empty());
+        assert_eq!(enabled_providers(&json!({})), [] as [&str; 0]);
     }
 
     #[test]

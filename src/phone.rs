@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::{
-    customer::{error, reply, session_token},
+    customer::{ApiError, error, reply, session_token},
     notify,
     store::Supabase,
 };
@@ -29,21 +29,22 @@ fn device_token(request: &Request) -> Option<String> {
     (token.len() == 64 && token.bytes().all(|b| b.is_ascii_hexdigit())).then(|| token.to_owned())
 }
 
-async fn body(request: Request, max_bytes: usize) -> Result<Value, Response<ResponseBody>> {
+async fn body(request: Request, max_bytes: usize) -> Result<Value, ApiError> {
     if !request
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| crate::security::is_json(v))
+        .is_some_and(crate::security::is_json)
     {
-        return Err(error(415, "unsupported_media_type", "Send JSON."));
+        return Err(ApiError::new(415, "unsupported_media_type", "Send JSON."));
     }
     let bytes = Limited::new(request.into_body(), max_bytes)
         .collect()
         .await
-        .map_err(|_| error(413, "too_large", "Request is too large."))?
+        .map_err(|_| ApiError::new(413, "too_large", "Request is too large."))?
         .to_bytes();
-    serde_json::from_slice(&bytes).map_err(|_| error(400, "invalid_json", "Send valid JSON."))
+    serde_json::from_slice(&bytes)
+        .map_err(|_| ApiError::new(400, "invalid_json", "Send valid JSON."))
 }
 
 fn respond(value: Value) -> Response<ResponseBody> {
@@ -152,7 +153,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let device = device_token(&request);
     let data = match body(request, 360_000).await {
         Ok(data) => data,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let action = data.get("action").and_then(Value::as_str).unwrap_or("");
     let (function, payload) = match action {
@@ -200,7 +201,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     | "location_accuracy"
                     | "voice_level"
             ) || !(1..=100).contains(&event.len())
-                || value.is_none_or(|v| !v.is_finite() || v.abs() > 100000.0)
+                || value.is_none_or(|v| !v.is_finite() || v.abs() > 100_000.0)
             {
                 return error(400, "invalid_reading", "Invalid phone reading.");
             }
@@ -231,7 +232,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             if !matches!(
                 mime,
                 "audio/webm" | "audio/webm;codecs=opus" | "audio/mp4" | "audio/ogg;codecs=opus"
-            ) || audio.len() > 349528
+            ) || audio.len() > 349_528
             {
                 return error(
                     400,
@@ -278,11 +279,11 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             if action == "reading" && value.get("error").is_none() {
                 notify::dispatch(&store).await;
             }
-            if action == "create" {
-                if let Some(token) = value.get("token").and_then(Value::as_str) {
-                    value["url"] = json!(format!("/phone.html#pair={token}"));
-                    value.as_object_mut().unwrap().remove("token");
-                }
+            if action == "create"
+                && let Some(token) = value.get("token").and_then(Value::as_str)
+            {
+                value["url"] = json!(format!("/phone.html#pair={token}"));
+                value.as_object_mut().unwrap().remove("token");
             }
             respond(value)
         }

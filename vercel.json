@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bash scripts/build-spa.sh",
   "crons": [
     {
       "path": "/api/cron",
@@ -24,8 +25,23 @@
       "permanent": true
     },
     {
-      "source": "/docs",
-      "destination": "/docs.html",
+      "source": "/sensors.html",
+      "destination": "/sensors",
+      "permanent": true
+    },
+    {
+      "source": "/docs.html",
+      "destination": "/sensors/docs",
+      "permanent": true
+    },
+    {
+      "source": "/agents.html",
+      "destination": "/sensors/agents",
+      "permanent": true
+    },
+    {
+      "source": "/self-host.html",
+      "destination": "/sensors/self-host",
       "permanent": true
     },
     {
@@ -42,11 +58,6 @@
       "source": "/enterprise",
       "destination": "/enterprise.html",
       "permanent": true
-    },
-    {
-      "source": "/self-host",
-      "destination": "/self-host.html",
-      "permanent": true
     }
   ],
   "rewrites": [
@@ -57,6 +68,18 @@
     {
       "source": "/api/waitlist",
       "destination": "/api/contact"
+    },
+    {
+      "source": "/app",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "/app/index.html"
     }
   ],
   "headers": [
@@ -125,6 +148,15 @@
     },
     {
       "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/app/config.json",
       "headers": [
         {
           "key": "Cache-Control",

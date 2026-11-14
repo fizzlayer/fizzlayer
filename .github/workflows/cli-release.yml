@@ -37,8 +37,9 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' cli/Cargo.toml | head -1)
           [ "cli-v$version" = "$TAG" ] || { echo "Tag $TAG does not match cli/Cargo.toml version $version"; exit 1; }
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
         with:
+          toolchain: 1.94.0
           targets: ${{ matrix.target }}
       - name: Install cargo-zigbuild
         run: pip install cargo-zigbuild

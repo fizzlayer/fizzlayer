@@ -38,7 +38,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         "DELETE" => {
             let data = match json_body(request, 512).await {
                 Ok(value) => value,
-                Err(response) => return response,
+                Err(failure) => return failure.into_response(),
             };
             let id = data.get("passkey_id").and_then(Value::as_str).unwrap_or("");
             if !valid_uuid(id) {
@@ -100,7 +100,7 @@ async fn details(
 fn passkey_list(body: &Value) -> Vec<Value> {
     body.as_array()
         .or_else(|| body.get("passkeys").and_then(Value::as_array))
-        .map(|list| {
+        .map_or(Vec::new(), |list| {
             list.iter()
                 .filter(|p| p.get("id").is_some_and(Value::is_string))
                 .map(|p| {
@@ -113,7 +113,6 @@ fn passkey_list(body: &Value) -> Vec<Value> {
                 })
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 fn valid_uuid(id: &str) -> bool {
@@ -144,7 +143,7 @@ mod tests {
             passkey_list(&json!({"passkeys": [item]}))[0]["name"],
             "Chrome on Mac"
         );
-        assert!(passkey_list(&Value::Null).is_empty());
+        assert_eq!(passkey_list(&Value::Null), [] as [Value; 0]);
     }
 
     #[test]

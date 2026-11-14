@@ -112,7 +112,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     } else if method == "POST" {
         match json_body(request, MAX_BODY_BYTES).await {
             Ok(data) => data,
-            Err(response) => return response,
+            Err(failure) => return failure.into_response(),
         }
     } else {
         return error(405, "method_not_allowed", "Use GET or POST.");
@@ -173,7 +173,7 @@ async fn start(
     data: &Value,
     ip: Option<&str>,
 ) -> Response<ResponseBody> {
-    let started = match store
+    let Ok(started) = store
         .rpc(
             "fizz_call_phone_start",
             json!({
@@ -183,15 +183,12 @@ async fn start(
             }),
         )
         .await
-    {
-        Ok(value) => value,
-        Err(_) => {
-            return error(
-                503,
-                "database_unavailable",
-                "Phone pairing is temporarily unavailable.",
-            );
-        }
+    else {
+        return error(
+            503,
+            "database_unavailable",
+            "Phone pairing is temporarily unavailable.",
+        );
     };
     if let Some(response) = phone_error(&started) {
         return response;

@@ -23,7 +23,7 @@ pub async fn contact(request: Request) -> Response<ResponseBody> {
     let ip = client_ip(&request);
     let data = match json_body(request, 4096).await {
         Ok(value) => value,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let Some(email) = data
         .get("email")

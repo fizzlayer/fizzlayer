@@ -1,5 +1,10 @@
-use std::net::{IpAddr, Ipv6Addr};
+use std::{
+    error::Error as StdError,
+    fmt,
+    net::{IpAddr, Ipv6Addr},
+};
 
+use http::header::RETRY_AFTER;
 use http_body_util::{BodyExt, Limited};
 use reqwest::Method;
 use serde_json::{Value, json};
@@ -39,15 +44,73 @@ pub fn device_limit() -> Response<ResponseBody> {
     error(403, "device_limit", DEVICE_LIMIT_MESSAGE)
 }
 
+/// A failure a handler can return without building an HTTP response.
+///
+/// `into_response` is the only place this becomes the JSON body and headers
+/// clients see. `error` uses that same mapping for handlers that return a
+/// response directly.
+#[derive(Debug)]
+pub struct ApiError {
+    status: u16,
+    code: &'static str,
+    message: &'static str,
+    retry_after: Option<&'static str>,
+}
+
+impl ApiError {
+    pub fn new(status: u16, code: &'static str, message: &'static str) -> Self {
+        Self {
+            status,
+            code,
+            message,
+            retry_after: None,
+        }
+    }
+
+    /// `Retry-After` in seconds. The value is a static header, the same way
+    /// the rate-limit responses have always sent `60`.
+    pub fn retry_after(mut self, seconds: &'static str) -> Self {
+        self.retry_after = Some(seconds);
+        self
+    }
+
+    pub fn into_response(self) -> Response<ResponseBody> {
+        error_response(self.status, self.code, self.message, self.retry_after)
+    }
+}
+
+impl fmt::Display for ApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}: {}", self.status, self.code, self.message)
+    }
+}
+
+impl StdError for ApiError {}
+
 pub fn error(status: u16, code: &str, message: &str) -> Response<ResponseBody> {
-    reply(
+    error_response(status, code, message, None)
+}
+
+fn error_response(
+    status: u16,
+    code: &str,
+    message: &str,
+    retry_after: Option<&'static str>,
+) -> Response<ResponseBody> {
+    let mut response = reply(
         status,
         json!({"error": {"code": code, "message": message}}),
         None,
-    )
+    );
+    if let Some(seconds) = retry_after {
+        response
+            .headers_mut()
+            .insert(RETRY_AFTER, http::HeaderValue::from_static(seconds));
+    }
+    response
 }
 
-pub async fn json_body(request: Request, limit: usize) -> Result<Value, Response<ResponseBody>> {
+pub async fn json_body(request: Request, limit: usize) -> Result<Value, ApiError> {
     json_body_with(request, limit, "invalid_request").await
 }
 
@@ -56,24 +119,24 @@ pub async fn json_body_with(
     request: Request,
     limit: usize,
     too_large: &'static str,
-) -> Result<Value, Response<ResponseBody>> {
+) -> Result<Value, ApiError> {
     let is_json = request
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .is_some_and(crate::security::is_json);
     if !is_json {
-        return Err(error(415, "unsupported_media_type", "Send JSON."));
+        return Err(ApiError::new(415, "unsupported_media_type", "Send JSON."));
     }
     let bytes = Limited::new(request.into_body(), limit)
         .collect()
         .await
-        .map_err(|_| error(413, too_large, "Request is too large."))?
+        .map_err(|_| ApiError::new(413, too_large, "Request is too large."))?
         .to_bytes();
     let value: Value = serde_json::from_slice(&bytes)
-        .map_err(|_| error(400, "invalid_request", "Send a JSON object."))?;
+        .map_err(|_| ApiError::new(400, "invalid_request", "Send a JSON object."))?;
     if !value.is_object() {
-        return Err(error(400, "invalid_request", "Send a JSON object."));
+        return Err(ApiError::new(400, "invalid_request", "Send a JSON object."));
     }
     Ok(value)
 }
@@ -91,13 +154,14 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
         .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
         .and_then(|v| v.trim().parse::<IpAddr>().ok())
         .map(|ip| match ip {
-            IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
-                Some(v4) => v4.to_string(),
-                None => {
+            IpAddr::V6(v6) => {
+                if let Some(v4) = v6.to_ipv4_mapped() {
+                    v4.to_string()
+                } else {
                     let [a, b, c, d, ..] = v6.segments();
                     format!("{}/64", Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
                 }
-            },
+            }
             IpAddr::V4(v4) => v4.to_string(),
         })
 }
@@ -312,7 +376,76 @@ async fn update_sensor(request: Request, removing: bool) -> Response<ResponseBod
 
 #[cfg(test)]
 mod tests {
+    use http_body_util::BodyExt;
+
     use super::*;
+
+    async fn json_body(response: Response<ResponseBody>) -> Value {
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn api_error_is_the_json_error_clients_already_receive() {
+        let direct = error(400, "invalid_request", "Send a JSON object.");
+        let mapped = ApiError::new(400, "invalid_request", "Send a JSON object.").into_response();
+        assert_eq!(direct.status(), mapped.status());
+        for response in [direct, mapped] {
+            assert_eq!(response.status(), 400);
+            assert_eq!(
+                response
+                    .headers()
+                    .get("content-type")
+                    .and_then(|value| value.to_str().ok()),
+                Some("application/json; charset=utf-8")
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("cache-control")
+                    .and_then(|value| value.to_str().ok()),
+                Some("no-store")
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("x-content-type-options")
+                    .and_then(|value| value.to_str().ok()),
+                Some("nosniff")
+            );
+            assert!(response.headers().get("retry-after").is_none());
+            assert!(response.headers().get("set-cookie").is_none());
+            assert_eq!(
+                json_body(response).await,
+                json!({"error": {"code": "invalid_request", "message": "Send a JSON object."}})
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn retry_after_is_a_header_and_does_not_change_the_body() {
+        let response = ApiError::new(429, "rate_limited", "Usage limit reached. Try again later.")
+            .retry_after("60")
+            .into_response();
+        assert_eq!(response.status(), 429);
+        assert_eq!(
+            response
+                .headers()
+                .get("retry-after")
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+        assert_eq!(
+            json_body(response).await,
+            json!({"error": {"code": "rate_limited", "message": "Usage limit reached. Try again later."}})
+        );
+    }
+
+    #[test]
+    fn api_error_display_names_the_status_and_code() {
+        let error = ApiError::new(415, "unsupported_media_type", "Send JSON.");
+        assert_eq!(error.to_string(), "415 unsupported_media_type: Send JSON.");
+    }
 
     #[test]
     fn emails_are_trimmed_lowercased_and_sanity_checked() {

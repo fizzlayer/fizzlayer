@@ -446,7 +446,7 @@
       if (reading) options.onAlert?.(target, reading);
     });
     const manage = node('a', 'secondary detail-manage', 'Manage sensor');
-    manage.href = '/sensors.html';
+    manage.href = '/sensors';
     foot.append(node('p', 'detail-note', 'History covers the most recent 500 readings.'), manage, alert);
 
     const panel = node('div', 'detail-panel');

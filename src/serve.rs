@@ -74,6 +74,8 @@ async fn handle(request: Request<Incoming>) -> Result<Response<Full<Bytes>>, Inf
         proxy_auth(request).await
     } else if path == "/api/waitlist" || path.starts_with("/api/") {
         freeze(api(request).await).await
+    } else if let Some(location) = redirect_target(&path, request.uri().query()) {
+        redirect(location)
     } else {
         static_file(&path).await
     };
@@ -81,8 +83,8 @@ async fn handle(request: Request<Incoming>) -> Result<Response<Full<Bytes>>, Inf
 }
 
 async fn api(request: Request<Incoming>) -> vercel_runtime::Response<ResponseBody> {
-    if let Err(response) = security::guard_request(&request) {
-        return response;
+    if let Err(failure) = security::guard_request(&request) {
+        return failure.into_response();
     }
     let path = request.uri().path();
     let method = request.method().clone();
@@ -231,12 +233,10 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let query = request
         .uri()
         .query()
-        .map(|query| format!("?{query}"))
-        .unwrap_or_default();
+        .map_or(String::new(), |query| format!("?{query}"));
     let url = format!("{upstream}{path}{query}");
-    let method = match reqwest::Method::from_bytes(request.method().as_str().as_bytes()) {
-        Ok(method) => method,
-        Err(_) => return text(StatusCode::METHOD_NOT_ALLOWED, "Method is not supported."),
+    let Ok(method) = reqwest::Method::from_bytes(request.method().as_str().as_bytes()) else {
+        return text(StatusCode::METHOD_NOT_ALLOWED, "Method is not supported.");
     };
     let headers = request.headers().clone();
     let collected = match request.into_body().collect().await {
@@ -247,7 +247,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
         return text(StatusCode::PAYLOAD_TOO_LARGE, "Request is too large.");
     }
     let mut builder = http_client().request(method, url);
-    for (name, value) in headers.iter() {
+    for (name, value) in &headers {
         if matches!(
             name.as_str(),
             "host" | "connection" | "content-length" | "transfer-encoding"
@@ -268,7 +268,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let bytes = response.bytes().await.unwrap_or_default();
     let mut out = Response::new(Full::new(bytes));
     *out.status_mut() = status;
-    for (name, value) in headers.iter() {
+    for (name, value) in &headers {
         if matches!(
             name.as_str(),
             "connection" | "transfer-encoding" | "content-length"
@@ -280,23 +280,44 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     out
 }
 
+/// Permanent redirects for URLs that moved. Query strings are added by `redirect_target`.
+pub fn redirect_path(path: &str) -> Option<&'static str> {
+    match path {
+        "/sensors.html" => Some("/sensors"),
+        "/docs.html" => Some("/sensors/docs"),
+        "/agents.html" => Some("/sensors/agents"),
+        "/self-host.html" => Some("/sensors/self-host"),
+        _ => None,
+    }
+}
+
+pub fn redirect_target(path: &str, query: Option<&str>) -> Option<String> {
+    let dest = redirect_path(path)?;
+    match query {
+        Some(query) if !query.is_empty() => Some(format!("{dest}?{query}")),
+        _ => Some(dest.to_owned()),
+    }
+}
+
 pub fn mapped_path(path: &str) -> &str {
     match path {
         "/" | "/index.html" => "/index.html",
-        "/docs" | "/docs/" => "/docs.html",
+        "/docs" | "/docs/" => "/gateway-docs.html",
+        "/sensors" | "/sensors/" => "/sensors.html",
+        "/sensors/docs" | "/sensors/docs/" => "/docs.html",
+        "/sensors/agents" | "/sensors/agents/" => "/agents.html",
+        "/sensors/self-host" | "/sensors/self-host/" => "/self-host.html",
         "/pricing" | "/pricing/" => "/pricing.html",
         "/status" | "/status/" => "/status.html",
         "/enterprise" | "/enterprise/" => "/enterprise.html",
-        "/self-host" | "/self-host/" => "/self-host.html",
+        "/self-host" | "/self-host/" => "/self-host-chooser.html",
         "/.well-known/webmcp" => "/.well-known/webmcp.json",
         other => other,
     }
 }
 
 fn public_dir() -> PathBuf {
-    env::var("FIZZ_PUBLIC_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("public"))
+    env::var("FIZZ_PUBLIC_DIR").map_or_else(|_| PathBuf::from("public"), PathBuf::from)
 }
 
 fn safe_file(root: &Path, url_path: &str) -> Option<PathBuf> {
@@ -357,6 +378,15 @@ fn content_type(path: &Path) -> Option<&'static str> {
         Some("xml") => Some("application/xml"),
         _ => None,
     }
+}
+
+fn redirect(location: String) -> Response<Full<Bytes>> {
+    let mut response = text(StatusCode::MOVED_PERMANENTLY, "Moved");
+    response.headers_mut().insert(
+        "location",
+        HeaderValue::try_from(location).unwrap_or_else(|_| HeaderValue::from_static("/")),
+    );
+    response
 }
 
 fn text(status: StatusCode, message: &str) -> Response<Full<Bytes>> {
@@ -432,10 +462,7 @@ fn stream_connect() -> String {
     {
         return String::new();
     }
-    let port = url
-        .port()
-        .map(|port| format!(":{port}"))
-        .unwrap_or_default();
+    let port = url.port().map_or(String::new(), |port| format!(":{port}"));
     let (http, ws) = if url.scheme() == "http" {
         ("http", "ws")
     } else if url.scheme() == "https" {
@@ -453,16 +480,41 @@ mod tests {
     #[test]
     fn clean_urls_map_to_the_same_files_as_vercel() {
         assert_eq!(mapped_path("/"), "/index.html");
-        assert_eq!(mapped_path("/docs"), "/docs.html");
+        assert_eq!(mapped_path("/docs"), "/gateway-docs.html");
+        assert_eq!(mapped_path("/sensors"), "/sensors.html");
+        assert_eq!(mapped_path("/sensors/docs"), "/docs.html");
+        assert_eq!(mapped_path("/sensors/agents/"), "/agents.html");
+        assert_eq!(mapped_path("/sensors/self-host"), "/self-host.html");
         assert_eq!(mapped_path("/pricing/"), "/pricing.html");
         assert_eq!(mapped_path("/status"), "/status.html");
         assert_eq!(mapped_path("/enterprise"), "/enterprise.html");
-        assert_eq!(mapped_path("/self-host"), "/self-host.html");
+        assert_eq!(mapped_path("/self-host"), "/self-host-chooser.html");
         assert_eq!(
             mapped_path("/.well-known/webmcp"),
             "/.well-known/webmcp.json"
         );
         assert_eq!(mapped_path("/app.html"), "/app.html");
+        assert_eq!(mapped_path("/install.sh"), "/install.sh");
+        assert_eq!(mapped_path("/api/mcp"), "/api/mcp");
+        assert_eq!(mapped_path("/ha.html"), "/ha.html");
+    }
+
+    #[test]
+    fn moved_pages_redirect_and_keep_the_query() {
+        assert_eq!(redirect_path("/sensors.html"), Some("/sensors"));
+        assert_eq!(redirect_path("/docs.html"), Some("/sensors/docs"));
+        assert_eq!(redirect_path("/agents.html"), Some("/sensors/agents"));
+        assert_eq!(redirect_path("/self-host.html"), Some("/sensors/self-host"));
+        assert_eq!(
+            redirect_target("/docs.html", Some("plan=pro")).as_deref(),
+            Some("/sensors/docs?plan=pro")
+        );
+        assert_eq!(redirect_path("/app.html"), None);
+        assert_eq!(redirect_path("/install.sh"), None);
+        assert_eq!(redirect_path("/api/ingest"), None);
+        assert_eq!(redirect_path("/api/mcp"), None);
+        assert_eq!(redirect_path("/ha.html"), None);
+        assert_eq!(redirect_path("/.well-known/mcp.json"), None);
     }
 
     #[test]

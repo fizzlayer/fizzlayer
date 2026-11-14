@@ -2,6 +2,7 @@
 name = "fizz-worker"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94"
 publish = false
 description = "Fizzlayer socket and MQTT worker for Supabase Compute"
 license = "Apache-2.0"
@@ -16,3 +17,33 @@ serde_json = "1"
 sha1 = "0.10"
 tungstenite = { version = "0.26", default-features = false }
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+
+# Keep this table in sync with the root Cargo.toml and cli/Cargo.toml.
+# protocol.rs is compiled into all three packages.
+#
+# Levels are warn. The lint workflow passes `-D warnings`, so a warning fails CI.
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+map_unwrap_or = "warn"
+manual_let_else = "warn"
+unreadable_literal = "warn"
+explicit_iter_loop = "warn"
+explicit_into_iter_loop = "warn"
+redundant_closure_for_method_calls = "warn"
+unnested_or_patterns = "warn"
+uninlined_format_args = "warn"
+ignored_unit_patterns = "warn"
+format_collect = "warn"
+cloned_instead_of_copied = "warn"
+flat_map_option = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_assert = "warn"
+manual_string_new = "warn"
+semicolon_if_nothing_returned = "warn"
+trivially_copy_pass_by_ref = "warn"
+match_same_arms = "warn"
+single_match_else = "warn"

@@ -2,6 +2,7 @@
 name = "fizz"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94"
 description = "The physical layer for AI agents"
 license = "Apache-2.0"
 
@@ -108,3 +109,37 @@ path = "api/devices.rs"
 [[bin]]
 name = "fizz-serve"
 path = "src/bin/fizz-serve.rs"
+
+# Keep this table in sync with cli/Cargo.toml and
+# supabase/compute/fizz-worker/Cargo.toml. protocol.rs is compiled into all
+# three packages, so a lint enabled in only one of them will fail that package
+# when the shared file trips it.
+#
+# Levels are warn. The lint workflow passes `-D warnings`, so a warning fails CI.
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+# Curated pedantic lints. The full pedantic group stays off: it is mostly
+# documentation nits and function-length limits. See CODE_QUALITY.md.
+map_unwrap_or = "warn"
+manual_let_else = "warn"
+unreadable_literal = "warn"
+explicit_iter_loop = "warn"
+explicit_into_iter_loop = "warn"
+redundant_closure_for_method_calls = "warn"
+unnested_or_patterns = "warn"
+uninlined_format_args = "warn"
+ignored_unit_patterns = "warn"
+format_collect = "warn"
+cloned_instead_of_copied = "warn"
+flat_map_option = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_assert = "warn"
+manual_string_new = "warn"
+semicolon_if_nothing_returned = "warn"
+trivially_copy_pass_by_ref = "warn"
+match_same_arms = "warn"
+single_match_else = "warn"
