@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1722">
-  <title>Documentation | Fizzlayer</title>
-  <meta name="description" content="How to use Fizzlayer: connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP.">
-  <link rel="canonical" href="https://fizzlayer.com/docs.html">
+  <title>Sensors docs | Fizzlayer</title>
+  <meta name="description" content="Fizzlayer Sensors docs: connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP. The hosted gateway is in private beta.">
+  <link rel="canonical" href="https://fizzlayer.com/sensors/docs">
   <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
   <script type="application/ld+json">
     {
@@ -14,7 +14,7 @@
       "@type": "TechArticle",
       "headline": "Build with Fizzlayer",
       "description": "How to connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP.",
-      "url": "https://fizzlayer.com/docs.html",
+      "url": "https://fizzlayer.com/sensors/docs",
       "inLanguage": "en",
       "about": {
         "@type": "SoftwareApplication",
@@ -47,7 +47,7 @@
     <nav class="container" aria-label="Main">
       <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
       <ul class="nav-links">
-        <li><a href="/docs.html" aria-current="page">Docs</a></li>
+        <li><a href="/sensors/docs" aria-current="page">Docs</a></li>
         <li class="nav-wide"><a href="/pricing">Pricing</a></li>
         <li class="nav-wide"><a href="/demo.html">Live demo</a></li>
         <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
@@ -120,8 +120,9 @@
 
       <article class="legal-body" aria-labelledby="title">
 
-        <h2 id="overview">How Fizzlayer works</h2>
-        <p>Fizzlayer is the physical layer for AI agents. Devices send <strong>readings</strong> (a temperature, a water flow rate, a phone's motion) to <strong>sensors</strong> in your account. The dashboard shows them live, <strong>alerts</strong> watch them for you, and <strong>Fizz</strong>, the built-in assistant, answers questions about them in plain English. AI agents can read the same data through <strong>MCP</strong>, or run your whole account from a browser through <strong>WebMCP</strong>.</p>
+        <p class="docs-legend">These are the Sensors docs. The hosted gateway is in private beta, and <a href="/docs">Gateway docs</a> are not written yet.</p>
+        <h2 id="overview">How Fizzlayer Sensors works</h2>
+        <p>Fizzlayer Sensors is the sensors side of Fizzlayer: devices, readings, and phone-call alerts. Devices send <strong>readings</strong> (a temperature, a water flow rate, a phone's motion) to <strong>sensors</strong> in your account. The dashboard shows them live, <strong>alerts</strong> watch them for you, and <strong>Fizz</strong>, the built-in assistant, answers questions about them in plain English. AI agents can read the same data through <strong>MCP</strong>, or run your whole account from a browser through <strong>WebMCP</strong>.</p>
         <p>Every sensor has a type, such as Temperature or Water, and a source:</p>
         <dl class="docs-defs">
           <div><dt>Sample stream</dt><dd>Simulated readings that update every few seconds. Use them to explore before you have hardware. They never count toward your device limit.</dd></div>
@@ -136,7 +137,7 @@
           <li><strong>Create your account.</strong> <a href="/app.html">Open the app</a>, choose <em>Create account</em>, and enter your email and a password of at least 12 characters, or continue with Google or GitHub. New accounts start on Hobbyist. After the account exists you can choose a plan, or skip and stay on Hobbyist. You then choose your sensors, including after Checkout. A link from pricing such as <a href="/app.html?plan=pro"><code>?plan=pro</code></a> opens Stripe Checkout as soon as you are signed in. The plan changes only when Stripe confirms payment. Enterprise is <a href="/enterprise">arranged with us</a>.</li>
           <li><strong>Confirm your email.</strong> Open the link we send you. Then sign in with your email and password. You can add a passkey later in Settings.</li>
           <li><strong>Choose your sensors.</strong> Pick the types you care about and choose <em>Start with sample data</em> to see a live dashboard right away, or <em>Set up with Fizz in chat</em> to connect a real device first.</li>
-          <li><strong>Connect something real.</strong> On the <a href="/sensors.html">Sensors</a> page, add a sensor with <em>Real device</em> selected. You get an API key, a phone link, or pairing steps, depending on the type.</li>
+          <li><strong>Connect something real.</strong> On the <a href="/sensors">Sensors</a> page, add a sensor with <em>Real device</em> selected. You get an API key, a phone link, or pairing steps, depending on the type.</li>
         </ol>
         <p class="docs-note"><span class="fa fa-circle-info" aria-hidden="true"></span><span>Prefer to let an AI agent do this? Point a browser agent with WebMCP at <code>fizzlayer.com</code> and ask it to onboard you. See <a href="#webmcp">WebMCP</a>.</span></p>
 
@@ -163,7 +164,7 @@
         <h2 id="http-api">Send readings over HTTP</h2>
         <p>Anything that can make an HTTPS request can send readings: a script, a server, an ESP32, or a home automation hub.</p>
         <ol class="docs-steps">
-          <li>On the <a href="/sensors.html">Sensors</a> page, add a sensor with <em>Real device</em> selected (or choose <em>Connect API</em> on an existing sample sensor).</li>
+          <li>On the <a href="/sensors">Sensors</a> page, add a sensor with <em>Real device</em> selected (or choose <em>Connect API</em> on an existing sample sensor).</li>
           <li>Copy the <strong>sensor ID</strong> from its card and the <strong>API key</strong> shown once when it is created. Lost it? Choose <em>Rotate API key</em> for a new one.</li>
           <li>Post a reading:</li>
         </ol>
@@ -219,7 +220,7 @@ fizz tail</code></pre>
         <pre><code>curl -fsSL https://fizzlayer.com/install.sh | sh
 fizz pair --name "Workshop Pi"</code></pre>
         <ol class="docs-steps">
-          <li>Enter the code that <code>fizz pair</code> prints on the <a href="/sensors.html">Sensors</a> or <a href="/agents.html">Agents</a> page, or ask a connected agent to claim it.</li>
+          <li>Enter the code that <code>fizz pair</code> prints on the <a href="/sensors">Sensors</a> or <a href="/sensors/agents">Agents</a> page, or ask a connected agent to claim it.</li>
           <li>Back on the device, check the account name and approve the request. Nothing connects until you approve it at the device.</li>
           <li>Start streaming:</li>
         </ol>
@@ -232,7 +233,7 @@ fizz status                               # show the pairing</code></pre>
 
         <h2 id="home-assistant">Home Assistant</h2>
         <p>Fizzlayer sits on top of a Home Assistant install instead of replacing it. Home Assistant already has the sensors, including ESPHome devices in a server closet. The integration pushes their state changes to Fizzlayer, so the install does not need to be reachable from the internet. Silence alerts keep working because the integration sends a heartbeat about every 30 seconds even when a value has not changed.</p>
-        <p>Install the integration before you add it. If the custom component is not there yet, Home Assistant shows "This integration does not support configuration via the UI." The same two steps are on the <a href="/sensors.html#home-assistant">Sensors</a> page.</p>
+        <p>Install the integration before you add it. If the custom component is not there yet, Home Assistant shows "This integration does not support configuration via the UI." The same two steps are on the <a href="/sensors#home-assistant">Sensors</a> page.</p>
         <ol class="docs-steps">
           <li><strong>Install via HACS.</strong> This opens HACS, or the Marketplace on Home Assistant 2026.11 and newer, and adds the Fizzlayer repository as an Integration. HACS reads <code>custom_components/fizzlayer</code> from this repository, so a separate repository is not required. HACS downloads the whole repository.
             <p><a class="my-ha-badge" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=fizzlayer&repository=fizzlayer&category=integration" target="_blank" rel="noopener"><img src="/badges/hacs_repository.svg" alt="Install via HACS" height="40"></a></p>
@@ -301,7 +302,7 @@ docker restart homeassistant</code></pre>
         <p>The <a href="https://modelcontextprotocol.io">Model Context Protocol</a> is an open standard that lets AI agents use outside tools and data. Fizzlayer's MCP server gives an agent read access to your sensors and readings, so you can ask it things like “Which room was warmest today?” from wherever you already work.</p>
 
         <h3>1. Create a token</h3>
-        <p>Open <a href="/agents.html">Agents</a>, name the agent (for example “Claude Code on my laptop”), and choose <em>Create agent token</em>. Turn on <em>Can create alerts</em> if you want it to set alerts for you. The token starts with <code>fizz_agent_</code> and is shown once; copy it into your agent's configuration. Create a separate token for each agent so you can revoke one without affecting the others.</p>
+        <p>Open <a href="/sensors/agents">Agents</a>, name the agent (for example “Claude Code on my laptop”), and choose <em>Create agent token</em>. Turn on <em>Can create alerts</em> if you want it to set alerts for you. The token starts with <code>fizz_agent_</code> and is shown once; copy it into your agent's configuration. Create a separate token for each agent so you can revoke one without affecting the others.</p>
 
         <h3>2. Add the server to your agent</h3>
         <p>The server URL is <code>https://fizzlayer.com/api/mcp</code>, using the Streamable HTTP transport with your token as a bearer header. Your client needs to support a remote HTTP server with a custom header.</p>
@@ -362,7 +363,7 @@ docker restart homeassistant</code></pre>
   -H 'Authorization: Bearer fizz_agent_...' \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_sensors","arguments":{}}}'</code></pre>
-        <p>Tokens never see your device keys, phone numbers, or sign-in session. Revoke a token on the <a href="/agents.html">Agents</a> page and it stops working immediately.</p>
+        <p>Tokens never see your device keys, phone numbers, or sign-in session. Revoke a token on the <a href="/sensors/agents">Agents</a> page and it stops working immediately.</p>
 
         <h2 id="webmcp">WebMCP</h2>
         <p><a href="https://developer.chrome.com/docs/ai/webmcp">WebMCP</a> is a new web standard that lets a website offer tools directly to an AI agent running in your browser. Instead of guessing which buttons to click, the agent calls well-defined tools. Every main page of fizzlayer.com, including this one, offers the same set of tools, so you can point an agent at <code>fizzlayer.com</code>, say “sign me up and set up a temperature sensor”, and watch it happen.</p>
@@ -498,7 +499,7 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
         <p>Read the <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms of Service</a> for the full details. Report a security issue to <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a>.</p>
 
         <h2 id="self-hosting">Self-hosting</h2>
-        <p>Run Fizzlayer on your own machine with Docker. The published images are <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-api">fizzlayer/fizzlayer-api</a> and <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-worker">fizzlayer/fizzlayer-worker</a>. The <a href="/self-host">self-hosting page</a> covers install, the first account, HTTPS ingest, WebSocket, MQTT on port 1883, a domain with Caddy, and Supabase Cloud. The same steps are in the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md">repository guide</a>. You can still deploy the API as Vercel functions; that path is in the same guide. Point the CLI at your origin with <code>FIZZ_API</code>.</p>
+        <p>Run Fizzlayer on your own machine with Docker. The published images are <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-api">fizzlayer/fizzlayer-api</a> and <a href="https://hub.docker.com/r/fizzlayer/fizzlayer-worker">fizzlayer/fizzlayer-worker</a>. The <a href="/sensors/self-host">self-hosting page</a> covers install, the first account, HTTPS ingest, WebSocket, MQTT on port 1883, a domain with Caddy, and Supabase Cloud. The same steps are in the <a href="https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md">repository guide</a>. You can still deploy the API as Vercel functions; that path is in the same guide. Point the CLI at your origin with <code>FIZZ_API</code>.</p>
 
         <h2 id="troubleshooting">Troubleshooting</h2>
         <dl class="docs-faq">
@@ -514,6 +515,6 @@ console.log(JSON.parse(await document.modelContext.executeTool(start, '{}')));</
     </div>
   </main>
 
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html" aria-current="page">Docs</a><a href="/self-host">Self-host</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/sensors/docs" aria-current="page">Docs</a><a href="/sensors/self-host">Self-host</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
 </body>
 </html>

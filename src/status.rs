@@ -26,7 +26,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             "service": "fizz",
             "status": if database == "connected" { "ok" } else { "degraded" },
             "database": database,
-            "description": "The physical layer for AI agents"
+            "description": "The secure connection layer for AI agents"
         }),
         None,
     )

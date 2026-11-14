@@ -8,7 +8,7 @@
   "protocolVersion": "2026-07-28",
   "authentication": {
     "type": "bearer",
-    "instructions": "Create an agent token (fizz_agent_...) at https://fizzlayer.com/agents.html and send Authorization: Bearer <token>."
+    "instructions": "Create an agent token (fizz_agent_...) at https://fizzlayer.com/sensors/agents and send Authorization: Bearer <token>."
   },
   "tools": [
     "list_sensors",
@@ -18,6 +18,6 @@
     "pair_device"
   ],
   "serverCard": "https://fizzlayer.com/.well-known/mcp/server-card.json",
-  "documentation": "https://fizzlayer.com/docs.html#mcp",
+  "documentation": "https://fizzlayer.com/sensors/docs#mcp",
   "icon": "https://fizzlayer.com/fizz-logo-480.png"
 }

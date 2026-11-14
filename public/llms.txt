@@ -1,6 +1,6 @@
 # Fizzlayer
 
-> Fizzlayer is the physical layer for AI agents. It connects sensors, phones, and Linux devices (including Raspberry Pi) to AI agents, shows their readings in a dashboard, lets people ask Fizz (the built-in assistant) about them, and sends threshold or silence alerts, optionally as phone calls.
+> Fizzlayer is the secure connection layer for AI agents. The hosted Gateway (one MCP endpoint, policies, approvals, and audit) is in private beta and is not available to use yet. Sensors, Fizz, and phone-call alerts are available now at https://fizzlayer.com/sensors.
 
 This file is for AI agents. If a person asked you to "onboard" or "set up Fizzlayer", follow the steps below on their behalf.
 
@@ -24,13 +24,13 @@ Tools return JSON text. Failures return `{"ok": false, "error": "..."}` with a m
 
 ## Payments
 
-Plans: Hobbyist (free, 3 devices, 10 Fizz credits a month, dashboard alerts only), Tinkerer ($10/month, 10 devices, 100 credits, phone calls), Pro ($25/month, 50 devices, 1,000 credits, phone calls), Enterprise (contact us, phone calls). Sample sensors do not count as devices; one credit is one message to Fizz. Phone calls, including the call that pairs a number, are not included on Hobbyist. The same table is at https://fizzlayer.com/pricing. Enterprise contact is https://fizzlayer.com/enterprise (the existing sales form, `POST /api/contact`). https://fizzlayer.com/status checks `GET /api/status` and `GET /api/stream` in the browser. It does not store uptime history or state an SLA, and it does not report the alert scheduler.
+Plans stay Hobbyist $0, Tinkerer $10/month, Pro $25/month, and Enterprise custom. Sensors limits enforced today: Hobbyist 3 devices and 10 Fizz credits, Tinkerer 10 devices and 100 credits, Pro 50 devices and 1,000 credits. Sample sensors do not count. One credit is one message to Fizz. Phone calls, including pairing, are not included on Hobbyist. Planned Gateway limits (not enforced while the gateway is in private beta) are on https://fizzlayer.com/pricing: shared vs dedicated gateway, MCP servers, tool calls, a shared monthly call cap for alerts and approvals, audit retention, and seats. Pro is planned to include one dedicated gateway. That cap is not live. The same table is at https://fizzlayer.com/pricing. Enterprise contact is https://fizzlayer.com/enterprise (the existing sales form, `POST /api/contact`). https://fizzlayer.com/status checks `GET /api/status` and `GET /api/stream` in the browser. It does not store uptime history or state an SLA, and it does not report the alert scheduler.
 
 `start_checkout` with `plan: "tinkerer"` or `"pro"` opens Stripe Checkout in the same tab. The person enters their own payment details and confirms; do not enter card details for them. The plan updates within seconds, and `get_account` shows it. `open_billing_portal` handles plan changes, payment methods, invoices, and cancellation.
 
 ## After onboarding: the MCP server
 
-For ongoing access from outside the browser, create a token with `create_agent_connection` (or on https://fizzlayer.com/agents.html) and connect to the remote MCP server:
+For ongoing access from outside the browser, create a token with `create_agent_connection` (or on https://fizzlayer.com/sensors/agents) and connect to the remote MCP server:
 
 - URL: https://fizzlayer.com/api/mcp (Streamable HTTP)
 - Header: `Authorization: Bearer fizz_agent_...`
@@ -58,8 +58,9 @@ For ongoing access from outside the browser, create a token with `create_agent_c
 
 ## Docs
 
-- [Documentation](https://fizzlayer.com/docs.html): setup, the HTTP API, the MCP server, and every WebMCP tool
-- [Self-host with Docker](https://fizzlayer.com/self-host): pull `fizzlayer/fizzlayer-api` and `fizzlayer/fizzlayer-worker`, create an account, and send readings over HTTPS, WebSocket, and MQTT port 1883. The repository guide is https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md
+- [Sensors documentation](https://fizzlayer.com/sensors/docs): setup, the HTTP API, the MCP server, and every WebMCP tool. `/docs.html` redirects here.
+- [Gateway docs](https://fizzlayer.com/docs): not written yet. The hosted gateway is in private beta.
+- [Self-host chooser](https://fizzlayer.com/self-host): Sensors can be installed today at https://fizzlayer.com/sensors/self-host (`fizzlayer/fizzlayer-api` and `fizzlayer/fizzlayer-worker`). There is no Gateway image yet. The repository guide is https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md
 - [Website](https://fizzlayer.com)
 - [Interactive demo](https://fizzlayer.com/demo.html) (no sign-in)
 - [Technical reference](https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md)

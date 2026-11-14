@@ -25,7 +25,7 @@
     custom: { label: 'Custom', metric: 'value', unit: '' },
   };
   const KIND_IDS = Object.keys(KINDS);
-  const PAGES = { home: '/', overview: '/app.html', sensors: '/sensors.html', agents: '/agents.html', settings: '/settings.html', pricing: '/pricing', status: '/status', enterprise: '/enterprise', demo: '/demo.html', docs: '/docs.html', self_host: '/self-host', privacy: '/privacy.html', terms: '/terms.html' };
+  const PAGES = { home: '/', overview: '/app.html', sensors: '/sensors', agents: '/sensors/agents', settings: '/settings.html', pricing: '/pricing', status: '/status', enterprise: '/enterprise', demo: '/demo.html', docs: '/sensors/docs', gateway_docs: '/docs', self_host: '/self-host', sensors_self_host: '/sensors/self-host', privacy: '/privacy.html', terms: '/terms.html' };
 
   class ToolError extends Error {}
 
@@ -86,7 +86,7 @@
       annotations: { readOnlyHint: true },
       async execute() {
         const me = await session();
-        const about = 'Fizzlayer connects sensors, phones, and Linux devices to AI agents. Readings appear in a dashboard; Fizz, the built-in assistant, answers questions about them, and threshold alerts can place phone calls.';
+        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors, Fizz, and phone-call alerts are available now at /sensors. An account today is a Sensors account.';
         if (!me) {
           return text({
             about, signed_in: false, page: location.pathname,
@@ -194,7 +194,7 @@
             throw error;
           });
         changed('session');
-        if (['/app.html', '/sensors.html', '/agents.html', '/settings.html'].includes(location.pathname)) reloadSoon();
+        if (['/app.html', '/sensors', '/sensors.html', '/sensors/agents', '/agents.html', '/settings.html'].includes(location.pathname)) reloadSoon();
         return text({ ok: true, username: result.username, next: 'Call get_started to see the account and what to do next.' });
       },
     },

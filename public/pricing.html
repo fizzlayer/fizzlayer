@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#fcfdfd">
   <title>Pricing | Fizzlayer</title>
-  <meta name="description" content="Fizzlayer plans: Hobbyist is free, Tinkerer is $10 a month, Pro is $25 a month, and Enterprise is custom.">
+  <meta name="description" content="Fizzlayer plans: Hobbyist is free, Tinkerer is $10 a month, Pro is $25 a month, and Enterprise is custom. Gateway limits are planned. Sensors limits are what the service enforces today.">
   <link rel="canonical" href="https://fizzlayer.com/pricing">
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,10 +24,10 @@
       <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
       <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
       <ul class="nav-links" id="nav-links">
-        <li><a href="/#connect">Platform</a></li>
-        <li><a href="/#use-cases">Use cases</a></li>
-        <li><a href="/demo.html">Live demo</a></li>
-        <li><a href="/docs.html">Docs</a></li>
+        <li><a href="/docs">Gateway docs</a></li>
+        <li><a href="/sensors">Sensors</a></li>
+        <li><a href="/sensors/docs">Sensors docs</a></li>
+        <li><a href="/self-host">Self-host</a></li>
         <li><a href="/pricing" aria-current="page">Pricing</a></li>
         <li><a href="/enterprise">Enterprise</a></li>
         <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
@@ -38,7 +38,24 @@
   </header>
   <main id="main-content">
     <section class="section pricing container" id="pricing" aria-labelledby="pricing-title">
-      <div class="section-intro"><div><p class="eyebrow-label">04 / Pricing</p><h2 id="pricing-title">Start free.<br>Grow when your world does.</h2></div><p class="lede">Every plan includes unlimited sample sensors, agent access over MCP, and dashboard alerts. Phone calls are included with Tinkerer, Pro, and Enterprise.</p></div>
+      <div class="section-intro"><div><p class="eyebrow-label">04 / Pricing</p><h2 id="pricing-title">Start free.<br>Grow when your world does.</h2></div><p class="lede">The same four prices cover Sensors, which you can use today, and the Gateway, which is in private beta and does not enforce these limits yet. Sample sensors stay unlimited. Phone-call alerts stay off Hobbyist. A shared monthly call cap for alerts and approvals is the plan for Tinkerer and Pro. It is not enforced yet.</p></div>
+      <h3>Gateway, planned</h3>
+      <p>These numbers are the entitlements the hosted gateway will use. Nothing in this table is metered today. Pro is planned to include one dedicated gateway. Approvals by phone, Slack, or Discord are not available yet.</p>
+      <div class="pricing-table-wrap">
+        <table class="pricing-table">
+          <caption class="visually-hidden">Planned Gateway limits by plan</caption>
+          <thead>
+            <tr><th scope="col">Plan</th><th scope="col">Hosted gateway</th><th scope="col">MCP servers</th><th scope="col">Tool calls</th><th scope="col">Phone calls, alerts and approvals</th><th scope="col">Audit</th><th scope="col">Seats</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Hobbyist</th><td>1 shared, not live</td><td>3</td><td>10,000 / month</td><td>None</td><td>7 days</td><td>1</td></tr>
+            <tr><th scope="row">Tinkerer</th><td>1 shared, not live</td><td>10</td><td>50,000 / month</td><td>20 / month, planned</td><td>30 days</td><td>1</td></tr>
+            <tr><th scope="row">Pro</th><td>1 dedicated, not live</td><td>25</td><td>200,000 / month</td><td>100 / month, planned</td><td>90 days</td><td>3</td></tr>
+            <tr><th scope="row">Enterprise</th><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Sensors, enforced today</h3>
       <div class="pricing-table-wrap">
         <table class="pricing-table">
           <caption class="visually-hidden">Fizzlayer plans compared by monthly price, connected devices, and Fizz credits</caption>
@@ -84,6 +101,6 @@
       <p class="pricing-note">One Fizz credit is one message to Fizz in the workspace chat, typed or spoken. Credits reset on the first of each month. Connected devices are paired devices, phones, and API sensors; sample sensors are free. A phone call, including the call that pairs a number, requires Tinkerer, Pro, or Enterprise. Hobbyist alerts stay on the dashboard.</p>
     </section>
   </main>
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html">Docs</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/sensors/docs">Docs</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
 </body>
 </html>
