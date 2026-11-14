@@ -16,7 +16,27 @@ That digest is the multi-arch OCI index (linux/amd64 and linux/arm64). Do not pi
 
 ## What we add
 
-agentgateway terminates MCP, checks the Fizzlayer JWT (`jwtAuth`), and calls fizz-guard on `tools/call` (`mcpGuardrails` / ExtMcp). fizz-config writes the YAML file atomically. agentgateway's file watch reloads it. Session IDs are left unencrypted in local compose (`config.session.key: disabled` and `SESSION_KEY=disabled`) so the process does not write a generated key into the config file. Set a real session key outside the file before a shared or hosted deploy.
+agentgateway terminates MCP, checks the Fizzlayer JWT (`jwtAuth`), and calls fizz-guard through `mcpGuardrails` / ExtMcp. The generated config asks for `tools/call` on the request phase and `tools/list` on the response phase, with `failureMode: failClosed`. fizz-config writes the YAML file atomically. agentgateway's file watch reloads it. Session IDs are left unencrypted in local compose (`config.session.key: disabled` and `SESSION_KEY=disabled`) so the process does not write a generated key into the config file. Set a real session key outside the file before a shared or hosted deploy.
+
+## What `ext_mcp.proto` allows (v1.7.0)
+
+Confirmed against `crates/agentgateway/src/mcp/guardrails/client.rs` and `mod.rs` at commit `26f5aebe99a36a037fe54f8080a608aca5547e15`. The proto in this repo is the byte-for-byte copy named above. It was not edited.
+
+`McpResponseResult.result` is a oneof:
+
+| Arm | Effect |
+|---|---|
+| `pass` | Leave the upstream JSON-RPC result as it is. |
+| `mutated` | Replace that result with the raw JSON bytes. agentgateway deserializes them as `rmcp` 3.1 `ServerResult` (`#[serde(untagged)]`). For `tools/list` that is a JSON object with a `tools` array. If the bytes do not parse, it is a protocol violation. With `failClosed`, the gateway then rejects the call. |
+| `error` | Reject. `reason` becomes the MCP error text. Optional `mcp_error` bytes replace the derived payload. |
+
+Stripping a tool is possible. fizz-guard returns `mutated` with the same result object and that tool removed from `tools`. It does not reshape the tools it keeps.
+
+`tools/list` is a fanout method. The response hook runs once on the merged client-facing result, not once per backend. `service_names` lists every backend in that fanout. With one backend (the usual generated config, `prefixMode: never`), names are unprefixed and that single name is the server. With several backends, agentgateway prefixes names as `{server}_{tool}` unless `prefixMode` is `never`. Request-phase mutations on list methods are discarded; list filtering has to be a response.
+
+`tools/call` runs in the upstream's own namespace: the guard sees `echo`, not `server_echo`, and exactly one `service_names` entry. A call is denied unless that server's pin is `approved` and the approved hash still matches the last list.
+
+`check_request` and `check_response` both set a 10-second `BackendRequestTimeout`. The `Remote` config in this release has no timeout field, so fizz-guard does not try to lengthen it and does not wait for a person inside the RPC. If the guard process is unreachable, the RPC errors, or the mutated body is not a valid result, `failClosed` denies the MCP call. fizz-guard also returns an error result for its own failures, which denies the call even if a config were later switched to `failOpen`.
 
 ## Upgrade
 

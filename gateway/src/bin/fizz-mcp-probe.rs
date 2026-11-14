@@ -9,6 +9,7 @@ use std::time::Duration;
 use fizz_gateway::db::Db;
 use fizz_gateway::error::{GatewayError, GatewayResult};
 use fizz_gateway::jwt;
+use fizz_gateway::sample_defs::catalog;
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -73,19 +74,63 @@ async fn run() -> GatewayResult<()> {
     .await?;
     let listed = call(&client, &gateway, &token, "tools/list", json!({}), 2).await?;
     let names = tool_names(&listed);
-    for needed in ["ping", "admin_reset", "move_funds"] {
+    for needed in ["ping", "admin_reset", "move_funds", "note"] {
         if !names
             .iter()
-            .any(|name| name == needed || name.ends_with(needed))
+            .any(|name| name == needed || name.ends_with(&format!("_{needed}")))
         {
             return Err(GatewayError::message(format!(
                 "tools/list did not include {needed}"
             )));
         }
     }
+    for tool in catalog() {
+        if !db
+            .reapprove_pin(spec.gateway_id, "sample", tool.name)
+            .await?
+        {
+            return Err(GatewayError::message(
+                "tool pin was not recorded from tools/list",
+            ));
+        }
+    }
     let ping_name = resolve(&names, "ping");
     let deny_name = resolve(&names, "admin_reset");
     let approve_name = resolve(&names, "move_funds");
+    let note_name = resolve(&names, "note");
+    let calls_url = required("SAMPLE_CALLS_URL")?;
+    let sample = calls_url.trim_end_matches("/calls");
+    let changed = client
+        .post(format!("{sample}/note-description"))
+        .json(&json!({"description": "Leave a note. The text was revised."}))
+        .send()
+        .await
+        .map_err(|_| GatewayError::message("sample description was not updated"))?;
+    if !changed.status().is_success() {
+        return Err(GatewayError::message("sample description was not updated"));
+    }
+    let relisted = call(&client, &gateway, &token, "tools/list", json!({}), 4).await?;
+    let remaining = tool_names(&relisted);
+    if remaining.iter().any(|name| name == &note_name) {
+        return Err(GatewayError::message(
+            "changed tool description was still listed",
+        ));
+    }
+    if !remaining.iter().any(|name| name == &ping_name) {
+        return Err(GatewayError::message(
+            "tools/list dropped an unchanged tool",
+        ));
+    }
+    let pinned = tool_result(&client, &gateway, &token, &note_name).await?;
+    let pinned_text = shown(&pinned);
+    if !pinned_text.contains("description changed") {
+        return Err(GatewayError::message(
+            "changed tool description was not blocked",
+        ));
+    }
+    if db.open_pin_alert(spec.gateway_id, "note").await?.as_deref() != Some("changed") {
+        return Err(GatewayError::message("pin alert was not recorded"));
+    }
     let ping = call(
         &client,
         &gateway,
@@ -104,12 +149,46 @@ async fn run() -> GatewayResult<()> {
     }
     let approval = call_error(&client, &gateway, &token, &approve_name).await?;
     if !approval.contains("Approval required") || !approval.contains("retry the same call") {
+        return Err(GatewayError::message("approval did not ask for a retry"));
+    }
+    let (approval_id, status) = db
+        .latest_approval(spec.gateway_id, "move_funds")
+        .await?
+        .ok_or_else(|| GatewayError::message("approval row was missing"))?;
+    if status != "pending" {
+        return Err(GatewayError::message("approval row was not pending"));
+    }
+    let phone = db
+        .phone_status_for_tool(spec.gateway_id, "move_funds")
+        .await?;
+    if phone.as_deref() == Some("reserved") {
         return Err(GatewayError::message(
-            "approval stub did not ask for a retry",
+            "phone stub reserved a call it did not place",
+        ));
+    }
+    if phone.as_deref() != Some("skipped") && phone.as_deref() != Some("stubbed") {
+        return Err(GatewayError::message("phone approval hook did not run"));
+    }
+    decide_approval(
+        &client,
+        &required("FIZZ_GUARD_ADMIN_URL")?,
+        approval_id,
+        "approved",
+    )
+    .await?;
+    let retried = tool_result(&client, &gateway, &token, &approve_name).await?;
+    if retried.get("error").is_some() || !shown(&retried).contains("moved") {
+        return Err(GatewayError::message("approved retry was not allowed once"));
+    }
+    let second = tool_result(&client, &gateway, &token, &approve_name).await?;
+    let second_text = shown(&second);
+    if second.get("error").is_none() && !second_text.contains("Approval required") {
+        return Err(GatewayError::message(
+            "second retry of an approval was allowed",
         ));
     }
     let calls = client
-        .get(required("SAMPLE_CALLS_URL")?)
+        .get(&calls_url)
         .send()
         .await
         .map_err(|_| GatewayError::message("sample call counter was unreachable"))?
@@ -118,7 +197,8 @@ async fn run() -> GatewayResult<()> {
         .map_err(|_| GatewayError::message("sample call counter was unreadable"))?;
     if calls["ping"].as_u64() != Some(1)
         || calls["admin_reset"].as_u64() != Some(0)
-        || calls["move_funds"].as_u64() != Some(0)
+        || calls["move_funds"].as_u64() != Some(1)
+        || calls["note"].as_u64() != Some(0)
     {
         return Err(GatewayError::message(
             "upstream saw a call the guard should have stopped",
@@ -127,12 +207,16 @@ async fn run() -> GatewayResult<()> {
     let rows = db.audit_decisions(spec.gateway_id).await?;
     expect_audit(&rows, "ping", "allow")?;
     expect_audit(&rows, "admin_reset", "deny")?;
+    expect_audit(&rows, "note", "deny")?;
     expect_audit(&rows, "move_funds", "approval_required")?;
+    expect_audit(&rows, "move_funds", "approval_consumed")?;
     let status = db.approval_status(spec.gateway_id, "move_funds").await?;
     if status.as_deref() != Some("pending") {
-        return Err(GatewayError::message("approval row was not pending"));
+        return Err(GatewayError::message(
+            "second retry did not open a new approval",
+        ));
     }
-    eprintln!("fizz-mcp-probe: allow, deny audit, and approval stub checked");
+    eprintln!("fizz-mcp-probe: pin change, single-use approval, and phone stub checked");
     Ok(())
 }
 
@@ -160,9 +244,10 @@ fn assert_config(path: &str) -> GatewayResult<()> {
 }
 
 fn resolve(names: &[String], suffix: &str) -> String {
+    let prefixed = format!("_{suffix}");
     names
         .iter()
-        .find(|name| name.as_str() == suffix || name.ends_with(suffix))
+        .find(|name| name.as_str() == suffix || name.ends_with(&prefixed))
         .cloned()
         .unwrap_or_else(|| suffix.to_string())
 }
@@ -238,6 +323,50 @@ async fn call(
     Ok(body)
 }
 
+async fn tool_result(
+    client: &reqwest::Client,
+    gateway: &str,
+    token: &str,
+    tool: &str,
+) -> GatewayResult<Value> {
+    post_raw(
+        client,
+        gateway,
+        token,
+        json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": tool, "arguments": {}}}),
+    )
+    .await
+}
+
+async fn decide_approval(
+    client: &reqwest::Client,
+    admin: &str,
+    id: Uuid,
+    status: &str,
+) -> GatewayResult<()> {
+    let token = required("FIZZ_GUARD_ADMIN_TOKEN")?;
+    let mut last = GatewayError::message("approval API was unreachable");
+    for _ in 0..15 {
+        match client
+            .post(format!("{admin}/approvals/decision"))
+            .bearer_auth(&token)
+            .json(&json!({"id": id, "status": status}))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => return Ok(()),
+            Ok(_) => {
+                return Err(GatewayError::message("approval API rejected the decision"));
+            }
+            Err(_) => {
+                last = GatewayError::message("approval API was unreachable");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+    Err(last)
+}
+
 async fn call_error(
     client: &reqwest::Client,
     gateway: &str,
@@ -255,6 +384,8 @@ async fn call_error(
     if body.get("error").is_none()
         && !text.contains("not allowed")
         && !text.contains("Approval required")
+        && !text.contains("description changed")
+        && !text.contains("not approved")
     {
         return Err(GatewayError::message(format!(
             "{tool} was unexpectedly allowed"

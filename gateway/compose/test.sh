@@ -42,11 +42,27 @@ import os
 import secrets
 from pathlib import Path
 password = secrets.token_hex(24)
+admin = secrets.token_hex(24)
 Path(".env").write_text(
-    "POSTGRES_PASSWORD=%s\nDATABASE_URL=postgres://gateway_runtime:%s@postgres:5432/fizz\n"
-    % (password, password)
+    "POSTGRES_PASSWORD=%s\nDATABASE_URL=postgres://gateway_runtime:%s@postgres:5432/fizz\nFIZZ_GUARD_ADMIN_TOKEN=%s\n"
+    % (password, password, admin)
 )
 os.chmod(".env", 0o600)
+PY
+fi
+if ! grep -q '^FIZZ_GUARD_ADMIN_TOKEN=.\+' .env; then
+  umask 077
+  python3 - <<'PY'
+import os
+import secrets
+from pathlib import Path
+path = Path(".env")
+admin = secrets.token_hex(24)
+text = path.read_text()
+if not text.endswith("\n"):
+    text += "\n"
+path.write_text(text + "FIZZ_GUARD_ADMIN_TOKEN=%s\n" % admin)
+os.chmod(path, 0o600)
 PY
 fi
 

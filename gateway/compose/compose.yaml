@@ -12,6 +12,7 @@ services:
     volumes:
       - ./init/00-local-prereqs.sql:/docker-entrypoint-initdb.d/00-local-prereqs.sql:ro
       - ../../supabase/migrations/20261114000000_gateway.sql:/docker-entrypoint-initdb.d/10-gateway.sql:ro
+      - ../../supabase/migrations/20261114000300_gateway_policies.sql:/docker-entrypoint-initdb.d/11-gateway-policies.sql:ro
       - ./init/20-runtime-login.sh:/docker-entrypoint-initdb.d/20-runtime-login.sh:ro
       - ./init/30-seed.sql:/docker-entrypoint-initdb.d/30-seed.sql:ro
       - ../../supabase/tests/gateway_rls.sql:/tests/gateway_rls.sql:ro
@@ -59,6 +60,8 @@ services:
     environment:
       <<: *runtime-env
       FIZZ_GUARD_LISTEN: 0.0.0.0:9001
+      FIZZ_GUARD_ADMIN_LISTEN: 0.0.0.0:9002
+      FIZZ_GUARD_ADMIN_TOKEN: ${FIZZ_GUARD_ADMIN_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +71,8 @@ services:
       timeout: 3s
       retries: 30
       start_period: 5s
+    ports:
+      - "127.0.0.1:9002:9002"
     restart: unless-stopped
 
   sample-mcp:
@@ -91,7 +96,7 @@ services:
       SESSION_KEY: disabled
       RUST_LOG: warn
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - config:/config:ro
     depends_on:
@@ -110,6 +115,8 @@ services:
       <<: *runtime-env
       FIZZ_CONFIG_FILE: /config/config.yaml
       SAMPLE_CALLS_URL: http://sample-mcp:8080/calls
+      FIZZ_GUARD_ADMIN_URL: http://fizz-guard:9002
+      FIZZ_GUARD_ADMIN_TOKEN: ${FIZZ_GUARD_ADMIN_TOKEN}
     volumes:
       - keys:/keys
       - config:/config:ro

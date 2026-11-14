@@ -26,6 +26,10 @@ insert into gateway.gateways (
   '1.7.0'
 );
 
+update gateway.gateways
+set unreviewed_tools = 'show'
+where id = '22222222-2222-4222-8222-222222222222';
+
 insert into gateway.servers (id, gateway_id, name, transport, url_or_cmd, auth_kind)
 values (
   '55555555-5555-4555-8555-555555555555',
@@ -36,7 +40,8 @@ values (
   'none'
 );
 
-insert into gateway.policies (gateway_id, server_id, tool_name, effect) values
-  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'ping', 'allow'),
-  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'admin_reset', 'deny'),
-  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'move_funds', 'approve');
+insert into gateway.policies (gateway_id, server_id, tool_name, effect, notify_channel) values
+  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'ping', 'allow', 'log'),
+  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'admin_reset', 'deny', 'log'),
+  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'move_funds', 'approve', 'phone'),
+  ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'note', 'allow', 'log');

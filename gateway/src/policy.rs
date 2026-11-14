@@ -23,11 +23,38 @@ impl Effect {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyChannel {
+    Log,
+    Webhook,
+    Phone,
+}
+
+impl NotifyChannel {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "log" => Some(Self::Log),
+            "webhook" => Some(Self::Webhook),
+            "phone" => Some(Self::Phone),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Log => "log",
+            Self::Webhook => "webhook",
+            Self::Phone => "phone",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolicyRule {
     pub server_name: Option<String>,
     pub tool_name: String,
     pub effect: Effect,
+    pub notify_channel: NotifyChannel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +98,25 @@ pub fn match_effect(rules: &[PolicyRule], server: &str, tool: &str) -> Effect {
         }
     }
     best.map(|(_, effect)| effect).unwrap_or(Effect::Deny)
+}
+
+/// Channel on the same winning rule as [`match_effect`]. Missing rules log only.
+pub fn match_channel(rules: &[PolicyRule], server: &str, tool: &str) -> NotifyChannel {
+    let mut best: Option<(u8, NotifyChannel)> = None;
+    for rule in rules {
+        let rank = match (&rule.server_name, rule.tool_name.as_str()) {
+            (Some(name), tool_name) if name == server && tool_name == tool => 4,
+            (Some(name), "*") if name == server => 3,
+            (None, tool_name) if tool_name == tool => 2,
+            (None, "*") => 1,
+            _ => continue,
+        };
+        if best.map(|(current, _)| rank > current).unwrap_or(true) {
+            best = Some((rank, rule.notify_channel));
+        }
+    }
+    best.map(|(_, channel)| channel)
+        .unwrap_or(NotifyChannel::Log)
 }
 
 pub fn decide(effect: Effect, approval: ApprovalHit, tool: &str) -> Step {
@@ -120,7 +166,7 @@ pub fn fingerprint(arguments: &Value) -> (String, String) {
     (hash, preview(arguments))
 }
 
-fn canonical_json(value: &Value) -> Value {
+pub(crate) fn canonical_json(value: &Value) -> Value {
     match value {
         Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();
@@ -162,6 +208,7 @@ mod tests {
             server_name: server.map(str::to_string),
             tool_name: tool.to_string(),
             effect,
+            notify_channel: NotifyChannel::Log,
         }
     }
 
