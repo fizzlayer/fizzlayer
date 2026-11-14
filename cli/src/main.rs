@@ -210,6 +210,7 @@ fn check_config(path: &Path) -> Result<()> {
             {
                 use std::os::unix::fs::MetadataExt;
                 // Do not read a key from a file another user can read or write.
+                // SAFETY: geteuid has no preconditions and only reads this process's effective user id.
                 if metadata.mode() & 0o077 != 0 || metadata.uid() != unsafe { libc::geteuid() } {
                     return Err(format!(
                         "{} must be owned by you with mode 600. Run chmod 600 on it.",
@@ -688,6 +689,8 @@ fn system_metrics() -> Map<String, Value> {
 #[cfg(unix)]
 fn disk_used_pct(path: &str) -> Option<f64> {
     let path = std::ffi::CString::new(path).ok()?;
+    // SAFETY: statvfs is a plain C struct. Zeroing it is its initial state, and no
+    // reference to it exists yet.
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
     // SAFETY: `path` is a valid C string and `stat` is a properly sized, writable struct.
     if unsafe { libc::statvfs(path.as_ptr(), &mut stat) } != 0 {

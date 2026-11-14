@@ -75,7 +75,7 @@ bash scripts/check-no-build-output.sh
 
 The `no-build-output` job runs that script on every pull request and every push to `main`. The rule it enforces is [Build artifacts](#build-artifacts).
 
-Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync.
+Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync. `clippy::undocumented_unsafe_blocks` is on: every `unsafe` block has a `SAFETY:` comment on the line above it.
 
 `cargo test` and `cargo audit` stay in the security workflow. `cargo deny` checks advisories, licenses, bans, and sources on every pull request (`deny.toml`). Duplicate crate versions warn and do not fail the build. Version requirements must not be `*`. Dependencies come from crates.io only.
 

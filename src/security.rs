@@ -308,6 +308,7 @@ mod tests {
             site_origin(Some("sensors.example.com")).as_deref(),
             Some("http://sensors.example.com")
         );
+        // SAFETY: same isolated test process as the assignment above. Restored below.
         unsafe {
             env::set_var("FIZZ_PUBLIC_SCHEME", "https");
         }
@@ -316,6 +317,7 @@ mod tests {
             Some("https://edge.example.com")
         );
         assert!(site_origin(Some("other.example.com")).is_none());
+        // SAFETY: restores the variables this test changed. No other test reads them.
         unsafe {
             match previous {
                 Some(value) => env::set_var("FIZZ_PUBLIC_HOST", value),
