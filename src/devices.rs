@@ -110,6 +110,27 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     {
         return response;
     }
+    pairing_action(
+        &store,
+        action,
+        &data,
+        secret,
+        session.as_deref(),
+        key.as_deref(),
+        ip.as_deref(),
+    )
+    .await
+}
+
+async fn pairing_action(
+    store: &Supabase,
+    action: &str,
+    data: &Value,
+    secret: Option<&str>,
+    session: Option<&str>,
+    key: Option<&str>,
+    ip: Option<&str>,
+) -> Response<ResponseBody> {
     match action {
         "start" => {
             let (Some(name), Some(platform)) = (
@@ -194,23 +215,25 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 200,
             )
         }
-        "unpair" => {
-            let id = data.get("sensor_id").and_then(Value::as_str).unwrap_or("");
-            let (Some(key), true) = (key, valid_uuid(id)) else {
-                return error(401, "unauthorized", "Use this device's sensor ID and key.");
-            };
-            outcome(
-                store
-                    .rpc(
-                        "fizz_device_unpair",
-                        json!({"p_sensor_id": id, "p_key": key}),
-                    )
-                    .await,
-                200,
-            )
-        }
+        "unpair" => unpair(store, data, key).await,
         _ => error(400, "invalid_request", "Unknown pairing action."),
     }
+}
+
+async fn unpair(store: &Supabase, data: &Value, key: Option<&str>) -> Response<ResponseBody> {
+    let id = data.get("sensor_id").and_then(Value::as_str).unwrap_or("");
+    let (Some(key), true) = (key, valid_uuid(id)) else {
+        return error(401, "unauthorized", "Use this device's sensor ID and key.");
+    };
+    outcome(
+        store
+            .rpc(
+                "fizz_device_unpair",
+                json!({"p_sensor_id": id, "p_key": key}),
+            )
+            .await,
+        200,
+    )
 }
 
 #[cfg(test)]

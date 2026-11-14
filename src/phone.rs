@@ -79,72 +79,148 @@ fn respond(value: Value) -> Response<ResponseBody> {
     }
 }
 
-pub async fn handle(request: Request) -> Response<ResponseBody> {
-    let method = request.method().as_str().to_owned();
-    if method == "GET" || method == "DELETE" {
-        let Some(owner) = session_token(&request) else {
-            return error(401, "unauthorized", "Sign in to continue.");
+fn phone_reading(
+    data: &Value,
+    device: Option<&str>,
+) -> Result<(&'static str, Value), (u16, &'static str, &'static str)> {
+    let Some(device) = device else {
+        return Err((401, "unauthorized", "Connect this phone first."));
+    };
+    let metric = data.get("metric").and_then(Value::as_str).unwrap_or("");
+    let event = data.get("event_id").and_then(Value::as_str).unwrap_or("");
+    let value = data.get("value").and_then(Value::as_f64);
+    if !matches!(
+        metric,
+        "acceleration_x"
+            | "acceleration_y"
+            | "acceleration_z"
+            | "rotation_alpha"
+            | "rotation_beta"
+            | "rotation_gamma"
+            | "latitude"
+            | "longitude"
+            | "location_accuracy"
+            | "voice_level"
+    ) || !(1..=100).contains(&event.len())
+        || value.is_none_or(|v| !v.is_finite() || v.abs() > 100_000.0)
+    {
+        return Err((400, "invalid_reading", "Invalid phone reading."));
+    }
+    let unit = if metric.starts_with("acceleration") {
+        "m/s²"
+    } else if metric.starts_with("rotation") || matches!(metric, "latitude" | "longitude") {
+        "degrees"
+    } else if metric == "location_accuracy" {
+        "meters"
+    } else {
+        "level"
+    };
+    Ok((
+        "fizz_phone_reading",
+        json!({"p_device_token": device, "p_event_id": event, "p_metric": metric,
+        "p_numeric_value": value, "p_unit": unit}),
+    ))
+}
+
+fn phone_clip(
+    data: &Value,
+    device: Option<&str>,
+) -> Result<(&'static str, Value), (u16, &'static str, &'static str)> {
+    let Some(device) = device else {
+        return Err((401, "unauthorized", "Connect this phone first."));
+    };
+    let mime = data.get("mime_type").and_then(Value::as_str).unwrap_or("");
+    let audio = data
+        .get("audio_base64")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if !matches!(
+        mime,
+        "audio/webm" | "audio/webm;codecs=opus" | "audio/mp4" | "audio/ogg;codecs=opus"
+    ) || audio.len() > 349_528
+    {
+        return Err((
+            400,
+            "invalid_clip",
+            "The audio clip is too large or unsupported.",
+        ));
+    }
+    Ok((
+        "fizz_phone_clip",
+        json!({"p_device_token": device, "p_mime_type": mime, "p_audio_base64": audio}),
+    ))
+}
+
+async fn owner_phone(request: Request, method: &str) -> Response<ResponseBody> {
+    let Some(owner) = session_token(&request) else {
+        return error(401, "unauthorized", "Sign in to continue.");
+    };
+    let query = request.uri().query().unwrap_or("");
+    if method == "GET" && query.split('&').any(|part| part == "clips=1") {
+        let Ok(store) = Supabase::from_env() else {
+            return error(503, "database_unavailable", "Voice clips are unavailable.");
         };
-        let query = request.uri().query().unwrap_or("");
-        if method == "GET" && query.split('&').any(|part| part == "clips=1") {
-            let Ok(store) = Supabase::from_env() else {
-                return error(503, "database_unavailable", "Voice clips are unavailable.");
-            };
-            return match store
-                .rpc("fizz_phone_list_clips", json!({"p_owner_token": owner}))
-                .await
-            {
-                Ok(value) => respond(value),
-                Err(_) => error(503, "database_unavailable", "Voice clips are unavailable."),
-            };
-        }
-        let clip = query
-            .split('&')
-            .find_map(|part| part.strip_prefix("clip_id="))
-            .unwrap_or("");
-        if method == "GET" && !clip.is_empty() {
-            if !uuid(clip) {
-                return error(400, "invalid_clip", "Choose a voice clip.");
-            }
-            let Ok(store) = Supabase::from_env() else {
-                return error(503, "database_unavailable", "Voice clip is unavailable.");
-            };
-            return match store
-                .rpc(
-                    "fizz_phone_get_clip",
-                    json!({"p_owner_token": owner, "p_clip_id": clip}),
-                )
-                .await
-            {
-                Ok(value) => respond(value),
-                Err(_) => error(503, "database_unavailable", "Voice clip is unavailable."),
-            };
-        }
-        let sensor = query
-            .split('&')
-            .find_map(|part| part.strip_prefix("sensor_id="))
-            .unwrap_or("");
-        if !uuid(sensor) {
-            return error(400, "invalid_sensor", "Choose a phone sensor.");
+        return match store
+            .rpc("fizz_phone_list_clips", json!({"p_owner_token": owner}))
+            .await
+        {
+            Ok(value) => respond(value),
+            Err(_) => error(503, "database_unavailable", "Voice clips are unavailable."),
+        };
+    }
+    let clip = query
+        .split('&')
+        .find_map(|part| part.strip_prefix("clip_id="))
+        .unwrap_or("");
+    if method == "GET" && !clip.is_empty() {
+        if !uuid(clip) {
+            return error(400, "invalid_clip", "Choose a voice clip.");
         }
         let Ok(store) = Supabase::from_env() else {
-            return error(503, "database_unavailable", "Phone pairing is unavailable.");
-        };
-        let function = if method == "GET" {
-            "fizz_phone_status"
-        } else {
-            "fizz_phone_revoke"
+            return error(503, "database_unavailable", "Voice clip is unavailable.");
         };
         return match store
             .rpc(
-                function,
-                json!({"p_owner_token": owner, "p_sensor_id": sensor}),
+                "fizz_phone_get_clip",
+                json!({"p_owner_token": owner, "p_clip_id": clip}),
             )
             .await
         {
             Ok(value) => respond(value),
-            Err(_) => error(503, "database_unavailable", "Phone pairing is unavailable."),
+            Err(_) => error(503, "database_unavailable", "Voice clip is unavailable."),
         };
+    }
+    let sensor = query
+        .split('&')
+        .find_map(|part| part.strip_prefix("sensor_id="))
+        .unwrap_or("");
+    if !uuid(sensor) {
+        return error(400, "invalid_sensor", "Choose a phone sensor.");
+    }
+    let Ok(store) = Supabase::from_env() else {
+        return error(503, "database_unavailable", "Phone pairing is unavailable.");
+    };
+    let function = if method == "GET" {
+        "fizz_phone_status"
+    } else {
+        "fizz_phone_revoke"
+    };
+    match store
+        .rpc(
+            function,
+            json!({"p_owner_token": owner, "p_sensor_id": sensor}),
+        )
+        .await
+    {
+        Ok(value) => respond(value),
+        Err(_) => error(503, "database_unavailable", "Phone pairing is unavailable."),
+    }
+}
+
+pub async fn handle(request: Request) -> Response<ResponseBody> {
+    let method = request.method().as_str().to_owned();
+    if method == "GET" || method == "DELETE" {
+        return owner_phone(request, &method).await;
     }
     if method != "POST" {
         return error(405, "method_not_allowed", "Use GET, POST, or DELETE.");
@@ -181,70 +257,14 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             }
             ("fizz_phone_claim", json!({"p_pairing_token": token}))
         }
-        "reading" => {
-            let Some(device) = device else {
-                return error(401, "unauthorized", "Connect this phone first.");
-            };
-            let metric = data.get("metric").and_then(Value::as_str).unwrap_or("");
-            let event = data.get("event_id").and_then(Value::as_str).unwrap_or("");
-            let value = data.get("value").and_then(Value::as_f64);
-            if !matches!(
-                metric,
-                "acceleration_x"
-                    | "acceleration_y"
-                    | "acceleration_z"
-                    | "rotation_alpha"
-                    | "rotation_beta"
-                    | "rotation_gamma"
-                    | "latitude"
-                    | "longitude"
-                    | "location_accuracy"
-                    | "voice_level"
-            ) || !(1..=100).contains(&event.len())
-                || value.is_none_or(|v| !v.is_finite() || v.abs() > 100_000.0)
-            {
-                return error(400, "invalid_reading", "Invalid phone reading.");
-            }
-            let unit = if metric.starts_with("acceleration") {
-                "m/s²"
-            } else if metric.starts_with("rotation") || matches!(metric, "latitude" | "longitude") {
-                "degrees"
-            } else if metric == "location_accuracy" {
-                "meters"
-            } else {
-                "level"
-            };
-            (
-                "fizz_phone_reading",
-                json!({"p_device_token": device, "p_event_id": event, "p_metric": metric,
-                "p_numeric_value": value, "p_unit": unit}),
-            )
-        }
-        "clip" => {
-            let Some(device) = device else {
-                return error(401, "unauthorized", "Connect this phone first.");
-            };
-            let mime = data.get("mime_type").and_then(Value::as_str).unwrap_or("");
-            let audio = data
-                .get("audio_base64")
-                .and_then(Value::as_str)
-                .unwrap_or("");
-            if !matches!(
-                mime,
-                "audio/webm" | "audio/webm;codecs=opus" | "audio/mp4" | "audio/ogg;codecs=opus"
-            ) || audio.len() > 349_528
-            {
-                return error(
-                    400,
-                    "invalid_clip",
-                    "The audio clip is too large or unsupported.",
-                );
-            }
-            (
-                "fizz_phone_clip",
-                json!({"p_device_token": device, "p_mime_type": mime, "p_audio_base64": audio}),
-            )
-        }
+        "reading" => match phone_reading(&data, device.as_deref()) {
+            Ok(call) => call,
+            Err((status, code, message)) => return error(status, code, message),
+        },
+        "clip" => match phone_clip(&data, device.as_deref()) {
+            Ok(call) => call,
+            Err((status, code, message)) => return error(status, code, message),
+        },
         "disconnect" => {
             let Some(device) = device else {
                 return error(401, "unauthorized", "Connect this phone first.");

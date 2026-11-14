@@ -171,6 +171,10 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             "Voice chat isn't available yet. You can still type to Fizz.",
         );
     };
+    speak_or_transcribe(request, provider).await
+}
+
+async fn speak_or_transcribe(request: Request, provider: ElevenLabs) -> Response<ResponseBody> {
     let content_type = request
         .headers()
         .get("content-type")

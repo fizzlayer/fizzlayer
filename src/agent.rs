@@ -973,62 +973,74 @@ async fn answer(
     let clips = selected_clips(&output, &context);
     let action = output.get("action").filter(|action| !action.is_null());
     if let Some(action) = action {
-        if matches!(
-            action["type"].as_str(),
-            Some("create_sensor" | "pair_device")
-        ) {
-            return setup_action(store, token, action, &context, message, history).await;
-        }
-        let Some(mut payload) = alert_payload(action, &context, message, history) else {
-            return reply(
-                200,
-                json!({"reply":"I couldn't create that alert. Tell me which sensor to watch, and either a numeric limit or how many minutes of silence. For calls, include your US phone number.","clips":clips}),
-                None,
-            );
-        };
-        payload["p_token"] = json!(token);
-        let Ok(result) = store.rpc("fizz_create_alert", payload).await else {
-            return error(
-                503,
-                "database_unavailable",
-                "I couldn't save the alert. Please try again.",
-            );
-        };
-        if result["error"] == "simulated_sensor" {
-            return reply(200, json!({"reply":SAMPLE_SILENCE,"clips":clips}), None);
-        }
-        if result["error"] == "phone_not_paired" {
-            return reply(
-                200,
-                json!({"reply":"Pair that number in the dashboard before I can call it. Open Phones, have Fizzlayer call the number, and enter the 6-digit code. I can still create a dashboard-only alert.","clips":clips}),
-                None,
-            );
-        }
-        if result["error"] == "calls_not_included" {
-            return reply(
-                200,
-                json!({"reply":"Phone calls are included with Tinkerer, Pro, and Enterprise. I can create a dashboard-only alert on the Hobbyist plan, or you can upgrade in Settings.","clips":clips}),
-                None,
-            );
-        }
-        if let Some(response) = rpc_error(&result) {
-            return response;
-        }
-        let Some(rule) = result.get("rule").filter(|rule| rule.get("id").is_some()) else {
-            return error(
-                503,
-                "database_unavailable",
-                "I couldn't confirm that the alert was saved.",
-            );
-        };
-        let answer = alert_reply(rule, &context, result["created"] == true);
-        return reply(200, json!({"reply":answer,"rule":rule,"clips":clips}), None);
+        return apply_action(store, token, action, &context, message, history, &clips).await;
     }
     reply(
         200,
         json!({"reply":answer,"clips":clips,"pairing_setup":output["setup_help"] == "pair_device"}),
         None,
     )
+}
+
+async fn apply_action(
+    store: &Supabase,
+    token: &str,
+    action: &Value,
+    context: &Value,
+    message: &str,
+    history: &[Value],
+    clips: &[Value],
+) -> Response<ResponseBody> {
+    if matches!(
+        action["type"].as_str(),
+        Some("create_sensor" | "pair_device")
+    ) {
+        return setup_action(store, token, action, context, message, history).await;
+    }
+    let Some(mut payload) = alert_payload(action, context, message, history) else {
+        return reply(
+            200,
+            json!({"reply":"I couldn't create that alert. Tell me which sensor to watch, and either a numeric limit or how many minutes of silence. For calls, include your US phone number.","clips":clips}),
+            None,
+        );
+    };
+    payload["p_token"] = json!(token);
+    let Ok(result) = store.rpc("fizz_create_alert", payload).await else {
+        return error(
+            503,
+            "database_unavailable",
+            "I couldn't save the alert. Please try again.",
+        );
+    };
+    if result["error"] == "simulated_sensor" {
+        return reply(200, json!({"reply":SAMPLE_SILENCE,"clips":clips}), None);
+    }
+    if result["error"] == "phone_not_paired" {
+        return reply(
+            200,
+            json!({"reply":"Pair that number in the dashboard before I can call it. Open Phones, have Fizzlayer call the number, and enter the 6-digit code. I can still create a dashboard-only alert.","clips":clips}),
+            None,
+        );
+    }
+    if result["error"] == "calls_not_included" {
+        return reply(
+            200,
+            json!({"reply":"Phone calls are included with Tinkerer, Pro, and Enterprise. I can create a dashboard-only alert on the Hobbyist plan, or you can upgrade in Settings.","clips":clips}),
+            None,
+        );
+    }
+    if let Some(response) = rpc_error(&result) {
+        return response;
+    }
+    let Some(rule) = result.get("rule").filter(|rule| rule.get("id").is_some()) else {
+        return error(
+            503,
+            "database_unavailable",
+            "I couldn't confirm that the alert was saved.",
+        );
+    };
+    let answer = alert_reply(rule, context, result["created"] == true);
+    reply(200, json!({"reply":answer,"rule":rule,"clips":clips}), None)
 }
 
 #[cfg(test)]

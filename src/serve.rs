@@ -86,8 +86,16 @@ async fn api(request: Request<Incoming>) -> vercel_runtime::Response<ResponseBod
     if let Err(failure) = security::guard_request(&request) {
         return failure.into_response();
     }
-    let path = request.uri().path();
+    let path = request.uri().path().to_owned();
     let method = request.method().clone();
+    route(request, &path, method).await
+}
+
+async fn route(
+    request: Request<Incoming>,
+    path: &str,
+    method: Method,
+) -> vercel_runtime::Response<ResponseBody> {
     match path {
         "/api/status" => status::handle(request).await,
         "/api/auth" => match method.as_str() {
