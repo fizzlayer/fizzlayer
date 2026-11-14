@@ -52,8 +52,8 @@ async fn scheduler_status(supabase: &Supabase) -> Value {
         .duration_since(UNIX_EPOCH)
         .map(|duration| i64::try_from(duration.as_secs()).unwrap_or(i64::MAX))
         .unwrap_or(0);
-    // Prefer the history column. A database that has not applied that migration
-    // still has last_scan_at from the silence scan.
+    // Prefer recent_scans from 20261114000200_scheduler_history.sql. A database
+    // that has not applied it still has last_scan_at from the silence scan.
     let rows = match supabase
         .rest_get("fizz_scheduler_status?select=last_scan_at,recent_scans&id=eq.true")
         .await
