@@ -11,8 +11,8 @@ use fizz_gateway::db::{AuditWrite, Db};
 use fizz_gateway::error::{GatewayError, GatewayResult};
 use fizz_gateway::ext_mcp::ext_mcp_server::{ExtMcp, ExtMcpServer};
 use fizz_gateway::ext_mcp::{
-    authorization_error, mcp_request_result, mcp_response_result, AuthorizationError, McpRequest,
-    McpRequestResult, McpResponse, McpResponseResult, Pass,
+    AuthorizationError, McpRequest, McpRequestResult, McpResponse, McpResponseResult, Pass,
+    authorization_error, mcp_request_result, mcp_response_result,
 };
 use fizz_gateway::policy::{self, ApprovalHit, Step};
 use prost_types::value::Kind;

@@ -9,8 +9,8 @@ use std::time::Duration;
 use fizz_gateway::db::Db;
 use fizz_gateway::error::{GatewayError, GatewayResult};
 use fizz_gateway::jwt;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use serde_json::{json, Value};
+use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 #[tokio::main]

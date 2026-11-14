@@ -110,11 +110,7 @@ fn display_tool(tool: &str) -> &str {
         && tool
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-'));
-    if ok {
-        tool
-    } else {
-        "that tool"
-    }
+    if ok { tool } else { "that tool" }
 }
 
 pub fn fingerprint(arguments: &Value) -> (String, String) {

@@ -2,7 +2,7 @@
 # Download the pinned upstream release binary to validate generated YAML.
 # The file is gitignored. Its checksum is gateway/pins/agentgateway.toml.
 set -eu
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 pin="$root/pins/agentgateway.toml"
 dest="$root/.local-bin/agentgateway"
 expected=$(sed -n 's/^linux_amd64_sha256 = "\([0-9a-f]*\)"/\1/p' "$pin")

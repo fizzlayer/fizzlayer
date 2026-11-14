@@ -111,9 +111,13 @@ PY
 fi
 
 {
+  # ${PATH} is text for the generated env file. It must not expand here.
+  # shellcheck disable=SC2016
   printf 'export PATH="%s/bin:${PATH}"\n' "$prefix"
   if [[ "$installed_otp" -eq 1 ]]; then
+    # shellcheck disable=SC2016
     printf 'export PATH="%s/otp/OTP-27.3.4/bin:${PATH}"\n' "$prefix"
+    # shellcheck disable=SC2016
     printf 'export LD_LIBRARY_PATH="%s/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n' "$prefix"
   fi
 } > "$prefix/env.sh"
