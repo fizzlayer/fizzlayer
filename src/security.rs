@@ -2,9 +2,8 @@
 use std::env;
 
 use reqwest::Url;
-use vercel_runtime::{Response, ResponseBody};
 
-use crate::{customer::error, store::Supabase};
+use crate::{customer::ApiError, store::Supabase};
 
 /// Self-host on a private HTTP network (the Docker gateway, or Ollama on another host).
 /// Production leaves this unset, so Supabase and chat URLs stay HTTPS except loopback.
@@ -117,18 +116,18 @@ fn development_origin(
     Some(url.origin().ascii_serialization())
 }
 
-pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), Response<ResponseBody>> {
+pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), ApiError> {
     let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok());
     // Never use client-supplied x-forwarded-host to authorize an origin.
     let Some(expected) = request_origin(request) else {
-        return Err(error(
+        return Err(ApiError::new(
             400,
             "invalid_host",
             "Request host is not configured.",
         ));
     };
     if request.headers().contains_key("origin") && header("origin") != Some(expected.as_str()) {
-        return Err(error(
+        return Err(ApiError::new(
             403,
             "forbidden_origin",
             "Request origin is not allowed.",
@@ -137,7 +136,11 @@ pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), Response<Respo
     if !matches!(request.method().as_str(), "GET" | "HEAD" | "OPTIONS")
         && header("sec-fetch-site").is_some_and(|site| !matches!(site, "same-origin" | "none"))
     {
-        return Err(error(403, "forbidden_origin", "Use this site's own pages."));
+        return Err(ApiError::new(
+            403,
+            "forbidden_origin",
+            "Use this site's own pages.",
+        ));
     }
     Ok(())
 }
@@ -154,7 +157,7 @@ pub async fn paid_request_budget(
     store: &Supabase,
     token: &str,
     operation: &str,
-) -> Result<(), Response<ResponseBody>> {
+) -> Result<(), ApiError> {
     let value = store
         .rpc(
             "fizz_request_budget",
@@ -164,21 +167,20 @@ pub async fn paid_request_budget(
     match value {
         Ok(value) if value["ok"] == true => Ok(()),
         Ok(value) if value["error"] == "unauthorized" => {
-            Err(error(401, "unauthorized", "Sign in to continue."))
+            Err(ApiError::new(401, "unauthorized", "Sign in to continue."))
         }
         Ok(value) if value["error"] == "rate_limited" => {
-            let mut response = error(429, "rate_limited", "Usage limit reached. Try again later.");
-            response
-                .headers_mut()
-                .insert("retry-after", "60".parse().expect("valid header"));
-            Err(response)
+            Err(
+                ApiError::new(429, "rate_limited", "Usage limit reached. Try again later.")
+                    .retry_after("60"),
+            )
         }
-        Ok(value) if value["error"] == "credits_exhausted" => Err(error(
+        Ok(value) if value["error"] == "credits_exhausted" => Err(ApiError::new(
             402,
             "credits_exhausted",
             "You've used this month's Fizz credits. Upgrade your plan for more, or wait until they reset next month.",
         )),
-        _ => Err(error(
+        _ => Err(ApiError::new(
             503,
             "unavailable",
             "Usage checks are temporarily unavailable.",
@@ -257,8 +259,27 @@ mod tests {
         }
         assert!(guard_request(&request("fizzlayer.com", None, Some("cross-site"))).is_err());
         assert!(guard_request(&request("fizzlayer.com", None, Some("same-site"))).is_err());
-        assert!(
-            guard_request(&request("evil.example", Some("https://evil.example"), None)).is_err()
+        assert_eq!(
+            guard_request(&request("evil.example", Some("https://evil.example"), None))
+                .unwrap_err()
+                .to_string(),
+            "400 invalid_host: Request host is not configured."
+        );
+        assert_eq!(
+            guard_request(&request(
+                "fizzlayer.com",
+                Some("https://evil.example"),
+                None
+            ))
+            .unwrap_err()
+            .to_string(),
+            "403 forbidden_origin: Request origin is not allowed."
+        );
+        assert_eq!(
+            guard_request(&request("fizzlayer.com", None, Some("cross-site")))
+                .unwrap_err()
+                .to_string(),
+            "403 forbidden_origin: Use this site's own pages."
         );
         let mut forged = request("fizzlayer.com", Some("https://evil.example"), None);
         forged

@@ -161,8 +161,8 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     if request.method() == "GET" {
         return reply(200, json!({"available":provider.is_some()}), None);
     }
-    if let Err(response) = crate::security::paid_request_budget(&store, &token, "voice").await {
-        return response;
+    if let Err(failure) = crate::security::paid_request_budget(&store, &token, "voice").await {
+        return failure.into_response();
     }
     let Some(provider) = provider else {
         return error(

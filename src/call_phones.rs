@@ -112,7 +112,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     } else if method == "POST" {
         match json_body(request, MAX_BODY_BYTES).await {
             Ok(data) => data,
-            Err(response) => return response,
+            Err(failure) => return failure.into_response(),
         }
     } else {
         return error(405, "method_not_allowed", "Use GET or POST.");

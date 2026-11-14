@@ -155,7 +155,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     };
     let data = match json_body(request, 1024).await {
         Ok(data) => data,
-        Err(response) => return response,
+        Err(failure) => return failure.into_response(),
     };
     let Some(stripe) = Stripe::from_env() else {
         return error(

@@ -38,7 +38,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         "DELETE" => {
             let data = match json_body(request, 512).await {
                 Ok(value) => value,
-                Err(response) => return response,
+                Err(failure) => return failure.into_response(),
             };
             let id = data.get("passkey_id").and_then(Value::as_str).unwrap_or("");
             if !valid_uuid(id) {
