@@ -12,10 +12,11 @@ use jsonwebtoken::jwk::{
     AlgorithmParameters, CommonParameters, EllipticCurve, EllipticCurveKeyParameters,
     EllipticCurveKeyType, Jwk, JwkSet, KeyAlgorithm, PublicKeyUse,
 };
-use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use p256::ecdsa::SigningKey;
+use p256::elliptic_curve::Generate;
 use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
-use rand_core::OsRng;
+use rand::rngs::SysRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -82,13 +83,37 @@ impl SigningMaterial {
     }
 }
 
+pub fn from_pem(pem: &[u8]) -> GatewayResult<SigningMaterial> {
+    material_from_pem(pem)
+}
+
+/// Check a client token against this PEM's public key. The error string is static.
+pub fn read_claims(token: &str, pem: &[u8], audience: &str) -> GatewayResult<GatewayClaims> {
+    let material = material_from_pem(pem)?;
+    let jwk = material
+        .jwk_set
+        .keys
+        .first()
+        .ok_or_else(|| GatewayError::message("token was rejected"))?;
+    let decoding =
+        DecodingKey::from_jwk(jwk).map_err(|_| GatewayError::message("token was rejected"))?;
+    let mut validation = Validation::new(Algorithm::ES256);
+    validation.set_issuer(&[ISSUER]);
+    validation.set_audience(&[audience]);
+    jsonwebtoken::decode::<GatewayClaims>(token, &decoding, &validation)
+        .map(|decoded| decoded.claims)
+        .map_err(|_| GatewayError::message("token was rejected"))
+}
+
 pub fn load_or_create(path: &Path) -> GatewayResult<SigningMaterial> {
     if path.exists() {
         let pem =
             fs::read(path).map_err(|_| GatewayError::message("signing key could not be read"))?;
         return material_from_pem(&pem);
     }
-    let signing = SigningKey::random(&mut OsRng);
+    let mut rng = SysRng;
+    let signing = SigningKey::try_generate_from_rng(&mut rng)
+        .map_err(|_| GatewayError::message("signing key could not be encoded"))?;
     let pem = signing
         .to_pkcs8_pem(LineEnding::LF)
         .map_err(|_| GatewayError::message("signing key could not be encoded"))?;
@@ -103,7 +128,7 @@ fn material_from_pem(pem: &[u8]) -> GatewayResult<SigningMaterial> {
         .map_err(|_| GatewayError::message("signing key could not be read"))?;
     let encoding = EncodingKey::from_ec_pem(pem)
         .map_err(|_| GatewayError::message("signing key could not be read"))?;
-    let point = signing.verifying_key().to_encoded_point(false);
+    let point = signing.verifying_key().to_sec1_point(false);
     let x = point
         .x()
         .ok_or_else(|| GatewayError::message("signing key could not be read"))?;

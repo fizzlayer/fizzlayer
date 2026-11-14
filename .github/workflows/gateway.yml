@@ -8,6 +8,7 @@ on:
       - gateway/**
       - supabase/migrations/20261114000000_gateway.sql
       - supabase/migrations/20261114000300_gateway_policies.sql
+      - supabase/migrations/20261114000400_gateway_control_plane.sql
       - supabase/tests/gateway_rls.sql
       - .github/workflows/gateway.yml
       - NOTICE
@@ -17,6 +18,7 @@ on:
       - gateway/**
       - supabase/migrations/20261114000000_gateway.sql
       - supabase/migrations/20261114000300_gateway_policies.sql
+      - supabase/migrations/20261114000400_gateway_control_plane.sql
       - supabase/tests/gateway_rls.sql
       - .github/workflows/gateway.yml
       - NOTICE
