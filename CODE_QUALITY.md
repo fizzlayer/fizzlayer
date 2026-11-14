@@ -102,7 +102,7 @@ Turn these on in a follow-up once the code matches them. Allowing them globally 
 - Shell: `shellcheck` on the scripts listed above. `public/install.sh` is POSIX `sh`.
 - JavaScript: `node --check` in the security workflow. There is no package manifest and no ESLint yet.
 - Python: Home Assistant's hassfest workflow covers the integration. Ruff is not in CI. The M5Stick firmware is MicroPython; don't apply CPython pyupgrade rules to it.
-- SQL: no SQL linter. Do not rewrite applied migrations to satisfy one.
+- SQL: sqlfluff 3.4.2 lints SQL files added under `supabase/migrations` and `supabase/tests` (`scripts/lint-new-sql.sh`, config in `.sqlfluff`). Applied migrations are checksummed and are not opened by that script. Do not reformat a migration that has already shipped.
 
 ## Build artifacts
 

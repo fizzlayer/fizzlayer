@@ -53,6 +53,17 @@ jobs:
       - name: shellcheck
         run: shellcheck scripts/*.sh deploy/*.sh public/install.sh
 
+  sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install sqlfluff 3.4.2
+        run: pip install sqlfluff==3.4.2
+      - name: Lint new SQL only
+        run: sh scripts/lint-new-sql.sh "origin/${{ github.base_ref || 'main' }}"
+
   # Tracked compiler output. Separate from hygiene so it does not wait on cargo-deny.
   no-build-output:
     runs-on: ubuntu-latest

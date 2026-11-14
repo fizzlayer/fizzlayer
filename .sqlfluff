@@ -1,0 +1,11 @@
+[sqlfluff]
+dialect = postgres
+templater = raw
+max_line_length = 120
+# Layout and keyword case match the migrations that already shipped.
+# Applied files are checksummed and are not reformatted. This config is for
+# files added after that corpus.
+exclude_rules = layout, capitalisation.identifiers, capitalisation.literals, capitalisation.types, capitalisation.functions
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
