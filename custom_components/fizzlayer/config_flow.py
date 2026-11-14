@@ -14,10 +14,14 @@ import secrets
 from typing import Any
 
 import voluptuous as vol
-
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.config_entries import (
+    SOURCE_REAUTH,
+    ConfigEntry,
+    ConfigFlow,
+    OptionsFlow,
+)
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import config_validation as cv
 
 from .client import FizzlayerConnectionError, error_code, post_json
@@ -101,7 +105,9 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
         self._base_url = entry_data.get("base_url") or DEFAULT_BASE_URL
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         if user_input is None:
             return self.async_show_form(step_id="reauth_confirm", data_schema=vol.Schema({}))
         return await self.async_step_link()
@@ -166,7 +172,9 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason=self._abort_reason)
         return await self.async_step_entities()
 
-    async def async_step_link_failed(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_link_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return self.async_abort(reason=getattr(self, "_abort_reason", "timeout"))
 
     async def _poll(self) -> None:
@@ -188,7 +196,8 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                         "action": "ha_exchange",
                         "state": self._state,
                         "confirm_code": self._confirm_code,
-                        "name": getattr(self.hass.config, "location_name", None) or "Home Assistant",
+                        "name": getattr(self.hass.config, "location_name", None)
+                        or "Home Assistant",
                         "ha_version": getattr(self.hass.config, "version", None),
                     },
                 )
@@ -259,7 +268,9 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             selected = list(user_input.get("entities") or [])
             try:
-                synced = await _sync(self.hass, self._base_url, self._link["api_key"], entities, selected, True)
+                synced = await _sync(
+                    self.hass, self._base_url, self._link["api_key"], entities, selected, True
+                )
             except FizzlayerConnectionError:
                 errors["base"] = "cannot_connect"
             else:
@@ -316,7 +327,9 @@ class FizzlayerConfigFlow(ConfigFlow, domain=DOMAIN):
                 options=options,
             )
         title = "Home Assistant"
-        skipped = [item for item in synced.get("skipped") or [] if item.get("error") == "device_limit"]
+        skipped = [
+            item for item in synced.get("skipped") or [] if item.get("error") == "device_limit"
+        ]
         if skipped:
             _LOGGER.info(
                 "Fizzlayer stored %s entities; %s were over the plan limit",
@@ -440,7 +453,9 @@ async def sync_selected(
     # does not delete a sensor whose entity has not been set up yet.
     if replace:
         entities = shareable_states(hass)
-        entity_ids = [item["entity_id"] for item in entities if item["entity_id"] in set(entity_ids)]
+        entity_ids = [
+            item["entity_id"] for item in entities if item["entity_id"] in set(entity_ids)
+        ]
     version = getattr(hass.config, "version", None)
     by_id = {item["entity_id"]: item for item in entities}
     payload = []

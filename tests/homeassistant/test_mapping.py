@@ -2,7 +2,11 @@
 
 import pytest
 
-from custom_components.fizzlayer.mapping import convert_value, normalize_base_url, plan_entity
+from custom_components.fizzlayer.mapping import (
+    convert_value,
+    normalize_base_url,
+    plan_entity,
+)
 
 
 def test_temperature_humidity_power_and_door_defaults():

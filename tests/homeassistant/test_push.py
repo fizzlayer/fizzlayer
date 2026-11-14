@@ -1,6 +1,11 @@
 """Throttle, batch, buffer, and revocation rules for the outbound queue."""
 
-from custom_components.fizzlayer.push import PushQueue, Reading, ingest_body, split_results
+from custom_components.fizzlayer.push import (
+    PushQueue,
+    Reading,
+    ingest_body,
+    split_results,
+)
 
 
 def reading(entity="sensor.rack_temp", value=21.0, event="st:1"):
@@ -35,7 +40,9 @@ def test_failures_are_buffered_and_a_revoked_key_drops_them():
         [{"id": "1", "source": "homeassistant"}, {"error": "rate_limited"}],
     )
     assert stored == [first] and retry == [second]
-    stored, retry = split_results([first, second], [{"error": "paused"}, {"error": "invalid_reading"}])
+    stored, retry = split_results(
+        [first, second], [{"error": "paused"}, {"error": "invalid_reading"}]
+    )
     assert stored == [] and retry == []
 
     body = ingest_body([first])

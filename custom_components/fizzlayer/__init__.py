@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
@@ -174,7 +174,7 @@ class FizzlayerRuntime:
         # state's timestamp would be idempotent and would not reset a silence alert.
         if heartbeat:
             stamp = str(int(time.time()) // HEARTBEAT_SECONDS)
-            observed_at = datetime.now(timezone.utc).isoformat()
+            observed_at = datetime.now(UTC).isoformat()
             kind = "hb"
         else:
             stamp = observed.isoformat()
@@ -211,13 +211,10 @@ class FizzlayerRuntime:
         )
 
     async def _run(self) -> None:
-        try:
-            while not self.queue.revoked:
-                await asyncio.sleep(FLUSH_SECONDS)
-                self._enqueue_current(heartbeat=True)
-                await self._flush()
-        except asyncio.CancelledError:
-            raise
+        while not self.queue.revoked:
+            await asyncio.sleep(FLUSH_SECONDS)
+            self._enqueue_current(heartbeat=True)
+            await self._flush()
 
     async def _flush(self) -> None:
         if self.queue.revoked:
@@ -239,7 +236,9 @@ class FizzlayerRuntime:
         if data.get("_status") == 401 or error_code(data) == "unauthorized":
             await self._revoked()
             return
-        stored, retry = split_results(batch, data.get("results") if isinstance(data.get("results"), list) else None)
+        stored, retry = split_results(
+            batch, data.get("results") if isinstance(data.get("results"), list) else None
+        )
         self.queue.ack(stored, time.monotonic())
         if retry:
             self.queue.requeue(retry)

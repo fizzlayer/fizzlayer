@@ -10,9 +10,7 @@ INTEGRATION_VERSION = json.loads(
     (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
 )["version"]
 DEFAULT_BASE_URL = "https://fizzlayer.com"
-MY_HOME_ASSISTANT_URL = (
-    "https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer"
-)
+MY_HOME_ASSISTANT_URL = "https://my.home-assistant.io/redirect/config_flow_start?domain=fizzlayer"
 
 # State changes for one entity are coalesced, then a heartbeat resends the last
 # value so a silence alert still sees the sensor. The minimum silence window is

@@ -101,7 +101,7 @@ Turn these on in a follow-up once the code matches them. Allowing them globally 
 
 - Shell: `shellcheck` on the scripts listed above. `public/install.sh` is POSIX `sh`.
 - JavaScript: `node --check` in the security workflow. There is no package manifest and no ESLint yet.
-- Python: Home Assistant's hassfest workflow covers the integration. Ruff is not in CI. The M5Stick firmware is MicroPython; don't apply CPython pyupgrade rules to it.
+- Python: Ruff 0.17.5 lints and formats `custom_components/fizzlayer` and `tests/homeassistant` only (`ruff.toml`, target Python 3.11). The Home Assistant workflow runs it. The M5Stick firmware is MicroPython; `hardware/` is excluded and must not be passed to Ruff.
 - SQL: no SQL linter. Do not rewrite applied migrations to satisfy one.
 
 ## Build artifacts

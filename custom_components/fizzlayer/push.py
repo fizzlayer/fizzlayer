@@ -139,7 +139,9 @@ def ingest_body(readings: list[Reading]) -> dict:
     }
 
 
-def split_results(readings: list[Reading], results: list[dict] | None) -> tuple[list[Reading], list[Reading]]:
+def split_results(
+    readings: list[Reading], results: list[dict] | None
+) -> tuple[list[Reading], list[Reading]]:
     """Split a batch into stored readings and readings that should be retried.
 
     A paused sensor or a value the server rejected is dropped. Rate limits and
