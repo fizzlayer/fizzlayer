@@ -51,7 +51,7 @@ fn metric_name(metric: &str) -> String {
 }
 
 fn number(value: f64) -> String {
-    let text = format!("{:.2}", value);
+    let text = format!("{value:.2}");
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
@@ -271,8 +271,7 @@ impl AgentPhone {
             .replace(&self.key, "[redacted]");
         let message = format!(
             "AgentPhone rejected the notification ({}): {reason}",
-            code.map(str::to_owned)
-                .unwrap_or_else(|| status.as_u16().to_string())
+            code.map_or_else(|| status.as_u16().to_string(), str::to_owned)
         );
         let cap = matches!(
             code,

@@ -34,7 +34,7 @@ async fn body(request: Request, max_bytes: usize) -> Result<Value, Response<Resp
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| crate::security::is_json(v))
+        .is_some_and(crate::security::is_json)
     {
         return Err(error(415, "unsupported_media_type", "Send JSON."));
     }
@@ -200,7 +200,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     | "location_accuracy"
                     | "voice_level"
             ) || !(1..=100).contains(&event.len())
-                || value.is_none_or(|v| !v.is_finite() || v.abs() > 100000.0)
+                || value.is_none_or(|v| !v.is_finite() || v.abs() > 100_000.0)
             {
                 return error(400, "invalid_reading", "Invalid phone reading.");
             }
@@ -231,7 +231,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             if !matches!(
                 mime,
                 "audio/webm" | "audio/webm;codecs=opus" | "audio/mp4" | "audio/ogg;codecs=opus"
-            ) || audio.len() > 349528
+            ) || audio.len() > 349_528
             {
                 return error(
                     400,
@@ -278,11 +278,11 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             if action == "reading" && value.get("error").is_none() {
                 notify::dispatch(&store).await;
             }
-            if action == "create" {
-                if let Some(token) = value.get("token").and_then(Value::as_str) {
-                    value["url"] = json!(format!("/phone.html#pair={token}"));
-                    value.as_object_mut().unwrap().remove("token");
-                }
+            if action == "create"
+                && let Some(token) = value.get("token").and_then(Value::as_str)
+            {
+                value["url"] = json!(format!("/phone.html#pair={token}"));
+                value.as_object_mut().unwrap().remove("token");
             }
             respond(value)
         }

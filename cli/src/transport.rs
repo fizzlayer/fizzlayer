@@ -1,5 +1,7 @@
 //! Socket and MQTT clients. HTTPS publishing stays in main.rs.
 
+// protocol.rs is also compiled by the API and the worker. This crate does not
+// call every item in that file.
 #[allow(dead_code)]
 #[path = "../../supabase/compute/fizz-worker/src/protocol.rs"]
 mod protocol;
@@ -14,8 +16,8 @@ use serde_json::{Map, Value, json};
 use tungstenite::{Message, stream::MaybeTlsStream};
 
 use protocol::{
-    AclOp, ClientOp, Packet, Principal, ack_frame, authorize, decode_packet, encode_packet,
-    live_topic, parse_client_message, readings_topic, stream_urls,
+    AclOp, ClientOp, Packet, Principal, authorize, decode_packet, encode_packet, live_topic,
+    parse_client_message, readings_topic, stream_urls,
 };
 
 type Socket = tungstenite::WebSocket<MaybeTlsStream<TcpStream>>;
@@ -52,7 +54,7 @@ pub fn discover(get: impl Fn(&str) -> Result<(u16, Value), String>) -> Result<St
         .trim_end_matches("/v1/stream")
         .replace("wss://", "https://")
         .replace("ws://", "http://");
-    let urls = stream_urls(&root).map_err(|message| message.to_owned())?;
+    let urls = stream_urls(&root).map_err(std::borrow::ToOwned::to_owned)?;
     if urls.websocket_url != base {
         return Err("Fizz returned a stream URL this client will not use.".into());
     }
@@ -105,11 +107,10 @@ fn read_text(socket: &mut Socket) -> Result<Value, String> {
                     .send(Message::Pong(payload))
                     .map_err(|error| format!("The stream closed: {error}"))?;
             }
-            Ok(Message::Pong(_) | Message::Binary(_)) => {}
+            Ok(Message::Pong(_) | Message::Binary(_) | Message::Frame(_)) => {}
             Ok(Message::Close(_)) | Err(_) => {
                 return Err("The stream closed.".into());
             }
-            Ok(Message::Frame(_)) => {}
         }
     }
 }
@@ -227,7 +228,7 @@ pub fn mqtt_publish(
     let device = Principal::Device {
         sensor_id: sensor_id.to_owned(),
     };
-    authorize(&device, AclOp::Publish, &topic).map_err(|message| message.to_owned())?;
+    authorize(&device, AclOp::Publish, &topic).map_err(std::borrow::ToOwned::to_owned)?;
     let target = override_url
         .map(str::to_owned)
         .or_else(|| urls.mqtt_tcp_url.clone())
@@ -368,7 +369,7 @@ fn decode_one(buf: &[u8]) -> Result<Packet, String> {
     }
 }
 
-fn expect_connack(buf: &mut Vec<u8>) -> Result<(), String> {
+fn expect_connack(buf: &mut [u8]) -> Result<(), String> {
     match decode_one(buf)? {
         Packet::Connack { code: 0 } => Ok(()),
         Packet::Connack { code: 5 } => Err("This sensor is paused.".into()),
@@ -386,9 +387,7 @@ pub fn tail_mqtt(
     key: &str,
     mut on_line: impl FnMut(&str),
 ) -> Result<(), String> {
-    let target = override_url
-        .map(str::to_owned)
-        .unwrap_or_else(|| urls.mqtt_ws_url.clone());
+    let target = override_url.map_or_else(|| urls.mqtt_ws_url.clone(), str::to_owned);
     if !(target.starts_with("ws://") || target.starts_with("wss://")) {
         return Err("fizz tail --mqtt uses the WebSocket MQTT URL. Set FIZZ_MQTT_URL to a wss:// address if you override it.".into());
     }
@@ -418,6 +417,7 @@ pub fn tail_mqtt(
 
 #[cfg(test)]
 mod tests {
+    use super::protocol::ack_frame;
     use super::*;
 
     #[test]

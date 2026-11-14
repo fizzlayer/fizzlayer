@@ -91,13 +91,14 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
         .or_else(|| header("x-forwarded-for").and_then(|v| v.split(',').next()))
         .and_then(|v| v.trim().parse::<IpAddr>().ok())
         .map(|ip| match ip {
-            IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
-                Some(v4) => v4.to_string(),
-                None => {
+            IpAddr::V6(v6) => {
+                if let Some(v4) = v6.to_ipv4_mapped() {
+                    v4.to_string()
+                } else {
                     let [a, b, c, d, ..] = v6.segments();
                     format!("{}/64", Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
                 }
-            },
+            }
             IpAddr::V4(v4) => v4.to_string(),
         })
 }

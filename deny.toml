@@ -1,0 +1,34 @@
+# Dependency hygiene for the three separately locked packages. cargo-audit in
+# the security workflow still runs on a schedule; this file is what the lint
+# workflow enforces on every pull request.
+# https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# SPDX identifiers seen in the locked graphs, plus the Unicode data licenses
+# pulled in by `url` / `idna`. Private path crates (this repo) are Apache-2.0.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

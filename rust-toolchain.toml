@@ -1,0 +1,7 @@
+# Same compiler as the API and worker images (rust:1.94) and the oldest
+# toolchain this repo must build on, including Vercel. Clippy and rustfmt in
+# CI use this file so they do not suggest library APIs newer than that.
+[toolchain]
+channel = "1.94.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

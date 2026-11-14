@@ -47,8 +47,7 @@ pub async fn oauth(request: Request) -> Response<ResponseBody> {
         "http://fizz.invalid/?{}",
         request.uri().query().unwrap_or("")
     ))
-    .map(|url| url.query_pairs().into_owned().collect::<Vec<_>>())
-    .unwrap_or_default();
+    .map_or(Vec::new(), |url| url.query_pairs().into_owned().collect());
     let find = |key: &str| {
         query
             .iter()
@@ -303,16 +302,13 @@ async fn sign_up(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBod
 }
 
 async fn sign_in_with_password(ctx: &Ctx, email: &str, password: &str) -> Response<ResponseBody> {
-    let (email, password) = match credentials(email, password) {
-        Ok(value) => value,
-        // Do not say which part was malformed on sign-in.
-        Err(_) => {
-            return error(
-                401,
-                "invalid_credentials",
-                "Email or password is incorrect.",
-            );
-        }
+    // Do not say which part was malformed on sign-in.
+    let Ok((email, password)) = credentials(email, password) else {
+        return error(
+            401,
+            "invalid_credentials",
+            "Email or password is incorrect.",
+        );
     };
     let (status, session) = match ctx
         .auth(
@@ -797,7 +793,7 @@ mod tests {
         let settings =
             json!({"external": {"email": true, "google": false, "github": true, "apple": true}});
         assert_eq!(enabled_providers(&settings), ["github"]);
-        assert!(enabled_providers(&json!({})).is_empty());
+        assert_eq!(enabled_providers(&json!({})), [] as [&str; 0]);
     }
 
     #[test]

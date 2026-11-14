@@ -196,6 +196,8 @@ cargo test --locked --all-targets
 cargo test --locked --manifest-path cli/Cargo.toml
 ```
 
+Formatting, Clippy, `cargo deny`, and shellcheck are described in [Code quality](CODE_QUALITY.md). The lint workflow runs them on every pull request.
+
 | Path | Contents |
 | --- | --- |
 | `public/` | Landing page, dashboard, phone pairing, and CLI installer |
@@ -218,3 +220,4 @@ Fizzlayer is released under the [Apache License 2.0](LICENSE). Copyright 2026 Fi
 - [Accounts, APIs, and integrations](docs/REFERENCE.md)
 - [Product architecture](docs/PRODUCT_PLAN.md)
 - [Security audit and operational findings](docs/SECURITY_AUDIT.md)
+- [Code quality](CODE_QUALITY.md)

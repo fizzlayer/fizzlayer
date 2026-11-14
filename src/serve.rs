@@ -233,12 +233,10 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let query = request
         .uri()
         .query()
-        .map(|query| format!("?{query}"))
-        .unwrap_or_default();
+        .map_or(String::new(), |query| format!("?{query}"));
     let url = format!("{upstream}{path}{query}");
-    let method = match reqwest::Method::from_bytes(request.method().as_str().as_bytes()) {
-        Ok(method) => method,
-        Err(_) => return text(StatusCode::METHOD_NOT_ALLOWED, "Method is not supported."),
+    let Ok(method) = reqwest::Method::from_bytes(request.method().as_str().as_bytes()) else {
+        return text(StatusCode::METHOD_NOT_ALLOWED, "Method is not supported.");
     };
     let headers = request.headers().clone();
     let collected = match request.into_body().collect().await {
@@ -249,7 +247,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
         return text(StatusCode::PAYLOAD_TOO_LARGE, "Request is too large.");
     }
     let mut builder = http_client().request(method, url);
-    for (name, value) in headers.iter() {
+    for (name, value) in &headers {
         if matches!(
             name.as_str(),
             "host" | "connection" | "content-length" | "transfer-encoding"
@@ -270,7 +268,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let bytes = response.bytes().await.unwrap_or_default();
     let mut out = Response::new(Full::new(bytes));
     *out.status_mut() = status;
-    for (name, value) in headers.iter() {
+    for (name, value) in &headers {
         if matches!(
             name.as_str(),
             "connection" | "transfer-encoding" | "content-length"
@@ -319,9 +317,7 @@ pub fn mapped_path(path: &str) -> &str {
 }
 
 fn public_dir() -> PathBuf {
-    env::var("FIZZ_PUBLIC_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("public"))
+    env::var("FIZZ_PUBLIC_DIR").map_or_else(|_| PathBuf::from("public"), PathBuf::from)
 }
 
 fn safe_file(root: &Path, url_path: &str) -> Option<PathBuf> {
@@ -466,10 +462,7 @@ fn stream_connect() -> String {
     {
         return String::new();
     }
-    let port = url
-        .port()
-        .map(|port| format!(":{port}"))
-        .unwrap_or_default();
+    let port = url.port().map_or(String::new(), |port| format!(":{port}"));
     let (http, ws) = if url.scheme() == "http" {
         ("http", "ws")
     } else if url.scheme() == "https" {

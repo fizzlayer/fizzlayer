@@ -118,11 +118,6 @@ fn outcome(value: Value, urls: &crate::live::StreamUrls) -> Response<ResponseBod
             "rate_limited",
             "Too many stream tokens. Try again later.",
         ),
-        Some(_) => error(
-            503,
-            "database_unavailable",
-            "Live streaming is temporarily unavailable.",
-        ),
         None if value.get("token").and_then(Value::as_str).is_some() => {
             let mut body = value;
             if let Some(object) = body.as_object_mut() {
@@ -133,7 +128,8 @@ fn outcome(value: Value, urls: &crate::live::StreamUrls) -> Response<ResponseBod
             }
             reply(201, body, None)
         }
-        None => error(
+        // Unknown errors and a missing token are the same client-facing failure.
+        Some(_) | None => error(
             503,
             "database_unavailable",
             "Live streaming is temporarily unavailable.",
