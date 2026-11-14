@@ -247,6 +247,9 @@ fn tool_result(value: Value) -> Value {
     }
 }
 
+/// # Panics
+///
+/// Panics if a static response header is not a valid header value.
 pub async fn handle(request: Request) -> Response<ResponseBody> {
     if request.method() != "POST" {
         return Response::builder()

@@ -79,6 +79,10 @@ fn respond(value: Value) -> Response<ResponseBody> {
     }
 }
 
+/// # Panics
+///
+/// Panics if a successful `create` result is not a JSON object. The pairing RPC
+/// returns an object.
 pub async fn handle(request: Request) -> Response<ResponseBody> {
     let method = request.method().as_str().to_owned();
     if method == "GET" || method == "DELETE" {

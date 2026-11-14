@@ -16,6 +16,11 @@ use ring::{
 
 const TEN_YEARS_SECS: u64 = 60 * 60 * 24 * 365 * 10;
 
+/// # Errors
+///
+/// Returns an error when `--out` is missing, the path already exists without
+/// `--force`, the parent directory is missing, or the file cannot be written.
+/// The `Ok` value is the path that was written.
 pub fn init(args: &[String]) -> Result<String, String> {
     let mut out = None;
     let mut force = false;

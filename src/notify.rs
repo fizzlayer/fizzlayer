@@ -81,6 +81,7 @@ fn comparison(comparator: &str) -> &'static str {
 }
 
 /// "1 minute" or "N minutes", rounded to whole minutes.
+#[must_use]
 pub fn minutes_phrase(value: f64) -> String {
     let minutes = value.round().max(0.0) as i64;
     if minutes == 1 {
@@ -96,6 +97,7 @@ const DIGIT_WORDS: [&str; 10] = [
 
 /// Spoken, digit-by-digit pairing code. None unless `code` is exactly six digits.
 /// Words are used so a text-to-speech voice does not read the code as one number.
+#[must_use]
 pub fn pairing_script(code: &str) -> Option<String> {
     if code.len() != 6 || !code.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
@@ -401,6 +403,11 @@ impl AgentPhone {
 
 /// Place the pairing call that reads `code`. The code is spoken as words and is not
 /// included in the error text.
+///
+/// # Errors
+///
+/// Returns an error when `AgentPhone` is not configured, the agent cannot be resolved,
+/// or the provider rejects the call. The message does not contain `code`.
 pub async fn place_pairing_call(to: &str, code: &str) -> Result<(), String> {
     let mut agentphone = AgentPhone::from_env().map_err(str::to_owned)?;
     agentphone.resolve_agent().await.map_err(|failure| {
@@ -414,7 +421,7 @@ pub async fn place_pairing_call(to: &str, code: &str) -> Result<(), String> {
 }
 
 /// How many queued calls this pass claimed and what happened to each.
-/// `configured` is false when AgentPhone credentials are absent, in which case
+/// `configured` is false when `AgentPhone` credentials are absent, in which case
 /// the queue is left untouched for an environment that can send.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DispatchReport {

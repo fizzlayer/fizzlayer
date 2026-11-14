@@ -129,6 +129,10 @@ fn audio_type(content_type: &str) -> Option<(&'static str, &'static str)> {
     }
 }
 
+/// # Panics
+///
+/// Panics if a static audio response header is not a valid header value, or if the
+/// content type was accepted and then is no longer a known audio type.
 pub async fn handle(request: Request) -> Response<ResponseBody> {
     if !matches!(request.method().as_str(), "GET" | "POST") {
         return error(405, "method_not_allowed", "Use GET or POST.");
