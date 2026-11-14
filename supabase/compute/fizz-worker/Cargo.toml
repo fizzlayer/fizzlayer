@@ -12,14 +12,15 @@ name = "fizz-worker"
 path = "src/main.rs"
 
 [dependencies]
+fizz-protocol = { version = "0.1.0", path = "../fizz-protocol" }
 base64 = "0.22"
 serde_json = "1"
 sha1 = "0.10"
 tungstenite = { version = "0.26", default-features = false }
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 
-# Keep this table in sync with the root Cargo.toml and cli/Cargo.toml.
-# protocol.rs is compiled into all three packages.
+# Keep this table in sync with the root Cargo.toml, cli/Cargo.toml, and
+# supabase/compute/fizz-protocol/Cargo.toml.
 #
 # Levels are warn. The lint workflow passes `-D warnings`, so a warning fails CI.
 [lints.rust]

@@ -3,7 +3,7 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY api ./api
-COPY supabase/compute/fizz-worker/src/protocol.rs supabase/compute/fizz-worker/src/protocol.rs
+COPY supabase/compute/fizz-protocol supabase/compute/fizz-protocol
 RUN cargo build --release --locked --bin fizz-serve --jobs 2
 
 FROM docker.io/library/debian:bookworm-slim

@@ -5,12 +5,6 @@
 //! `fizz_ingest_event` stored, including rows that arrived through HTTPS.
 //! Phone calls queued by those rows are sent by `/api/cron`, not by this process.
 
-// protocol.rs is also compiled by the API (`src/live.rs`) and the CLI
-// (`cli/src/transport.rs`). Those crates call items this binary does not.
-// Dead code in this file is still reported.
-#[allow(dead_code)]
-mod protocol;
-
 use std::{
     env,
     io::{Read, Write},
@@ -25,6 +19,7 @@ use std::{
 };
 
 use base64::{Engine, engine::general_purpose::STANDARD};
+use fizz_protocol as protocol;
 use protocol::{
     AclOp, ClientOp, CredentialKind, HttpRoute, Packet, Principal, PrincipalFailure,
     ResolvedPrincipal, ack_frame, authorize, classify_credential, decode_packet, encode_packet,

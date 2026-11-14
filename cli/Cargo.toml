@@ -11,6 +11,7 @@ name = "fizz"
 path = "src/main.rs"
 
 [dependencies]
+fizz-protocol = { version = "0.1.0", path = "../supabase/compute/fizz-protocol" }
 libc = "0.2"
 serde_json = "1"
 tempfile = "3"
@@ -24,9 +25,9 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
-# Keep this table in sync with the root Cargo.toml and
-# supabase/compute/fizz-worker/Cargo.toml. protocol.rs is compiled into all
-# three packages.
+# Keep this table in sync with the root Cargo.toml,
+# supabase/compute/fizz-worker/Cargo.toml, and
+# supabase/compute/fizz-protocol/Cargo.toml.
 #
 # Levels are warn. The lint workflow passes `-D warnings`, so a warning fails CI.
 [lints.rust]

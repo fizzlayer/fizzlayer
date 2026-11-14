@@ -2,5 +2,6 @@
 target
 cli/target
 supabase/compute/fizz-worker/target
+supabase/compute/fizz-protocol/target
 **/*.md
 deploy/.env

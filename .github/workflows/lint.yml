@@ -1,4 +1,4 @@
-# Formatting and lint for the three Rust packages, plus shell and dependency policy.
+# Formatting and lint for the Rust packages, plus shell and dependency policy.
 # `cargo test` and `cargo audit` stay in security.yml.
 name: Lint
 
@@ -24,12 +24,15 @@ jobs:
           cargo fmt --all -- --check
           cargo fmt --manifest-path cli/Cargo.toml -- --check
           cargo fmt --manifest-path supabase/compute/fizz-worker/Cargo.toml -- --check
+          cargo fmt --manifest-path supabase/compute/fizz-protocol/Cargo.toml -- --check
       - name: Clippy (API and library)
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Clippy (CLI)
         run: cargo clippy --locked --all-targets --manifest-path cli/Cargo.toml -- -D warnings
       - name: Clippy (worker)
         run: cargo clippy --locked --all-targets --manifest-path supabase/compute/fizz-worker/Cargo.toml -- -D warnings
+      - name: Clippy (protocol)
+        run: cargo clippy --locked --all-targets --manifest-path supabase/compute/fizz-protocol/Cargo.toml -- -D warnings
 
   hygiene:
     runs-on: ubuntu-latest
@@ -48,6 +51,7 @@ jobs:
           cargo deny --manifest-path Cargo.toml check
           cargo deny --manifest-path cli/Cargo.toml check
           cargo deny --manifest-path supabase/compute/fizz-worker/Cargo.toml check
+          cargo deny --manifest-path supabase/compute/fizz-protocol/Cargo.toml check
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: shellcheck

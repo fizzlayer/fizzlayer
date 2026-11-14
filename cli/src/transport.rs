@@ -1,11 +1,5 @@
 //! Socket and MQTT clients. HTTPS publishing stays in main.rs.
 
-// protocol.rs is also compiled by the API and the worker. This crate does not
-// call every item in that file.
-#[allow(dead_code)]
-#[path = "../../supabase/compute/fizz-worker/src/protocol.rs"]
-mod protocol;
-
 use std::{
     io::{Read, Write},
     net::TcpStream,
@@ -15,6 +9,7 @@ use std::{
 use serde_json::{Map, Value, json};
 use tungstenite::{Message, stream::MaybeTlsStream};
 
+use fizz_protocol as protocol;
 use protocol::{
     AclOp, ClientOp, Packet, Principal, authorize, decode_packet, encode_packet, live_topic,
     parse_client_message, readings_topic, stream_urls,
@@ -417,8 +412,8 @@ pub fn tail_mqtt(
 
 #[cfg(test)]
 mod tests {
-    use super::protocol::ack_frame;
     use super::*;
+    use fizz_protocol::ack_frame;
 
     #[test]
     fn discovery_rejects_a_rewritten_socket_url() {
