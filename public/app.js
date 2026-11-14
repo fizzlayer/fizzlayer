@@ -163,9 +163,7 @@ function showPlanScreen(username) {
 }
 
 async function finishPlanChoice() {
-  $('plan-screen').hidden = true;
-  document.querySelector('.shell').classList.remove('plan-active');
-  await showWorkspace(signedInUsername);
+  showSetup(signedInUsername);
 }
 
 async function startCheckout(plan, button) {
@@ -190,26 +188,15 @@ function takeSignupPlan() {
   return stored.plan;
 }
 
-async function showWorkspace(username) {
-  signedInUsername = username;
-  let sensors = [];
-  try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
-  $('upgrade-prompt').hidden = true;
-  showDashboard(sensors);
-}
-
 async function showBillingReturn(username) {
   await billingKnown;
-  if (!billingAvailable) {
-    await showWorkspace(username);
-    return;
-  }
-  signedInUsername = username;
-  let sensors = [];
-  try { sensors = (await send('/api/sensors', 'GET')).sensors || []; } catch { sensors = []; }
-  showDashboard(sensors);
   const note = $('upgrade-prompt');
   note.replaceChildren();
+  if (!billingAvailable) {
+    note.hidden = true;
+    showSetup(username);
+    return;
+  }
   if (billingNotice === 'cancelled') {
     note.append('Checkout cancelled. Your plan has not changed. ');
     const link = document.createElement('a');
@@ -220,15 +207,17 @@ async function showBillingReturn(username) {
     note.textContent = 'Payment received. Your plan will update shortly; refresh this page in a minute.';
   }
   note.hidden = false;
+  showSetup(username);
 }
 
 async function continueAfterSignup(username, signup) {
   await billingKnown;
   const plan = takeSignupPlan();
   sessionStorage.removeItem(SIGNUP_FLAG);
-  // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. The new account opens the dashboard.
+  // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. Sensor selection is unchanged.
   if (!billingAvailable) {
-    await showWorkspace(username);
+    $('upgrade-prompt').hidden = true;
+    showSetup(username);
     return;
   }
   if (plan) {
@@ -315,11 +304,13 @@ async function loadSetup() {
 function showSetup(username) {
   signedInUsername = username;
   $('account-panel').hidden = true;
+  $('plan-screen').hidden = true;
   $('dashboard').hidden = true;
   $('setup').hidden = false;
   document.querySelector('.shell').classList.add('setup-active');
   document.querySelector('.shell').classList.remove('dashboard-active', 'plan-active');
   $('setup-username').textContent = username;
+  document.title = 'Your workspace · Fizzlayer';
   loadSetup();
 }
 
