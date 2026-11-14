@@ -1,0 +1,12 @@
+name = "fizzlayer_web"
+version = "1.0.0"
+target = "javascript"
+description = "Fizzlayer browser UI, compiled to JavaScript."
+licences = ["Apache-2.0"]
+
+[dependencies]
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+lustre = ">= 5.7.1 and < 6.0.0"
+
+[dev_dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"

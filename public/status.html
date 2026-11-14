@@ -42,8 +42,10 @@
       <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> Status</p>
       <h1 id="status-title">Fizzlayer right now.</h1>
       <p class="lede">This page asks the public API from your browser. It shows the answer it just received. It does not keep an uptime history or promise an SLA.</p>
-      <ul class="status-list" id="status-list"><li><div><strong>Checking</strong><p>Asking /api/status and /api/stream.</p></div></li></ul>
-      <p class="status-checked" id="status-checked" role="status"></p>
+      <div id="status-app" class="status-app">
+        <ul class="status-list" id="status-list"><li><div><strong>Checking</strong><p>Asking /api/status and /api/stream.</p></div></li></ul>
+        <p class="status-checked" id="status-checked" role="status"></p>
+      </div>
     </section>
   </main>
   <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/sensors/docs">Docs</a><a href="/status" aria-current="page">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
