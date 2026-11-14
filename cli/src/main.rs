@@ -411,37 +411,7 @@ fn pair(args: &[String]) -> Result<()> {
     println!("  Or enter it on the Agents page:  {base}/agents.html\n");
     println!("  Waiting for the code to be claimed (it expires in 15 minutes)…");
 
-    let claim = loop {
-        thread::sleep(Duration::from_secs(3));
-        let reply = match post(
-            &base,
-            "/api/devices",
-            &json!({"action": "status", "poll_secret": secret}),
-            None,
-        ) {
-            Ok(reply) => reply,
-            Err(e) => {
-                eprintln!("  {e} Retrying…");
-                continue;
-            }
-        };
-        if reply.status != 200 {
-            return Err(reply.message());
-        }
-        match reply.body["status"].as_str() {
-            Some("waiting") => continue,
-            Some("claimed") => break reply.body,
-            Some("expired") => {
-                return Err("The pairing code expired. Run `fizz pair` again.".into());
-            }
-            Some(other) => {
-                return Err(format!(
-                    "Pairing ended unexpectedly ({other}). Run `fizz pair` again."
-                ));
-            }
-            None => return Err("Fizz sent an unexpected pairing status.".into()),
-        }
-    };
+    let claim = wait_for_claim(&base, &secret)?;
 
     let account = printable(claim["account"].as_str().unwrap_or("unknown"), 40);
     let device_name = printable(claim["device_name"].as_str().unwrap_or(&name), 80);
@@ -494,6 +464,40 @@ fn pair(args: &[String]) -> Result<()> {
     );
     println!("  Start sending readings with:  fizz run");
     Ok(())
+}
+
+fn wait_for_claim(base: &str, secret: &str) -> Result<Value> {
+    loop {
+        thread::sleep(Duration::from_secs(3));
+        let reply = match post(
+            base,
+            "/api/devices",
+            &json!({"action": "status", "poll_secret": secret}),
+            None,
+        ) {
+            Ok(reply) => reply,
+            Err(e) => {
+                eprintln!("  {e} Retrying…");
+                continue;
+            }
+        };
+        if reply.status != 200 {
+            return Err(reply.message());
+        }
+        match reply.body["status"].as_str() {
+            Some("waiting") => continue,
+            Some("claimed") => return Ok(reply.body),
+            Some("expired") => {
+                return Err("The pairing code expired. Run `fizz pair` again.".into());
+            }
+            Some(other) => {
+                return Err(format!(
+                    "Pairing ended unexpectedly ({other}). Run `fizz pair` again."
+                ));
+            }
+            None => return Err("Fizz sent an unexpected pairing status.".into()),
+        }
+    }
 }
 
 fn send_metrics(config: &Map<String, Value>, metrics: &Map<String, Value>) -> Result<()> {

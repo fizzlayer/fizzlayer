@@ -142,40 +142,7 @@ pub async fn dispatch(
             };
             rpc(store, "fizz_ha_prepare", json!({"p_token": session})).await
         }
-        "ha_authorize" => {
-            let Some(session) = session else {
-                return Some(error(
-                    401,
-                    "unauthorized",
-                    "Sign in to connect Home Assistant.",
-                ));
-            };
-            let state = data.get("state").and_then(Value::as_str).unwrap_or("");
-            if !valid_state(state) {
-                return Some(error(
-                    400,
-                    "invalid_request",
-                    "The Home Assistant link is not valid.",
-                ));
-            }
-            let Some(code) = data
-                .get("code")
-                .and_then(Value::as_str)
-                .and_then(confirm_code)
-            else {
-                return Some(error(
-                    400,
-                    "invalid_code",
-                    "Type the 6-digit code shown in Home Assistant.",
-                ));
-            };
-            rpc(
-                store,
-                "fizz_ha_authorize",
-                json!({"p_token": session, "p_state": state, "p_code": code}),
-            )
-            .await
-        }
+        "ha_authorize" => ha_authorize(store, data, session).await,
         "ha_preview" => {
             let state = data.get("state").and_then(Value::as_str).unwrap_or("");
             if !valid_state(state) {
@@ -192,65 +159,7 @@ pub async fn dispatch(
             )
             .await
         }
-        "ha_exchange" => {
-            let state = data.get("state").and_then(Value::as_str).unwrap_or("");
-            if !valid_state(state) {
-                return Some(error(
-                    400,
-                    "invalid_request",
-                    "The Home Assistant link is not valid.",
-                ));
-            }
-            let Some(code) = data
-                .get("confirm_code")
-                .and_then(Value::as_str)
-                .and_then(confirm_code)
-            else {
-                return Some(error(
-                    400,
-                    "invalid_request",
-                    "Home Assistant must send the code it is showing.",
-                ));
-            };
-            let name = match data.get("name").filter(|value| !value.is_null()) {
-                None => None,
-                Some(value) => match clean_label(Some(value), 80) {
-                    Some(name) => Some(name),
-                    None => {
-                        return Some(error(
-                            400,
-                            "invalid_request",
-                            "Use a name under 80 characters.",
-                        ));
-                    }
-                },
-            };
-            let version = match data.get("ha_version").filter(|value| !value.is_null()) {
-                None => None,
-                Some(value) => match clean_label(Some(value), 40) {
-                    Some(version) => Some(version),
-                    None => {
-                        return Some(error(
-                            400,
-                            "invalid_request",
-                            "The Home Assistant version is not valid.",
-                        ));
-                    }
-                },
-            };
-            rpc(
-                store,
-                "fizz_ha_exchange",
-                json!({
-                    "p_state": state,
-                    "p_ip": ip,
-                    "p_code": code,
-                    "p_name": name,
-                    "p_ha_version": version
-                }),
-            )
-            .await
-        }
+        "ha_exchange" => ha_exchange(store, data, ip).await,
         "ha_exchange_code" => {
             let code = data
                 .get("code")
@@ -271,56 +180,7 @@ pub async fn dispatch(
             )
             .await
         }
-        "ha_sync" => {
-            let Some(key) = key else {
-                return Some(error(
-                    401,
-                    "unauthorized",
-                    "Use the Home Assistant connection key.",
-                ));
-            };
-            let entities = data.get("entities").cloned().unwrap_or(Value::Null);
-            if !entities_are_bounded(&entities) {
-                return Some(error(
-                    400,
-                    "invalid_request",
-                    "Choose up to 50 Home Assistant entities.",
-                ));
-            }
-            let name = match data.get("name") {
-                None => None,
-                Some(value) => match clean_label(Some(value), 80) {
-                    Some(name) => Some(name),
-                    None => {
-                        return Some(error(
-                            400,
-                            "invalid_request",
-                            "Use a name under 80 characters.",
-                        ));
-                    }
-                },
-            };
-            let version = match data.get("ha_version") {
-                None => None,
-                Some(value) => match clean_label(Some(value), 40) {
-                    Some(version) => Some(version),
-                    None => {
-                        return Some(error(
-                            400,
-                            "invalid_request",
-                            "The Home Assistant version is not valid.",
-                        ));
-                    }
-                },
-            };
-            let replace = data.get("replace").and_then(Value::as_bool).unwrap_or(true);
-            rpc(
-                store,
-                "fizz_ha_sync",
-                json!({"p_key": key, "p_entities": entities, "p_name": name, "p_ha_version": version, "p_replace": replace}),
-            )
-            .await
-        }
+        "ha_sync" => ha_sync(store, data, key).await,
         "ha_list" => {
             let Some(session) = session else {
                 return Some(error(401, "unauthorized", "Sign in to continue."));
@@ -357,6 +217,140 @@ pub async fn dispatch(
         }
         _ => error(400, "invalid_request", "Unknown Home Assistant action."),
     })
+}
+
+async fn ha_authorize(
+    store: &Supabase,
+    data: &Value,
+    session: Option<&str>,
+) -> Response<ResponseBody> {
+    let Some(session) = session else {
+        return error(401, "unauthorized", "Sign in to connect Home Assistant.");
+    };
+    let state = data.get("state").and_then(Value::as_str).unwrap_or("");
+    if !valid_state(state) {
+        return error(
+            400,
+            "invalid_request",
+            "The Home Assistant link is not valid.",
+        );
+    }
+    let Some(code) = data
+        .get("code")
+        .and_then(Value::as_str)
+        .and_then(confirm_code)
+    else {
+        return error(
+            400,
+            "invalid_code",
+            "Type the 6-digit code shown in Home Assistant.",
+        );
+    };
+    rpc(
+        store,
+        "fizz_ha_authorize",
+        json!({"p_token": session, "p_state": state, "p_code": code}),
+    )
+    .await
+}
+
+async fn ha_sync(store: &Supabase, data: &Value, key: Option<&str>) -> Response<ResponseBody> {
+    let Some(key) = key else {
+        return error(
+            401,
+            "unauthorized",
+            "Use the Home Assistant connection key.",
+        );
+    };
+    let entities = data.get("entities").cloned().unwrap_or(Value::Null);
+    if !entities_are_bounded(&entities) {
+        return error(
+            400,
+            "invalid_request",
+            "Choose up to 50 Home Assistant entities.",
+        );
+    }
+    let name = match data.get("name") {
+        None => None,
+        Some(value) => match clean_label(Some(value), 80) {
+            Some(name) => Some(name),
+            None => return error(400, "invalid_request", "Use a name under 80 characters."),
+        },
+    };
+    let version = match data.get("ha_version") {
+        None => None,
+        Some(value) => match clean_label(Some(value), 40) {
+            Some(version) => Some(version),
+            None => {
+                return error(
+                    400,
+                    "invalid_request",
+                    "The Home Assistant version is not valid.",
+                );
+            }
+        },
+    };
+    let replace = data.get("replace").and_then(Value::as_bool).unwrap_or(true);
+    rpc(
+        store,
+        "fizz_ha_sync",
+        json!({"p_key": key, "p_entities": entities, "p_name": name, "p_ha_version": version, "p_replace": replace}),
+    )
+    .await
+}
+
+async fn ha_exchange(store: &Supabase, data: &Value, ip: Option<&str>) -> Response<ResponseBody> {
+    let state = data.get("state").and_then(Value::as_str).unwrap_or("");
+    if !valid_state(state) {
+        return error(
+            400,
+            "invalid_request",
+            "The Home Assistant link is not valid.",
+        );
+    }
+    let Some(code) = data
+        .get("confirm_code")
+        .and_then(Value::as_str)
+        .and_then(confirm_code)
+    else {
+        return error(
+            400,
+            "invalid_request",
+            "Home Assistant must send the code it is showing.",
+        );
+    };
+    let name = match data.get("name").filter(|value| !value.is_null()) {
+        None => None,
+        Some(value) => match clean_label(Some(value), 80) {
+            Some(name) => Some(name),
+            None => return error(400, "invalid_request", "Use a name under 80 characters."),
+        },
+    };
+    let version = match data.get("ha_version").filter(|value| !value.is_null()) {
+        None => None,
+        Some(value) => match clean_label(Some(value), 40) {
+            Some(version) => Some(version),
+            None => {
+                return error(
+                    400,
+                    "invalid_request",
+                    "The Home Assistant version is not valid.",
+                );
+            }
+        },
+    };
+    rpc(
+        store,
+        "fizz_ha_exchange",
+        json!({
+            "p_state": state,
+            "p_ip": ip,
+            "p_code": code,
+            "p_name": name,
+            "p_ha_version": version
+        }),
+    )
+    .await
 }
 
 /// Where the dashboard sends someone to start the integration. My Home Assistant only

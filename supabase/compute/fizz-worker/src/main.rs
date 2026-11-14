@@ -811,6 +811,40 @@ struct MqttState {
     principal: ResolvedPrincipal,
 }
 
+fn mqtt_connect(
+    username: Option<String>,
+    password: Option<String>,
+    db: &Db,
+    state: &mut Option<MqttState>,
+    mut send: impl FnMut(&Packet) -> std::io::Result<()>,
+) -> std::io::Result<bool> {
+    let Some(password) = password else {
+        send(&Packet::Connack { code: 4 })?;
+        return Ok(false);
+    };
+    let sensor = username
+        .as_deref()
+        .filter(|value| protocol::valid_uuid(value));
+    match db.principal(&password, sensor) {
+        Ok(principal) => {
+            *state = Some(MqttState {
+                credential: password,
+                principal,
+            });
+            send(&Packet::Connack { code: 0 })?;
+            Ok(true)
+        }
+        Err(PrincipalFailure::Paused) => {
+            send(&Packet::Connack { code: 5 })?;
+            Ok(false)
+        }
+        Err(_) => {
+            send(&Packet::Connack { code: 4 })?;
+            Ok(false)
+        }
+    }
+}
+
 fn mqtt_packet(
     packet: Packet,
     stream: &mut TcpStream,
@@ -823,33 +857,9 @@ fn mqtt_packet(
     match packet {
         Packet::Connect {
             username, password, ..
-        } => {
-            let Some(password) = password else {
-                write_mqtt(stream, &Packet::Connack { code: 4 })?;
-                return Ok(false);
-            };
-            let sensor = username
-                .as_deref()
-                .filter(|value| protocol::valid_uuid(value));
-            match db.principal(&password, sensor) {
-                Ok(principal) => {
-                    *state = Some(MqttState {
-                        credential: password,
-                        principal,
-                    });
-                    write_mqtt(stream, &Packet::Connack { code: 0 })?;
-                    Ok(true)
-                }
-                Err(PrincipalFailure::Paused) => {
-                    write_mqtt(stream, &Packet::Connack { code: 5 })?;
-                    Ok(false)
-                }
-                Err(_) => {
-                    write_mqtt(stream, &Packet::Connack { code: 4 })?;
-                    Ok(false)
-                }
-            }
-        }
+        } => mqtt_connect(username, password, db, state, |packet| {
+            write_mqtt(stream, packet)
+        }),
         Packet::Publish {
             topic,
             payload,
@@ -1034,33 +1044,7 @@ fn mqtt_ws_packet(
     match packet {
         Packet::Connect {
             username, password, ..
-        } => {
-            let Some(password) = password else {
-                bridge.send(&Packet::Connack { code: 4 })?;
-                return Ok(false);
-            };
-            let sensor = username
-                .as_deref()
-                .filter(|value| protocol::valid_uuid(value));
-            match db.principal(&password, sensor) {
-                Ok(principal) => {
-                    *state = Some(MqttState {
-                        credential: password,
-                        principal,
-                    });
-                    bridge.send(&Packet::Connack { code: 0 })?;
-                    Ok(true)
-                }
-                Err(PrincipalFailure::Paused) => {
-                    bridge.send(&Packet::Connack { code: 5 })?;
-                    Ok(false)
-                }
-                Err(_) => {
-                    bridge.send(&Packet::Connack { code: 4 })?;
-                    Ok(false)
-                }
-            }
-        }
+        } => mqtt_connect(username, password, db, state, |packet| bridge.send(packet)),
         Packet::Publish {
             topic,
             payload,

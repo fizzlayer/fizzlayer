@@ -201,45 +201,15 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let return_url = format!("{origin}{return_path}");
     match data["action"].as_str() {
         Some("checkout") => {
-            let Some(price) = data["plan"]
-                .as_str()
-                .and_then(|plan| stripe.price_for(plan))
-            else {
-                return error(400, "invalid_plan", "Choose the Tinkerer or Pro plan.");
-            };
-            if account["subscribed"] == true {
-                return error(
-                    409,
-                    "already_subscribed",
-                    "You already have a subscription. Use Manage billing to change your plan.",
-                );
-            }
-            let stripe_customer = match stripe_id(&account["stripe_customer_id"], "cus_") {
-                Some(id) => id,
-                None => match create_customer(&stripe, &store, customer_id, &account).await {
-                    Some(id) => id,
-                    None => return unavailable(),
-                },
-            };
-            let success_url = format!("{return_url}?billing=success");
-            let cancel_url = format!("{return_url}?billing=cancelled");
-            let session = stripe
-                .post(
-                    "checkout/sessions",
-                    &[
-                        ("mode", "subscription"),
-                        ("customer", stripe_customer.as_str()),
-                        ("client_reference_id", customer_id),
-                        ("line_items[0][price]", price),
-                        ("line_items[0][quantity]", "1"),
-                        ("subscription_data[metadata][fizz_customer_id]", customer_id),
-                        ("success_url", success_url.as_str()),
-                        ("cancel_url", cancel_url.as_str()),
-                    ],
-                    None,
-                )
-                .await;
-            hosted_url(session)
+            checkout(
+                &stripe,
+                &store,
+                customer_id,
+                &account,
+                &return_url,
+                data["plan"].as_str(),
+            )
+            .await
         }
         Some("portal") => {
             let Some(stripe_customer) = stripe_id(&account["stripe_customer_id"], "cus_") else {
@@ -263,6 +233,52 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         }
         _ => error(400, "invalid_request", "Choose checkout or portal."),
     }
+}
+
+async fn checkout(
+    stripe: &Stripe,
+    store: &Supabase,
+    customer_id: &str,
+    account: &Value,
+    return_url: &str,
+    plan: Option<&str>,
+) -> Response<ResponseBody> {
+    let Some(price) = plan.and_then(|plan| stripe.price_for(plan)) else {
+        return error(400, "invalid_plan", "Choose the Tinkerer or Pro plan.");
+    };
+    if account["subscribed"] == true {
+        return error(
+            409,
+            "already_subscribed",
+            "You already have a subscription. Use Manage billing to change your plan.",
+        );
+    }
+    let stripe_customer = match stripe_id(&account["stripe_customer_id"], "cus_") {
+        Some(id) => id,
+        None => match create_customer(stripe, store, customer_id, account).await {
+            Some(id) => id,
+            None => return unavailable(),
+        },
+    };
+    let success_url = format!("{return_url}?billing=success");
+    let cancel_url = format!("{return_url}?billing=cancelled");
+    let session = stripe
+        .post(
+            "checkout/sessions",
+            &[
+                ("mode", "subscription"),
+                ("customer", stripe_customer.as_str()),
+                ("client_reference_id", customer_id),
+                ("line_items[0][price]", price),
+                ("line_items[0][quantity]", "1"),
+                ("subscription_data[metadata][fizz_customer_id]", customer_id),
+                ("success_url", success_url.as_str()),
+                ("cancel_url", cancel_url.as_str()),
+            ],
+            None,
+        )
+        .await;
+    hosted_url(session)
 }
 
 /// The idempotency key makes retries within Stripe's 24-hour window return the same customer.

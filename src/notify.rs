@@ -475,83 +475,92 @@ pub async fn dispatch_limited(store: &Supabase, limit: i64) -> DispatchReport {
         }
     };
     for alert in batch.as_array().into_iter().flatten() {
-        let Some(id) = alert.get("id").and_then(Value::as_str) else {
-            continue;
-        };
-        report.claimed += 1;
-        match store
-            .rpc("fizz_alert_call_still_due", json!({"p_event_id": id}))
-            .await
-        {
-            Ok(value) if value["send"] == true => {}
-            Ok(_) => continue,
-            Err(problem) => {
-                eprintln!(
-                    "Fizz alert notification {id} was not dialed; the pre-dial check failed: {problem:?}"
-                );
-                let _ = store
-                    .rpc(
-                        "fizz_finish_alert_notification",
-                        json!({"p_event_id":id,"p_sent":false,"p_retry":true,"p_error":"Could not confirm the alert was still active."}),
-                    )
-                    .await;
-                report.retry += 1;
-                continue;
-            }
-        }
-        let channel = alert.get("channel").and_then(Value::as_str).unwrap_or("");
-        let phone = alert.get("phone").and_then(Value::as_str).unwrap_or("");
-        // The check above already committed. Read the row again with no other await
-        // in between this and the provider call, so a removal or downgrade that
-        // landed in that gap is visible and the call is not placed.
-        match store
-            .rpc("fizz_alert_call_still_due", json!({"p_event_id": id}))
-            .await
-        {
-            Ok(value) if value["send"] == true => {}
-            Ok(_) => continue,
-            Err(problem) => {
-                eprintln!(
-                    "Fizz alert notification {id} was not dialed; the last pre-dial check failed: {problem:?}"
-                );
-                let _ = store
-                    .rpc(
-                        "fizz_finish_alert_notification",
-                        json!({"p_event_id":id,"p_sent":false,"p_retry":true,"p_error":"Could not confirm the alert was still active."}),
-                    )
-                    .await;
-                report.retry += 1;
-                continue;
-            }
-        }
-        let (sent, retry, problem) = match agentphone.send(channel, phone, alert).await {
-            Ok(()) => {
-                report.sent += 1;
-                (true, false, None)
-            }
-            Err(Failure::Retry(message)) => {
-                report.retry += 1;
-                (false, true, Some(message))
-            }
-            Err(Failure::Permanent(message)) => {
-                report.failed += 1;
-                (false, false, Some(message))
-            }
-        };
-        if let Some(message) = &problem {
-            eprintln!("Fizz alert notification {id} failed: {message}");
-        }
-        if let Err(problem) = store
-            .rpc(
-                "fizz_finish_alert_notification",
-                json!({"p_event_id":id,"p_sent":sent,"p_retry":retry,"p_error":problem}),
-            )
-            .await
-        {
-            eprintln!("Fizz alert notification {id} status could not be saved: {problem:?}");
-        }
+        deliver_alert(store, &mut agentphone, &mut report, alert).await;
     }
     report
+}
+
+async fn deliver_alert(
+    store: &Supabase,
+    agentphone: &mut AgentPhone,
+    report: &mut DispatchReport,
+    alert: &Value,
+) {
+    let Some(id) = alert.get("id").and_then(Value::as_str) else {
+        return;
+    };
+    report.claimed += 1;
+    match store
+        .rpc("fizz_alert_call_still_due", json!({"p_event_id": id}))
+        .await
+    {
+        Ok(value) if value["send"] == true => {}
+        Ok(_) => return,
+        Err(problem) => {
+            eprintln!(
+                "Fizz alert notification {id} was not dialed; the pre-dial check failed: {problem:?}"
+            );
+            let _ = store
+                    .rpc(
+                        "fizz_finish_alert_notification",
+                        json!({"p_event_id":id,"p_sent":false,"p_retry":true,"p_error":"Could not confirm the alert was still active."}),
+                    )
+                    .await;
+            report.retry += 1;
+            return;
+        }
+    }
+    let channel = alert.get("channel").and_then(Value::as_str).unwrap_or("");
+    let phone = alert.get("phone").and_then(Value::as_str).unwrap_or("");
+    // The check above already committed. Read the row again with no other await
+    // in between this and the provider call, so a removal or downgrade that
+    // landed in that gap is visible and the call is not placed.
+    match store
+        .rpc("fizz_alert_call_still_due", json!({"p_event_id": id}))
+        .await
+    {
+        Ok(value) if value["send"] == true => {}
+        Ok(_) => return,
+        Err(problem) => {
+            eprintln!(
+                "Fizz alert notification {id} was not dialed; the last pre-dial check failed: {problem:?}"
+            );
+            let _ = store
+                    .rpc(
+                        "fizz_finish_alert_notification",
+                        json!({"p_event_id":id,"p_sent":false,"p_retry":true,"p_error":"Could not confirm the alert was still active."}),
+                    )
+                    .await;
+            report.retry += 1;
+            return;
+        }
+    }
+    let (sent, retry, problem) = match agentphone.send(channel, phone, alert).await {
+        Ok(()) => {
+            report.sent += 1;
+            (true, false, None)
+        }
+        Err(Failure::Retry(message)) => {
+            report.retry += 1;
+            (false, true, Some(message))
+        }
+        Err(Failure::Permanent(message)) => {
+            report.failed += 1;
+            (false, false, Some(message))
+        }
+    };
+    if let Some(message) = &problem {
+        eprintln!("Fizz alert notification {id} failed: {message}");
+    }
+    if let Err(problem) = store
+        .rpc(
+            "fizz_finish_alert_notification",
+            json!({"p_event_id":id,"p_sent":sent,"p_retry":retry,"p_error":problem}),
+        )
+        .await
+    {
+        eprintln!("Fizz alert notification {id} status could not be saved: {problem:?}");
+    }
 }
 
 #[cfg(test)]

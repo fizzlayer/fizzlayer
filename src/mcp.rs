@@ -312,7 +312,35 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         );
     }
     let params = message.get("params").cloned().unwrap_or_else(|| json!({}));
+    dispatch(
+        method,
+        params,
+        id,
+        &token,
+        ip.as_deref(),
+        McpHeaders {
+            version: version_header.as_deref(),
+            method: method_header.as_deref(),
+            name: name_header.as_deref(),
+        },
+    )
+    .await
+}
 
+struct McpHeaders<'a> {
+    version: Option<&'a str>,
+    method: Option<&'a str>,
+    name: Option<&'a str>,
+}
+
+async fn dispatch(
+    method: &str,
+    params: Value,
+    id: Value,
+    token: &str,
+    ip: Option<&str>,
+    headers: McpHeaders<'_>,
+) -> Response<ResponseBody> {
     if method == "initialize" {
         let requested = params.get("protocolVersion").and_then(Value::as_str);
         let version = requested
@@ -333,7 +361,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let meta_version = params.pointer(VERSION_META).and_then(Value::as_str);
     let modern = meta_version.is_some();
     if let Some(version) = meta_version {
-        if version_header.as_deref() != Some(version) {
+        if headers.version != Some(version) {
             return rpc_error(
                 400,
                 id,
@@ -342,7 +370,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 None,
             );
         }
-        if method_header.as_deref() != Some(method) {
+        if headers.method != Some(method) {
             return rpc_error(
                 400,
                 id,
@@ -353,7 +381,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         }
         if method == "tools/call" {
             let body_name = params.get("name").and_then(Value::as_str);
-            let header_name = name_header.as_deref().and_then(decode_header_value);
+            let header_name = headers.name.and_then(decode_header_value);
             if body_name.is_none() || header_name.as_deref() != body_name {
                 return rpc_error(
                     400,
@@ -375,7 +403,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 Some(json!({"supported": supported, "requested": version})),
             );
         }
-    } else if version_header.as_deref() == Some(MODERN_VERSION) {
+    } else if headers.version == Some(MODERN_VERSION) {
         return rpc_error(
             400,
             id,
@@ -385,6 +413,17 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
         );
     }
 
+    call_method(method, params, id, token, ip, modern).await
+}
+
+async fn call_method(
+    method: &str,
+    params: Value,
+    id: Value,
+    token: &str,
+    ip: Option<&str>,
+    modern: bool,
+) -> Response<ResponseBody> {
     match method {
         "server/discover" => {
             let mut supported = vec![MODERN_VERSION];
@@ -402,7 +441,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             )
         }
         "ping" => ok(id, json!({}), modern),
-        "tools/list" => match call(&token, ip.as_deref(), "connection", &json!({})).await {
+        "tools/list" => match call(token, ip, "connection", &json!({})).await {
             Ok(value) => {
                 let can_create = value
                     .pointer("/result/can_create_alerts")
@@ -430,7 +469,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            match call(&token, ip.as_deref(), name, &args).await {
+            match call(token, ip, name, &args).await {
                 Ok(value) => ok(id, tool_result(value), modern),
                 Err(error) => call_failure(id, error),
             }
