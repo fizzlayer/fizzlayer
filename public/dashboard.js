@@ -520,7 +520,7 @@
   function setupSummary(result) {
     const panel = node('div', 'chat-setup');
     const link = node('a', '', (result.pairing || result.pairing_setup) ? 'View device setup in Sensors' : 'Manage this sensor');
-    link.href = (result.pairing || result.pairing_setup) ? '/sensors.html#pair-device' : '/sensors.html#your-sensors-title';
+    link.href = (result.pairing || result.pairing_setup) ? '/sensors#pair-device' : '/sensors#your-sensors-title';
     if (result.pairing_setup) {
       panel.append(node('strong', '', 'Connect your Linux device'), node('p', '', 'Run these commands in a terminal on your Raspberry Pi or Linux device, then paste the displayed pairing code into this chat.'));
       const commands = node('pre');

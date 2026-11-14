@@ -4,11 +4,11 @@
     "title": "Fizzlayer API",
     "version": "1.0.0",
     "summary": "Send sensor readings to Fizzlayer and connect AI agents to them.",
-    "description": "Fizzlayer is the physical layer for AI agents. Devices post readings to sensors with a per-sensor API key; AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. Account management (sign-in, sensors, alerts, billing) uses the website or its WebMCP tools rather than this API. Guide: https://fizzlayer.com/docs.html",
-    "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/docs.html" },
+    "description": "Fizzlayer is the secure connection layer for AI agents. This document is the sensors API that works today: devices post readings with a per-sensor API key, and AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. The hosted gateway is in private beta and is not part of this API. Account management uses the website or its WebMCP tools. Guide: https://fizzlayer.com/sensors/docs",
+    "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/sensors/docs" },
     "termsOfService": "https://fizzlayer.com/terms.html"
   },
-  "externalDocs": { "description": "Fizzlayer documentation", "url": "https://fizzlayer.com/docs.html" },
+  "externalDocs": { "description": "Fizzlayer documentation", "url": "https://fizzlayer.com/sensors/docs" },
   "servers": [{ "url": "https://fizzlayer.com" }],
   "tags": [
     { "name": "Readings", "description": "Send readings from devices, scripts, and microcontrollers." },
@@ -170,7 +170,7 @@
                   },
                   "required": ["service", "status", "database"]
                 },
-                "example": { "service": "fizz", "status": "ok", "database": "connected", "description": "The physical layer for AI agents" }
+                "example": { "service": "fizz", "status": "ok", "database": "connected", "description": "The secure connection layer for AI agents" }
               }
             }
           }
@@ -216,12 +216,12 @@
       "sensorKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "A sensor API key (fizz_ followed by 64 hex characters), shown once when a real API sensor is created or its key is rotated on https://fizzlayer.com/sensors.html. Each key works for one sensor."
+        "description": "A sensor API key (fizz_ followed by 64 hex characters), shown once when a real API sensor is created or its key is rotated on https://fizzlayer.com/sensors. Each key works for one sensor."
       },
       "agentToken": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An agent token (fizz_agent_...), created on https://fizzlayer.com/agents.html or with the create_agent_connection WebMCP tool. Revocable at any time."
+        "description": "An agent token (fizz_agent_...), created on https://fizzlayer.com/sensors/agents or with the create_agent_connection WebMCP tool. Revocable at any time."
       }
     },
     "schemas": {

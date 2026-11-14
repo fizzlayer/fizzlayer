@@ -366,7 +366,7 @@
 
   function mcpAnswer(text) {
     const intro = /\bclaude\b/.test(text) ? 'Yes. Claude can read your sensors once it is connected over MCP. ' : '';
-    return `${intro}Fizzlayer exposes an MCP server at /api/mcp (Streamable HTTP; https://fizzlayer.com/api/mcp on the hosted site). Create an agent token on the Agents page — tokens start with fizz_agent_ — and send Authorization: Bearer. The tools are list_sensors, get_readings, list_alerts, create_alert (when the token is allowed to create alerts), and pair_device. Setup is in /docs.html#mcp, with a shorter guide at /llms.txt. This demo does not connect a live agent.`;
+    return `${intro}Fizzlayer exposes an MCP server at /api/mcp (Streamable HTTP; https://fizzlayer.com/api/mcp on the hosted site). Create an agent token on the Agents page — tokens start with fizz_agent_ — and send Authorization: Bearer. The tools are list_sensors, get_readings, list_alerts, create_alert (when the token is allowed to create alerts), and pair_device. Setup is in /sensors/docs#mcp, with a shorter guide at /llms.txt. This demo does not connect a live agent.`;
   }
 
   function answer(question) {

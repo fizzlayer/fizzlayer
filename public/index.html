@@ -1,274 +1,94 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#fcfdfd">
-    <title>Fizzlayer | The physical layer for AI agents</title>
-    <meta name="description" content="Fizzlayer is the physical layer for AI agents. Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Start free.">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Fizzlayer">
-    <meta property="og:url" content="https://fizzlayer.com/">
-    <meta property="og:title" content="Fizzlayer | The physical layer for AI agents">
-    <meta property="og:description" content="Connect any sensor, ask about it in plain English, and get a call when something goes wrong. Start free.">
-    <meta property="og:image" content="https://fizzlayer.com/og.png?v=34dedd6fc6c3">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="The Fizzlayer name in large type with the tagline “The physical layer for AI agents”, a row of nine sensor icons, and Fizz, the pixel-art mascot, glowing in a dark panel.">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="/design.css">
-    <link rel="stylesheet" href="/landing.css">
-    <script src="/auth-redirect.js"></script>
-    <script src="/sensor-kinds.js" defer></script>
-    <script src="/landing.js" defer></script>
-    <link rel="canonical" href="https://fizzlayer.com/">
-    <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
-    <link rel="service-doc" type="text/html" href="/docs.html">
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "Organization",
-            "@id": "https://fizzlayer.com/#organization",
-            "name": "Fizzlayer",
-            "url": "https://fizzlayer.com/",
-            "logo": "https://fizzlayer.com/fizz-logo-480.png",
-            "email": "support@fizzlayer.com",
-            "sameAs": [
-              "https://github.com/fizzlayer/fizzlayer"
-            ]
-          },
-          {
-            "@type": "WebSite",
-            "@id": "https://fizzlayer.com/#website",
-            "name": "Fizzlayer",
-            "url": "https://fizzlayer.com/",
-            "description": "The physical layer for AI agents.",
-            "publisher": {
-              "@id": "https://fizzlayer.com/#organization"
-            }
-          },
-          {
-            "@type": "SoftwareApplication",
-            "@id": "https://fizzlayer.com/#app",
-            "name": "Fizzlayer",
-            "url": "https://fizzlayer.com/",
-            "applicationCategory": "DeveloperApplication",
-            "operatingSystem": "Web, Linux",
-            "description": "Connect sensors, phones, and Linux devices to AI agents. See readings in a live dashboard, ask Fizz about them in plain English, and get alerts and phone calls when something goes wrong. Agents connect through MCP and WebMCP.",
-            "image": "https://fizzlayer.com/og.png?v=34dedd6fc6c3",
-            "publisher": {
-              "@id": "https://fizzlayer.com/#organization"
-            },
-            "featureList": [
-              "Sensor readings over HTTPS",
-              "Phone sensors without an app",
-              "Raspberry Pi and Linux CLI",
-              "Threshold alerts and phone calls",
-              "Ask Fizz in plain English",
-              "Remote MCP server",
-              "WebMCP tools in the browser"
-            ],
-            "offers": [
-              {
-                "@type": "Offer",
-                "name": "Hobbyist",
-                "price": "0",
-                "priceCurrency": "USD",
-                "description": "3 devices and 10 Fizz credits a month. Dashboard alerts only.",
-                "url": "https://fizzlayer.com/#pricing"
-              },
-              {
-                "@type": "Offer",
-                "name": "Tinkerer",
-                "price": "10",
-                "priceCurrency": "USD",
-                "description": "10 devices, 100 Fizz credits a month, and phone calls.",
-                "url": "https://fizzlayer.com/#pricing",
-                "priceSpecification": {
-                  "@type": "UnitPriceSpecification",
-                  "price": "10",
-                  "priceCurrency": "USD",
-                  "unitText": "MONTH"
-                }
-              },
-              {
-                "@type": "Offer",
-                "name": "Pro",
-                "price": "25",
-                "priceCurrency": "USD",
-                "description": "50 devices, 1,000 Fizz credits a month, and phone calls.",
-                "url": "https://fizzlayer.com/#pricing",
-                "priceSpecification": {
-                  "@type": "UnitPriceSpecification",
-                  "price": "25",
-                  "priceCurrency": "USD",
-                  "unitText": "MONTH"
-                }
-              }
-            ],
-            "softwareHelp": {
-              "@type": "CreativeWork",
-              "url": "https://fizzlayer.com/docs.html"
-            }
-          }
-        ]
-      }
-    </script>
-
-    <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
-
-    <meta http-equiv="origin-trial" content="AxF27oYssyj8cvJlJbnS48Y6Bj5Z1+hBUowrfkKCmhgiBfYx7KCn/0+kiAsKPfmxho2LSMztNGgIIHF+pAbBuggAAABheyJvcmlnaW4iOiJodHRwczovL2ZpenpsYXllci5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
-
-    <script src="/webmcp.js" defer></script>
-    <script src="/analytics.js" defer></script>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fcfdfd">
+  <title>Fizzlayer | The secure connection layer for AI agents</title>
+  <meta name="description" content="Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta. Sensors and phone-call alerts are available now.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Fizzlayer">
+  <meta property="og:url" content="https://fizzlayer.com/">
+  <meta property="og:title" content="Fizzlayer | The secure connection layer for AI agents">
+  <meta property="og:description" content="The hosted gateway is in private beta. Policies, approvals, and audit are not available yet. Sensors and phone-call alerts are available now.">
+  <meta property="og:image" content="https://fizzlayer.com/og.png?v=3fa47dec3301">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Fizzlayer, the secure connection layer for AI agents.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://fizzlayer.com/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/design.css">
+  <link rel="stylesheet" href="/landing.css">
+  <script src="/nav.js" defer></script>
+  <script src="/gateway-beta.js" defer></script>
+  <script src="/webmcp.js" defer></script>
+  <script src="/analytics.js" defer></script>
 </head>
-  <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <header class="site-nav">
-      <nav class="container" aria-label="Main">
-        <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
-        <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
-        <ul class="nav-links" id="nav-links">
-          <li><a href="#connect">Platform</a></li>
-          <li><a href="#use-cases">Use cases</a></li>
-          <li><a href="/demo.html">Live demo</a></li>
-          <li><a href="/docs.html">Docs</a></li>
-          <li><a href="/pricing">Pricing</a></li>
-          <li><a href="/enterprise">Enterprise</a></li>
-          <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
-          <li><a class="nav-sign-in" href="/app.html#sign-in">Sign in</a></li>
-          <li><a class="button button-dark nav-cta" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></li>
-        </ul>
-      </nav>
-    </header>
-    <main id="main-content">
-      <div class="hero-wrap">
-        <section class="hero container" id="top" aria-labelledby="hero-title">
-          <div class="hero-copy" id="join">
-            <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> The physical layer for AI agents</p>
-            <h1 id="hero-title">Your AI.<br>Connected to<br><span>the real world.</span></h1>
-            <p class="hero-description">Give your agents a sense of what's happening.<br>Connect sensors, understand your environment, and <strong>act on what matters.</strong> Meet Fizzlayer.</p>
-            <div class="hero-actions">
-              <a class="button button-dark" href="/app.html">Create a free account <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a>
-            </div>
-            <p class="invite">Free to start with 3 devices. Already have an account? <a href="/app.html#sign-in">Sign in</a></p>
-            <a class="hero-secondary" href="/demo.html"><span class="play-icon" aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span> Try the live dashboard demo <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a>
-            <p class="demo-invite">Populated sample workspace. No sign-in needed. <a href="#demo">Watch the video instead</a></p>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-nav">
+    <nav class="container" aria-label="Main">
+      <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="/docs">Gateway docs</a></li>
+        <li><a href="/sensors">Sensors</a></li>
+        <li><a href="/self-host">Self-host</a></li>
+        <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
+        <li><a class="nav-sign-in" href="/app.html#sign-in">Sign in</a></li>
+        <li><a class="button button-dark nav-cta" href="#beta">Join the list</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main-content">
+    <section class="hero-wrap">
+      <div class="container hero hero-simple">
+        <div class="hero-copy">
+          <p class="eyebrow-label">Gateway · private beta</p>
+          <h1>The secure connection layer for AI agents.</h1>
+          <p class="hero-description">The hosted gateway is in private beta. The plan is one MCP endpoint, with policies, approvals, and audit. None of that is available yet, and you cannot connect a server through it.</p>
+          <div class="hero-actions">
+            <a class="button button-dark" href="#beta">Join the list</a>
+            <a class="button button-light" href="/sensors">Open Sensors</a>
           </div>
-          <div class="world-visual" aria-label="Illustrative example: Grow Room temperature, water flow, and Greenhouse humidity connect to Fizzlayer and an AI agent.">
-            <div class="world-frame">
-              <div class="world-topline"><span>YOUR WORLD, CONNECTED</span><span><span class="status-dot" aria-hidden="true"></span> ILLUSTRATIVE DEMO</span></div>
-              <svg class="world-lines" viewBox="0 0 500 400" aria-hidden="true">
-                <ellipse class="orbit" cx="250" cy="190" rx="175" ry="140"/><ellipse class="orbit" cx="250" cy="190" rx="125" ry="100"/>
-                <path class="connection" d="M120 100 250 170 395 120 M110 290 250 170 400 290"/>
-                <circle cx="177" cy="131" r="3" fill="#a9eaf7"/><circle cx="323" cy="145" r="3" fill="#a9eaf7"/><circle cx="157" cy="250" r="3" fill="#5ee6c4"/><circle cx="341" cy="243" r="3" fill="#bcb7f4"/>
-              </svg>
-              <div class="world-core"><img src="/fizz-agent.svg" alt="Fizz, your pixel mascot" width="120" height="120"></div>
-              <div class="core-label">A little Fizz. A lot of awareness.<small>Your physical AI layer</small></div>
-              <div class="signal-node signal-temp" data-signal="temperature"><span><strong>22.4 °C</strong>Grow Room</span></div>
-              <div class="signal-node signal-water" data-signal="water"><span><strong>0.0 L/min</strong>Water flow</span></div>
-              <div class="signal-node signal-humidity" data-signal="humidity"><span><strong>48.2 %</strong>Greenhouse</span></div>
-              <div class="signal-node signal-agent"><span class="agent-symbol" aria-hidden="true"><span class="fa fa-robot"></span></span><span><strong>Your AI agent</strong>Connected via MCP</span></div>
-              <div class="visual-bottom"><span>DEVICE <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span> SIGNAL <span class="fa-arrow fa-arrow-right" aria-hidden="true"></span> UNDERSTANDING</span><span>POWERED BY FIZZ</span></div>
-            </div>
-            <div class="visual-notification"><span class="notification-mark"><img src="/fizz-agent.svg" alt="" width="28" height="28"></span><div class="notification-copy"><strong>“How's the greenhouse doing?”</strong><p>Grow Room is 22.4 °C and Greenhouse humidity is 48.2%. Here's what your sensors are seeing.</p></div><span>EXAMPLE</span></div>
-          </div>
-        </section>
-        <div class="capability-strip container"><p>From your first sensor <br>to your next AI agent.</p><div class="capability-list"><span><span class="fa fa-raspberry-pi" aria-hidden="true"></span> Raspberry Pi</span><span><span class="fa fa-microchip" aria-hidden="true"></span> ESP32</span><span><span class="fa fa-mobile-screen-button" aria-hidden="true"></span> Your phone</span><span><span class="fa-arrow fa-arrow-both" aria-hidden="true"></span> Any HTTPS device</span><span><span class="fa fa-robot" aria-hidden="true"></span> MCP compatible</span></div></div>
-      </div>
-      <section class="section connect container" id="connect" aria-labelledby="connect-title">
-        <div class="section-intro"><div><p class="eyebrow-label">01 / One connected layer</p><h2 id="connect-title">From physical signals<br>to useful intelligence.</h2></div><p class="lede">Your hardware speaks in readings. Your agents work in context. Fizzlayer brings them together, securely.</p></div>
-        <ol class="connect-steps">
-          <li><span class="step-number">01</span><h3>Connect your world.</h3><p>Pair a Raspberry Pi, an ESP32, or your phone. Bring any sensor that sends data over HTTPS, or start exploring with sample streams.</p><span class="step-meta">YOUR HARDWARE. YOUR CHOICE.</span></li>
-          <li><span class="step-number">02</span><h3>Give your agents context.</h3><p>Ask Fizz in plain English or connect your own agent over MCP. Get answers grounded in your actual sensor readings.</p><span class="step-meta">REAL SIGNALS. CLEAR ANSWERS.</span></li>
-          <li><span class="step-number">03</span><h3>Know when it matters.</h3><p>Set a threshold in the dashboard or ask Fizz to create one. Get a phone call when a reading crosses the line.</p><span class="step-meta">LESS WATCHING. MORE KNOWING.</span></li>
-        </ol>
-        <div class="connection-band" aria-label="Your devices connect through Fizzlayer to your agents"><span>Your devices</span><span class="flow-arrow" aria-hidden="true"><span class="fa-arrow fa-arrow-both" aria-hidden="true"></span></span><strong><img src="/fizz-agent.svg" alt="" width="34" height="34">Fizzlayer</strong><span class="flow-arrow" aria-hidden="true"><span class="fa-arrow fa-arrow-both" aria-hidden="true"></span></span><span>Your agents</span></div>
-      </section>
-      <section class="section product-section" id="demo" aria-labelledby="demo-title">
-        <div class="container demo-layout"><div><p class="eyebrow-label">02 / Meet your new sidekick</p><h2 id="demo-title">A window into<br>your physical world.</h2><p class="lede">Explore a populated sample workspace. Ask Fizz about the readings, create an alert, and preview what happens when a threshold is crossed.</p><ul class="demo-features"><li>Explore six updating sample sensors</li><li>Ask Fizz about the sample readings</li><li>Trigger an alert and preview a call</li></ul><a class="button button-dark" href="/demo.html">Explore the live demo <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a><p class="demo-invite">No account or hardware needed. All demo data is simulated.</p></div><div><div class="video-frame"><video controls preload="metadata" playsinline poster="/fizz-demo-poster.jpg?v=e0df2eee22d8" width="1920" height="1080">
-            <source src="/fizz-demo.mp4?v=2c2481d5dc91" type="video/mp4">
-            <track kind="captions" src="/fizz-demo.vtt?v=5dd0ba78532a" srclang="en" label="English">
-            Your browser cannot play this video. <a href="/fizz-demo.mp4?v=2c2481d5dc91">Download the demo</a>.
-          </video></div><p class="video-caption">THE PRODUCT WALKTHROUGH · 90 SECONDS</p></div></div>
-      </section>
-      <section class="section uses container" id="use-cases" aria-labelledby="uses-title">
-        <div class="section-intro"><div><p class="eyebrow-label">03 / Grounded in your world</p><h2 id="uses-title">A little more awareness.<br>A lot more peace of mind.</h2></div><p class="lede">From the server closet to the greenhouse, give Fizz a sensor and something to watch for.</p></div>
-        <div class="use-grid"><article class="use-card" data-kind="water"><div class="use-head"><span class="use-kind">WATER · FLOW & LEAKS</span></div><h3>Catch the little leaks.</h3><p>See unexpected water flow before a small problem becomes a big one. Set a threshold and let Fizz keep watch.</p><p class="ask">“Was there any water flow overnight?”</p></article><article class="use-card" data-kind="temperature"><div class="use-head"><span class="use-kind">TEMPERATURE · HEAT & COLD</span></div><h3>Keep your cool.</h3><p>Watch the server closet or cold room from anywhere. Get a call when the temperature crosses your limit.</p><p class="ask">“How warm is the server closet?”</p></article><article class="use-card" data-kind="humidity"><div class="use-head"><span class="use-kind">HUMIDITY · GROWING CONDITIONS</span></div><h3>Give your plants a voice.</h3><p>Keep an eye on the air in your greenhouse and set an alert when humidity drops below your chosen level.</p><p class="ask">“Is the greenhouse too dry?”</p></article><article class="use-card" data-kind="gas"><div class="use-head"><span class="use-kind">GAS · AIR QUALITY</span></div><h3>Know what’s in the air.</h3><p>Track concentration readings in your garage or workshop. Add context and history alongside your existing detectors.</p><p class="ask">“Did the garage air spike today?”</p></article><article class="use-card" data-kind="sound"><div class="use-head"><span class="use-kind">SOUND · ENVIRONMENTAL AWARENESS</span></div><h3>Hear the changes.</h3><p>Monitor sound levels in the spaces that matter. Let Fizz tell you when the noise crosses a threshold.</p><p class="ask">“Has it been quiet in the pet room?”</p></article><article class="use-card" data-kind="phone"><div class="use-head"><span class="use-kind">PHONE · NO EXTRA HARDWARE</span></div><h3>Start with your pocket.</h3><p>Turn your phone into a sensor for motion, location, and voice notes. Each permission stays in your hands.</p><p class="ask">“What did my phone pick up?”</p></article></div>
-        <p class="uses-more">Also supports pressure, radio signal strength, and custom metrics over HTTPS.</p>
-      </section>
-      <section class="section pricing container" id="pricing" aria-labelledby="pricing-title">
-        <div class="section-intro"><div><p class="eyebrow-label">04 / Pricing</p><h2 id="pricing-title">Start free.<br>Grow when your world does.</h2></div><p class="lede">Every plan includes unlimited sample sensors, agent access over MCP, and dashboard alerts. Phone calls are included with Tinkerer, Pro, and Enterprise.</p></div>
-        <div class="pricing-table-wrap">
-          <table class="pricing-table">
-            <caption class="visually-hidden">Fizzlayer plans compared by monthly price, connected devices, and Fizz credits</caption>
-            <thead>
-              <tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">Connected devices</th><th scope="col">Fizz credits</th><th scope="col">Phone calls</th><th scope="col"><span class="visually-hidden">Get started</span></th></tr>
-            </thead>
-            <tbody>
-            <tr>
-              <th scope="row"><span class="plan-name">Hobbyist</span><span class="plan-tag">For your first sensors</span></th>
-              <td data-label="Price"><span><span class="plan-price">$0</span></span></td>
-              <td data-label="Connected devices">3</td>
-              <td data-label="Fizz credits">10 / month</td>
-              <td data-label="Phone calls">Dashboard only</td>
-              <td class="plan-action"><a class="button button-light" href="/app.html?plan=hobbyist">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
-            </tr>
-            <tr class="plan-featured">
-              <th scope="row"><span class="plan-name">Tinkerer</span><span class="plan-tag">For the home lab</span></th>
-              <td data-label="Price"><span><span class="plan-price">$10</span><span class="plan-period">/ month</span></span></td>
-              <td data-label="Connected devices">10</td>
-              <td data-label="Fizz credits">100 / month</td>
-              <td data-label="Phone calls">Included</td>
-              <td class="plan-action"><a class="button button-dark" href="/app.html?plan=tinkerer">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
-            </tr>
-            <tr>
-              <th scope="row"><span class="plan-name">Pro</span><span class="plan-tag">For serious setups</span></th>
-              <td data-label="Price"><span><span class="plan-price">$25</span><span class="plan-period">/ month</span></span></td>
-              <td data-label="Connected devices">50</td>
-              <td data-label="Fizz credits">1,000 / month</td>
-              <td data-label="Phone calls">Included</td>
-              <td class="plan-action"><a class="button button-light" href="/app.html?plan=pro">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></td>
-            </tr>
-            <tr>
-              <th scope="row"><span class="plan-name">Enterprise</span><span class="plan-tag">For teams and sites</span></th>
-              <td data-label="Price"><span><span class="plan-price">Custom</span></span></td>
-              <td data-label="Connected devices">Custom</td>
-              <td data-label="Fizz credits">Custom</td>
-              <td data-label="Phone calls">Included</td>
-              <td class="plan-action"><a class="button button-light" href="#business">Contact us <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></a></td>
-            </tr>
-            </tbody>
-          </table>
+          <p class="invite">Sensors, Fizz, and phone-call alerts are available now. Built in Rust. The gateway will run on the open-source agentgateway project. That data plane is not shipped here yet.</p>
         </div>
-        <p class="pricing-note">One Fizz credit is one message to Fizz in the workspace chat, typed or spoken. Credits reset on the first of each month. Connected devices are paired devices, phones, and API sensors; sample sensors are free. A phone call, including the call that pairs a number, requires Tinkerer, Pro, or Enterprise. Hobbyist alerts stay on the dashboard.</p>
-      </section>
-      <section class="section enterprise" id="enterprise" aria-labelledby="enterprise-title"><div class="container enterprise-layout">
-        <div><p class="eyebrow-label">Built for your next chapter</p><h2 id="enterprise-title">Every sensor on site.<br>One agent watching.</h2><p class="lede">Cold storage, logistics, or the factory floor. Bring your signals into one workspace and get the right person on the phone when a threshold is crossed.</p><ul class="ent-points"><li><strong>Control access, device by device.</strong>Separate, revocable keys for your sensors and tokens for your agents.</li><li><strong>Start before install day.</strong>Explore with simulated sensor streams while your hardware is on its way.</li><li><strong>Reach the right person.</strong>Pair the number first. Fizz calls it when an alert fires. Phone calls are included with Enterprise.</li></ul></div>
-        <div class="business" id="business"><h3>Bring Fizzlayer to your team.</h3><p>Tell us what you need to watch. We'll be in touch about Enterprise.</p><form id="business-form" novalidate>
-            <div>
-              <label for="business-email">Work email</label>
-              <input id="business-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@company.com">
-            </div>
-            <div>
-              <label for="business-company">Company</label>
-              <input id="business-company" name="company" type="text" autocomplete="organization" maxlength="120" required placeholder="Acme Logistics">
-            </div>
-            <div class="wide">
-              <label for="business-interest">What would you like Fizz to watch? <span class="dim">(optional)</span></label>
-              <textarea id="business-interest" name="interest" maxlength="500" rows="3" placeholder="e.g. Cold room temperatures across 3 warehouses"></textarea>
-            </div>
-            <button class="button button-cyan" type="submit">Contact sales <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></button>
-            <p class="form-status wide" id="business-status" role="status" aria-live="polite"></p>
-          </form></div>
-      </div></section>
-      <section class="section closing container" aria-labelledby="closing-title"><img src="/fizz-agent.svg" alt="" width="58" height="58"><h2 id="closing-title">The world has a lot to say.<br>Give your AI a way to listen.</h2><p>Your sensors. Your agents. A little Fizz in between.</p><a class="button button-dark" href="/app.html">Get started <span aria-hidden="true"><span class="fa-arrow fa-arrow-right" aria-hidden="true"></span></span></a></section>
-    </main>
-    <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The physical layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs.html">Docs</a><a href="/self-host">Self-host</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
-  </body>
+      </div>
+    </section>
+    <section class="section container" aria-labelledby="not-yet-title">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow-label">What exists today</p>
+          <h2 id="not-yet-title">The gateway is not live.</h2>
+        </div>
+        <p class="lede">Joining the list does not create a gateway, mint a token, or turn on approvals. Those parts are still being built. An account today is a Sensors account.</p>
+      </div>
+      <ul class="status-list">
+        <li><div><strong>Not available yet</strong><p>A hosted MCP gateway, per-tool rules, phone or chat approvals, and an audit log of tool calls.</p></div></li>
+        <li><div><strong>Available now</strong><p><a href="/sensors">Sensors</a>, the dashboard at <a href="/app.html">the app</a>, and <a href="/sensors/docs">sensors docs</a>.</p></div></li>
+        <li><div><strong>Self-host</strong><p><a href="/self-host">Choose Gateway or Sensors</a>. Only the Sensors stack can be installed today.</p></div></li>
+      </ul>
+    </section>
+    <section class="section container" id="beta" aria-labelledby="beta-title">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow-label">Private beta</p>
+          <h2 id="beta-title">Join the list.</h2>
+        </div>
+        <p class="lede">Tell us where to write when there is a place in the beta. This uses the same contact form as Enterprise. It does not reserve a plan.</p>
+      </div>
+      <form id="beta-form" class="beta-form">
+        <label>Email<input id="beta-email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
+        <label>Name or company<input id="beta-company" required maxlength="120" autocomplete="organization"></label>
+        <button class="button button-dark" type="submit">Join the list</button>
+      </form>
+      <p class="invite" id="beta-status" role="status"></p>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs">Gateway docs</a><a href="/sensors/docs">Sensors docs</a><a href="/self-host">Self-host</a><a href="/pricing">Pricing</a><a href="/status">Status</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+</body>
 </html>

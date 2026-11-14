@@ -24,8 +24,23 @@
       "permanent": true
     },
     {
-      "source": "/docs",
-      "destination": "/docs.html",
+      "source": "/sensors.html",
+      "destination": "/sensors",
+      "permanent": true
+    },
+    {
+      "source": "/docs.html",
+      "destination": "/sensors/docs",
+      "permanent": true
+    },
+    {
+      "source": "/agents.html",
+      "destination": "/sensors/agents",
+      "permanent": true
+    },
+    {
+      "source": "/self-host.html",
+      "destination": "/sensors/self-host",
       "permanent": true
     },
     {
@@ -42,14 +57,33 @@
       "source": "/enterprise",
       "destination": "/enterprise.html",
       "permanent": true
-    },
-    {
-      "source": "/self-host",
-      "destination": "/self-host.html",
-      "permanent": true
     }
   ],
   "rewrites": [
+    {
+      "source": "/docs",
+      "destination": "/gateway-docs.html"
+    },
+    {
+      "source": "/self-host",
+      "destination": "/self-host-chooser.html"
+    },
+    {
+      "source": "/sensors",
+      "destination": "/sensors.html"
+    },
+    {
+      "source": "/sensors/docs",
+      "destination": "/docs.html"
+    },
+    {
+      "source": "/sensors/agents",
+      "destination": "/agents.html"
+    },
+    {
+      "source": "/sensors/self-host",
+      "destination": "/self-host.html"
+    },
     {
       "source": "/.well-known/webmcp",
       "destination": "/.well-known/webmcp.json"
