@@ -76,7 +76,7 @@ Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`,
 
 `cargo test` and `cargo audit` stay in the security workflow. `cargo deny` checks advisories, licenses, bans, and sources on every pull request (`deny.toml`). Duplicate crate versions warn and do not fail the build. Version requirements must not be `*`. Dependencies come from crates.io only.
 
-The lint job uses the same stable Rust action as the security workflow. Container builds use the Rust version in `deploy/Dockerfile.api` (currently 1.94). Don't use syntax or standard-library items newer than that image.
+Rust 1.94.0 is the minimum supported compiler. It matches `deploy/Dockerfile.api`, `supabase/compute/fizz-worker/Dockerfile`, and `rust-toolchain.toml`. Vercel builds with a compiler that rejects standard-library APIs newer than that, such as `Option::map_or_default`. CI installs 1.94.0 for formatting, Clippy, and tests, and each package sets `rust-version` to 1.94. Do not use syntax or library items that 1.94.0 cannot build.
 
 ### Pedantic lints that are on
 

@@ -1117,14 +1117,18 @@ mod tests {
         assert!(setup_payload(&pair, "Please pair 7k3p q9dm", &[]).is_some());
         assert!(setup_payload(&pair, "Please pair my device", &[]).is_none());
         assert!(
-            setup_payload(&pair, "yes", &[
-                json!({"role":"assistant","content":"7K3P-Q9DM"})
-            ])
+            setup_payload(
+                &pair,
+                "yes",
+                &[json!({"role":"assistant","content":"7K3P-Q9DM"})]
+            )
             .is_none()
         );
-        let (_, payload) = setup_payload(&pair, "name it Garage Pi", &[
-            json!({"role":"user","content":"pair 7K3P-Q9DM"}),
-        ])
+        let (_, payload) = setup_payload(
+            &pair,
+            "name it Garage Pi",
+            &[json!({"role":"user","content":"pair 7K3P-Q9DM"})],
+        )
         .unwrap();
         assert_eq!(
             payload,

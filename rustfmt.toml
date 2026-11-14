@@ -1,4 +1,4 @@
-# Stable rustfmt, which is the Rust style guide CI can enforce without nightly.
+# rustfmt from Rust 1.94.0, the MSRV in rust-toolchain.toml.
 # Nightly-only options are intentionally absent. Defaults that would reformat
 # an already-clean tree (for example `use_field_init_shorthand`) stay at the
 # stable default. See CODE_QUALITY.md.
