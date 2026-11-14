@@ -1,0 +1,5 @@
+The Fizzlayer programs in this directory are licensed under the Apache License,
+Version 2.0. The full license text is the LICENSE file at the repository root.
+
+The unmodified agentgateway container image that this directory runs is a
+separate work, also under the Apache License, Version 2.0. See NOTICE.

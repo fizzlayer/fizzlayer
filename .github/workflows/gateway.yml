@@ -1,0 +1,49 @@
+# Gateway config generator, fizz-guard, and the local agentgateway compose test.
+# The API and worker images are not built here.
+name: Gateway
+
+on:
+  pull_request:
+    paths:
+      - gateway/**
+      - supabase/migrations/20261114000000_gateway.sql
+      - supabase/tests/gateway_rls.sql
+      - .github/workflows/gateway.yml
+      - NOTICE
+  push:
+    branches: [main]
+    paths:
+      - gateway/**
+      - supabase/migrations/20261114000000_gateway.sql
+      - supabase/tests/gateway_rls.sql
+      - .github/workflows/gateway.yml
+      - NOTICE
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
+      - name: Fetch the pinned agentgateway binary
+        run: gateway/scripts/fetch-agentgateway.sh
+      - name: Unit tests
+        env:
+          AGENTGATEWAY_BIN: gateway/.local-bin/agentgateway
+          REQUIRE_UPSTREAM_VALIDATE: "1"
+        run: cargo test --locked --manifest-path gateway/Cargo.toml
+      - name: Compose end to end
+        run: gateway/compose/test.sh
