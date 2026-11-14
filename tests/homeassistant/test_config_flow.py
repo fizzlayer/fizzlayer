@@ -1,16 +1,16 @@
 """Config flow: My Home Assistant starts the link, then the owner picks entities."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
 pytest.importorskip("homeassistant")
 pytest.importorskip("pytest_homeassistant_custom_component")
 
-from homeassistant.data_entry_flow import FlowResultType  # noqa: E402
+from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.fizzlayer.const import DOMAIN  # noqa: E402
-from custom_components.fizzlayer.mapping import plan_entity  # noqa: E402
+from custom_components.fizzlayer.const import DOMAIN
+from custom_components.fizzlayer.mapping import plan_entity
 
 
 def _linked(limit=3, used=0):
@@ -27,7 +27,11 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
     hass.states.async_set(
         "sensor.rack_temp",
         "21",
-        {"device_class": "temperature", "unit_of_measurement": "°C", "friendly_name": "Rack temperature"},
+        {
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "friendly_name": "Rack temperature",
+        },
     )
     hass.states.async_set(
         "binary_sensor.closet_door",
@@ -80,8 +84,9 @@ async def test_cloud_link_polls_then_preselects_closet_sensors(hass, enable_cust
         assert "sensor.lounge_lux" not in sent
         return synced
 
-    with patch("custom_components.fizzlayer.config_flow.POLL_INTERVAL", 0), patch(
-        "custom_components.fizzlayer.config_flow.post_json", side_effect=fake_post
+    with (
+        patch("custom_components.fizzlayer.config_flow.POLL_INTERVAL", 0),
+        patch("custom_components.fizzlayer.config_flow.post_json", side_effect=fake_post),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result["type"] is FlowResultType.EXTERNAL_STEP

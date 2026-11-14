@@ -109,7 +109,9 @@ def plan_entity(entity_id: str, device_class: str | None, unit: str | None) -> E
 def _canonical(device_class: str | None, unit: str | None) -> tuple[str, str, str] | None:
     """Known device classes whose unit we can normalize. None keeps the entity custom."""
     key = (unit or "").strip().lower().replace(" ", "")
-    if device_class == "temperature" and (key in _TEMPERATURE or key in _FAHRENHEIT or key in _KELVIN or key == ""):
+    if device_class == "temperature" and (
+        key in _TEMPERATURE or key in _FAHRENHEIT or key in _KELVIN or key == ""
+    ):
         return ("temperature", "temperature_c", "°C")
     if device_class == "humidity" and key in {"%", "percent", "%rh", ""}:
         return ("humidity", "humidity_pct", "%")

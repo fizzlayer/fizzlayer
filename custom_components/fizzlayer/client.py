@@ -6,7 +6,6 @@ import asyncio
 import logging
 
 from aiohttp import ClientError
-
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -40,8 +39,10 @@ async def post_json(
                     data = {}
                 data["_status"] = response.status
                 return data
-    except (ClientError, TimeoutError, asyncio.TimeoutError) as err:
-        _LOGGER.debug("Fizzlayer request to %s failed: %s", url.split("?", 1)[0], type(err).__name__)
+    except (ClientError, TimeoutError) as err:
+        _LOGGER.debug(
+            "Fizzlayer request to %s failed: %s", url.split("?", 1)[0], type(err).__name__
+        )
         raise FizzlayerConnectionError from err
 
 

@@ -1,0 +1,5 @@
+# Ruff is for the Home Assistant integration only.
+# hardware/m5stick-s3 is MicroPython. Do not lint or format it.
+target-version = "py311"
+line-length = 100
+extend-exclude = ["hardware"]
