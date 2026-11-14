@@ -2,7 +2,7 @@
 //! The host only needs Docker. Random bytes and the service-role JWT are produced here.
 
 use std::{
-    env, fs,
+    fs,
     io::Write,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
@@ -143,7 +143,16 @@ fn random_hex(rng: &SystemRandom, nbytes: usize) -> Result<String, String> {
     let mut bytes = vec![0u8; nbytes];
     rng.fill(&mut bytes)
         .map_err(|_| "Could not read random bytes.".to_owned())?;
-    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(encode_hex(&bytes))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        // `fmt::Write` for `String` is infallible.
+        let _ = std::fmt::Write::write_fmt(&mut hex, format_args!("{byte:02x}"));
+    }
+    hex
 }
 
 fn jwt(secret: &str, role: &str) -> Result<String, String> {
@@ -165,6 +174,8 @@ fn jwt(secret: &str, role: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
 
     #[test]

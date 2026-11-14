@@ -224,7 +224,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 .header("x-content-type-options", "nosniff")
                 .body(ResponseBody::from(audio))
                 .expect("valid audio response"),
-            Err(_) => error(
+            Err(()) => error(
                 503,
                 "voice_unavailable",
                 "I couldn't speak that reply. You can read it in chat.",
@@ -252,7 +252,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
             "too_long",
             "Try a shorter message, up to 1,000 characters.",
         ),
-        Err(_) => error(
+        Err(()) => error(
             503,
             "voice_unavailable",
             "I couldn't transcribe that recording. Try again or type your message.",

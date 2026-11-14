@@ -11,7 +11,7 @@ use crate::{customer::error, store::Supabase};
 pub fn allow_insecure_http() -> bool {
     matches!(
         env::var("FIZZ_ALLOW_INSECURE_HTTP").ok().as_deref(),
-        Some("1") | Some("true")
+        Some("1" | "true")
     )
 }
 
@@ -83,7 +83,7 @@ pub fn request_origin<B>(request: &http::Request<B>) -> Option<String> {
         .headers()
         .get("host")
         .and_then(|v| v.to_str().ok())
-        .or_else(|| request.uri().authority().map(|a| a.as_str()));
+        .or_else(|| request.uri().authority().map(http::uri::Authority::as_str));
     let origin = site_origin(host)?;
     development_origin(
         origin,

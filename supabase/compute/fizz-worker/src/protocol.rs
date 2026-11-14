@@ -40,7 +40,7 @@ fn is_hex_token(value: &str, prefix: &str) -> bool {
         && value.len() == prefix.len() + 64
         && value.as_bytes()[prefix.len()..]
             .iter()
-            .all(|c| c.is_ascii_hexdigit())
+            .all(u8::is_ascii_hexdigit)
 }
 
 pub fn valid_uuid(value: &str) -> bool {
@@ -434,7 +434,7 @@ fn split_host_port(host_port: &str) -> Result<(String, Option<u16>), &'static st
 }
 
 fn join_ws(url: &CheckedUrl, suffix: &str) -> String {
-    let port = url.port.map(|port| format!(":{port}")).unwrap_or_default();
+    let port = url.port.map_or_default(|port| format!(":{port}"));
     format!(
         "{}://{}{}{}{}",
         url.scheme, url.host, port, url.path, suffix

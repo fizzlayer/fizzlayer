@@ -1,0 +1,53 @@
+# Formatting and lint for the three Rust packages, plus shell and dependency policy.
+# `cargo test` and `cargo audit` stay in security.yml.
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt, clippy
+      - name: rustfmt
+        run: |
+          cargo fmt --all -- --check
+          cargo fmt --manifest-path cli/Cargo.toml -- --check
+          cargo fmt --manifest-path supabase/compute/fizz-worker/Cargo.toml -- --check
+      - name: Clippy (API and library)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (CLI)
+        run: cargo clippy --locked --all-targets --manifest-path cli/Cargo.toml -- -D warnings
+      - name: Clippy (worker)
+        run: cargo clippy --locked --all-targets --manifest-path supabase/compute/fizz-worker/Cargo.toml -- -D warnings
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install cargo-deny 0.20.2
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/cargo-deny.tar.gz https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  /tmp/cargo-deny.tar.gz" | sha256sum -c
+          tar -xzf /tmp/cargo-deny.tar.gz -C /tmp
+          sudo install -m 755 /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny /usr/local/bin/cargo-deny
+          cargo deny --version
+      - name: cargo deny
+        run: |
+          cargo deny --manifest-path Cargo.toml check
+          cargo deny --manifest-path cli/Cargo.toml check
+          cargo deny --manifest-path supabase/compute/fizz-worker/Cargo.toml check
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: shellcheck
+        run: shellcheck scripts/*.sh deploy/*.sh public/install.sh

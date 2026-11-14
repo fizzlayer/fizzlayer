@@ -167,12 +167,11 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
     let Ok(store) = Supabase::from_env() else {
         return unavailable();
     };
-    let account = match store
+    let Ok(account) = store
         .rpc("fizz_billing_account", json!({"p_token": token}))
         .await
-    {
-        Ok(account) => account,
-        Err(_) => return unavailable(),
+    else {
+        return unavailable();
     };
     match account["error"].as_str() {
         Some("unauthorized") => return error(401, "unauthorized", "Sign in to continue."),
@@ -451,7 +450,10 @@ mod tests {
         let mut payload = format!("{timestamp}.").into_bytes();
         payload.extend_from_slice(body);
         let tag = hmac::sign(&key, &payload);
-        let hex: String = tag.as_ref().iter().map(|b| format!("{b:02x}")).collect();
+        let mut hex = String::with_capacity(tag.as_ref().len() * 2);
+        for byte in tag.as_ref() {
+            let _ = std::fmt::Write::write_fmt(&mut hex, format_args!("{byte:02x}"));
+        }
         format!("t={timestamp},v1={hex}")
     }
 

@@ -173,7 +173,7 @@ async fn start(
     data: &Value,
     ip: Option<&str>,
 ) -> Response<ResponseBody> {
-    let started = match store
+    let Ok(started) = store
         .rpc(
             "fizz_call_phone_start",
             json!({
@@ -183,15 +183,12 @@ async fn start(
             }),
         )
         .await
-    {
-        Ok(value) => value,
-        Err(_) => {
-            return error(
-                503,
-                "database_unavailable",
-                "Phone pairing is temporarily unavailable.",
-            );
-        }
+    else {
+        return error(
+            503,
+            "database_unavailable",
+            "Phone pairing is temporarily unavailable.",
+        );
     };
     if let Some(response) = phone_error(&started) {
         return response;

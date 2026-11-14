@@ -279,7 +279,7 @@ fn valid_proposal(proposal: &Value, context: &Value) -> bool {
             silence_minutes(proposal.get("silence_minutes")).is_ok()
                 && proposal
                     .get("notify_recovery")
-                    .is_none_or(|value| value.is_boolean())
+                    .is_none_or(serde_json::Value::is_boolean)
         }
         "threshold" => {
             let (Some(metric), Some(comparator), Some(threshold), Some(unit)) = (
@@ -640,29 +640,25 @@ async fn setup_action(
             None,
         );
     };
-    if rpc == "fizz_create_sensor" {
-        if let Some(existing) = context["sensors"].as_array().and_then(|sensors| {
+    if rpc == "fizz_create_sensor"
+        && let Some(existing) = context["sensors"].as_array().and_then(|sensors| {
             sensors.iter().find(|s| {
                 s["name"] == payload["p_name"]
                     && s["kind"] == payload["p_kind"]
                     && s["mode"] == payload["p_mode"]
             })
-        }) {
-            if let Some(response) = sensor_setup_reply(&json!({"sensor":existing}), false) {
-                return reply(200, response, None);
-            }
-        }
+        })
+        && let Some(response) = sensor_setup_reply(&json!({"sensor":existing}), false)
+    {
+        return reply(200, response, None);
     }
     payload["p_token"] = json!(token);
-    let result = match store.rpc(rpc, payload).await {
-        Ok(result) => result,
-        Err(_) => {
-            return error(
-                503,
-                "database_unavailable",
-                "I couldn't confirm that action. Check Sensors before trying again.",
-            );
-        }
+    let Ok(result) = store.rpc(rpc, payload).await else {
+        return error(
+            503,
+            "database_unavailable",
+            "I couldn't confirm that action. Check Sensors before trying again.",
+        );
     };
     match result["error"].as_str() {
         Some("unauthorized") => return error(401, "unauthorized", "Sign in to continue."),
@@ -987,15 +983,12 @@ async fn answer(
             );
         };
         payload["p_token"] = json!(token);
-        let result = match store.rpc("fizz_create_alert", payload).await {
-            Ok(result) => result,
-            Err(_) => {
-                return error(
-                    503,
-                    "database_unavailable",
-                    "I couldn't save the alert. Please try again.",
-                );
-            }
+        let Ok(result) = store.rpc("fizz_create_alert", payload).await else {
+            return error(
+                503,
+                "database_unavailable",
+                "I couldn't save the alert. Please try again.",
+            );
         };
         if result["error"] == "simulated_sensor" {
             return reply(200, json!({"reply":SAMPLE_SILENCE,"clips":clips}), None);
@@ -1097,7 +1090,7 @@ mod tests {
         let history = [turn("user", 10), turn("assistant", 5000), turn("user", 10)];
         assert_eq!(recent_history(&history, 5000), &history[2..]);
         assert_eq!(recent_history(&history, 11_000), &history[..]);
-        assert!(recent_history(&history, 0).is_empty());
+        assert_eq!(recent_history(&history, 0), &[] as &[Value]);
     }
     #[test]
     fn silence_reply_uses_the_singular_for_one_minute() {
@@ -1283,8 +1276,14 @@ mod tests {
         let context = json!({"voice_clips":[owned.clone()]});
         let output = json!({"clip_ids":["foreign", "owned", "owned", null], "clips":[{"clip_id":"foreign","sensor_name":"Injected"}]});
         assert_eq!(selected_clips(&output, &context), vec![owned]);
-        assert!(selected_clips(&json!({"clip_ids":["foreign"]}), &context).is_empty());
-        assert!(selected_clips(&json!({"clip_ids":"owned"}), &context).is_empty());
+        assert_eq!(
+            selected_clips(&json!({"clip_ids":["foreign"]}), &context),
+            [] as [Value; 0]
+        );
+        assert_eq!(
+            selected_clips(&json!({"clip_ids":"owned"}), &context),
+            [] as [Value; 0]
+        );
     }
 
     #[test]

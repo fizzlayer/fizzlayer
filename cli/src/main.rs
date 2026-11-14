@@ -117,8 +117,10 @@ impl Reply {
         self.body
             .pointer("/error/message")
             .and_then(Value::as_str)
-            .map(str::to_owned)
-            .unwrap_or_else(|| format!("Fizz answered with HTTP {}.", self.status))
+            .map_or_else(
+                || format!("Fizz answered with HTTP {}.", self.status),
+                str::to_owned,
+            )
     }
 }
 
@@ -345,15 +347,18 @@ fn printable(text: &str, max_chars: usize) -> String {
 fn now_millis() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis())
 }
 
 fn event_id() -> String {
     let mut random = [0u8; 6];
     let _ =
         fs::File::open("/dev/urandom").and_then(|mut f| io::Read::read_exact(&mut f, &mut random));
-    let suffix: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    let mut suffix = String::with_capacity(random.len() * 2);
+    for byte in random {
+        // `fmt::Write` for `String` is infallible. `io::Write` is already in scope.
+        let _ = std::fmt::Write::write_fmt(&mut suffix, format_args!("{byte:02x}"));
+    }
     format!("cli-{}-{suffix}", now_millis())
 }
 
@@ -608,8 +613,8 @@ fn publish(
             let urls = stream_urls(config)?;
             let mut link = transport::ReadingLink::open(
                 &urls.websocket_url,
-                &field(config, "sensor_id")?,
-                &field(config, "api_key")?,
+                field(config, "sensor_id")?,
+                field(config, "api_key")?,
             )?;
             link.send(metrics, &event_id())
         }
@@ -618,8 +623,8 @@ fn publish(
             transport::mqtt_publish(
                 &urls,
                 env::var("FIZZ_MQTT_URL").ok().as_deref(),
-                &field(config, "sensor_id")?,
-                &field(config, "api_key")?,
+                field(config, "sensor_id")?,
+                field(config, "api_key")?,
                 metrics,
                 &event_id(),
             )
@@ -734,8 +739,8 @@ fn run(args: &[String]) -> Result<()> {
         let urls = stream_urls(&config)?;
         Some(transport::ReadingLink::open(
             &urls.websocket_url,
-            &field(&config, "sensor_id")?,
-            &field(&config, "api_key")?,
+            field(&config, "sensor_id")?,
+            field(&config, "api_key")?,
         )?)
     } else {
         None
@@ -773,7 +778,7 @@ fn run(args: &[String]) -> Result<()> {
                         field(&config, "api_key"),
                     )
                 {
-                    link = transport::ReadingLink::open(&urls.websocket_url, &sensor, &key).ok();
+                    link = transport::ReadingLink::open(&urls.websocket_url, sensor, key).ok();
                 }
             }
         }
@@ -799,12 +804,12 @@ fn tail(args: &[String]) -> Result<()> {
         Transport::Mqtt => transport::tail_mqtt(
             &urls,
             env::var("FIZZ_MQTT_URL").ok().as_deref(),
-            &sensor,
-            &key,
+            sensor,
+            key,
             print,
         ),
         Transport::Https | Transport::Socket => {
-            transport::tail_socket(&urls.live_url, &sensor, &key, print)
+            transport::tail_socket(&urls.live_url, sensor, key, print)
         }
     }
 }
