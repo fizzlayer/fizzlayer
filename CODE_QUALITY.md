@@ -83,7 +83,9 @@ Rust 1.94.0 is the minimum supported compiler. It matches `deploy/Dockerfile.api
 
 ### Pedantic lints that are on
 
-`map_unwrap_or`, `manual_let_else`, `unreadable_literal`, `explicit_iter_loop`, `explicit_into_iter_loop`, `redundant_closure_for_method_calls`, `unnested_or_patterns`, `uninlined_format_args`, `ignored_unit_patterns`, `format_collect`, `cloned_instead_of_copied`, `flat_map_option`, `implicit_clone`, `inefficient_to_string`, `manual_assert`, `manual_string_new`, `semicolon_if_nothing_returned`, `trivially_copy_pass_by_ref`, `match_same_arms`, `single_match_else`.
+`map_unwrap_or`, `manual_let_else`, `unreadable_literal`, `explicit_iter_loop`, `explicit_into_iter_loop`, `redundant_closure_for_method_calls`, `unnested_or_patterns`, `uninlined_format_args`, `ignored_unit_patterns`, `format_collect`, `cloned_instead_of_copied`, `flat_map_option`, `implicit_clone`, `inefficient_to_string`, `manual_assert`, `manual_string_new`, `semicolon_if_nothing_returned`, `trivially_copy_pass_by_ref`, `match_same_arms`, `single_match_else`, `cast_possible_truncation`, `needless_pass_by_value`.
+
+`cast_possible_truncation` stays allowed only where a range check or a mask already proves the value fits, or where `as` is the saturating float-to-int conversion Rust already performs. MQTT lengths use `try_from` and fail the packet instead of truncating. Arguments that a function only reads are borrowed.
 
 `clippy::option_if_let_else` is not enabled. The suggested `map_or_else` rewrite is worse than an `if let` / `else` that returns an HTTP response, and Clippy does not apply most of those edits itself. `clippy::from_iter_instead_of_collect` was removed upstream and must not be turned back on.
 
@@ -93,7 +95,6 @@ Turn these on in a follow-up once the code matches them. Allowing them globally 
 
 - `clippy::unwrap_used` and `clippy::expect_used`. Existing library `expect`s are mostly `Response::builder().body()` on static headers, plus a few `as_str().unwrap()` calls after a type check. Tests use `unwrap` freely.
 - `clippy::too_many_lines`, `missing_errors_doc`, `missing_panics_doc`, `doc_markdown`, and `must_use_candidate`. These need a documentation and decomposition pass, not a mechanical edit.
-- `clippy::cast_possible_truncation` and `clippy::needless_pass_by_value`. The casts are range-checked or POSIX field widths; the signature changes need a caller review.
 - `clippy::unused_async` on `serve::static_file`, which is async only so the server can `.await` it.
 - Rustc `missing_docs` and `unreachable_pub`.
 

@@ -239,7 +239,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     None,
                 )
                 .await;
-            hosted_url(session)
+            hosted_url(session.as_ref())
         }
         Some("portal") => {
             let Some(stripe_customer) = stripe_id(&account["stripe_customer_id"], "cus_") else {
@@ -259,7 +259,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     None,
                 )
                 .await;
-            hosted_url(session)
+            hosted_url(session.as_ref())
         }
         _ => error(400, "invalid_request", "Choose checkout or portal."),
     }
@@ -294,7 +294,7 @@ async fn create_customer(
     stripe_id(&linked["stripe_customer_id"], "cus_")
 }
 
-fn hosted_url(session: Option<Value>) -> Response<ResponseBody> {
+fn hosted_url(session: Option<&Value>) -> Response<ResponseBody> {
     match session.as_ref().and_then(|s| s["url"].as_str()) {
         Some(url) if url.starts_with("https://") => reply(200, json!({"url": url}), None),
         _ => unavailable(),

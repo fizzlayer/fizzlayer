@@ -70,6 +70,8 @@ fn silence_minutes(value: Option<&Value>) -> Result<i64, &'static str> {
         return Err("Enter a whole number of minutes.");
     };
     if minutes.is_finite() && minutes.fract() == 0.0 && (1.0..=10080.0).contains(&minutes) {
+        // The range check above is inside i64.
+        #[allow(clippy::cast_possible_truncation)]
         Ok(minutes as i64)
     } else {
         Err("Use 1 to 10080 minutes. The default is 10.")
