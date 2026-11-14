@@ -1,0 +1,29 @@
+Fizzlayer gateway
+Copyright 2026 Fizzlayer LLC
+
+The Rust programs in this directory (config generator, fizz-guard, the sample
+MCP server, and the end-to-end probe) are Fizzlayer LLC original work,
+licensed under the Apache License, Version 2.0. The full license text is the
+repository root LICENSE file.
+
+The data plane is the unmodified agentgateway container image published by
+the agentgateway project:
+
+  https://github.com/agentgateway/agentgateway
+
+That image is licensed under the Apache License, Version 2.0. Copyright the
+agentgateway authors. Fizzlayer does not modify the image. The pinned digest,
+the copied ExtMcp protocol file, and the upgrade steps are in UPSTREAM.md
+and pins/agentgateway.toml. gateway/proto/ext_mcp.proto is an unmodified copy
+of crates/protos/proto/ext_mcp.proto from the pinned release. If that file is
+changed here, replace it from the new release instead of editing it in place,
+and record the new SHA-256 in the pin file.
+
+agentgateway is an open source project hosted by The Linux Foundation.
+"agentgateway" and the Linux Foundation name and marks identify that upstream
+project. They are not Fizzlayer brands. This notice is not a statement of
+endorsement by The Linux Foundation, the Agentic AI Foundation, or the
+agentgateway authors.
+
+Upstream had no NOTICE file at the pinned release (v1.7.0). If a later
+release adds one, keep it with the image pin and append this Fizzlayer note.
