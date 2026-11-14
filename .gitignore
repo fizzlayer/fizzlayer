@@ -14,3 +14,38 @@ __pycache__/
 /app/node_modules/
 /app/assets/config.json
 /public/app/
+
+# Generated output in any directory. A trailing slash matches a directory only,
+# so a source file such as build.rs is still added. public/app.js is source;
+# /public/app/ above is the Gleam bundle. Keep this list in step with
+# scripts/check-no-build-output.sh.
+**/target/
+**/node_modules/
+**/build/
+**/dist/
+**/_build/
+**/.lustre/
+**/.local-bin/
+*.pyc
+*.pyo
+*.wasm
+*.o
+*.so
+*.so.*
+*.a
+*.dylib
+*.dll
+*.exe
+*.beam
+*.class
+*.jar
+*.min.js
+*.map
+
+# Gateway toolchain and compose secrets. gateway/.gitignore lists these too;
+# they apply here before that file is on main. /gateway/target/ and
+# /gateway/.local-bin/ also match the **/ rules above. .env* already ignores
+# /gateway/compose/.env; the explicit line stays if that rule is narrowed.
+/gateway/target/
+/gateway/.local-bin/
+/gateway/compose/.env
