@@ -19,6 +19,7 @@ pub(crate) const KINDS: [&str; 9] = [
     "custom",
 ];
 
+#[must_use]
 pub fn valid_uuid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(i, c)| {

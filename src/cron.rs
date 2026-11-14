@@ -23,6 +23,7 @@ pub fn configured_cron_secret(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|secret| !secret.is_empty())
 }
 
+#[must_use]
 pub fn cron_authorized(header: Option<&str>, secret: &str) -> bool {
     let Some(header) = header else {
         return false;
@@ -121,6 +122,11 @@ async fn tick(store: &Supabase) -> Tick {
 /// One scheduler pass. The self-host server calls this every minute. There is no
 /// HTTP secret here: the process is already inside the deployment. `GET /api/cron`
 /// still requires `CRON_SECRET`.
+///
+/// # Errors
+///
+/// Returns an error when Supabase is not configured. A failed tick is reported in
+/// the log and still returns `Ok`.
 pub async fn run_scheduled() -> Result<(), String> {
     let store = Supabase::from_env().map_err(|_| "database is not configured".to_owned())?;
     let tick = tick(&store).await;

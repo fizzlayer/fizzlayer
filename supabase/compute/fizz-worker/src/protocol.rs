@@ -23,6 +23,7 @@ pub enum CredentialKind {
 }
 
 /// `fizz_` + 64 hex is a sensor key. Longer prefixes are agent and stream tokens.
+#[must_use]
 pub fn classify_credential(value: &str) -> Option<CredentialKind> {
     if is_hex_token(value, "fizz_stream_") {
         Some(CredentialKind::StreamToken)
@@ -43,6 +44,7 @@ fn is_hex_token(value: &str, prefix: &str) -> bool {
             .all(u8::is_ascii_hexdigit)
 }
 
+#[must_use]
 pub fn valid_uuid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(i, c)| {
@@ -79,6 +81,11 @@ pub enum Principal {
 }
 
 /// A topic is `fizz/v1/<sensor uuid>/readings` or `.../live`. Wildcards are rejected.
+///
+/// # Errors
+///
+/// Returns an error when the topic has a wildcard, the wrong prefix, or a sensor id
+/// that is not a UUID.
 pub fn parse_topic(topic: &str) -> Result<(String, TopicSide), &'static str> {
     if topic.contains('+') || topic.contains('#') || topic.contains('\0') {
         return Err("Wildcards are not allowed.");
@@ -98,15 +105,21 @@ pub fn parse_topic(topic: &str) -> Result<(String, TopicSide), &'static str> {
     Ok((sensor_id, side))
 }
 
+#[must_use]
 pub fn readings_topic(sensor_id: &str) -> String {
     format!("{TOPIC_PREFIX}{sensor_id}/readings")
 }
 
+#[must_use]
 pub fn live_topic(sensor_id: &str) -> String {
     format!("{TOPIC_PREFIX}{sensor_id}/live")
 }
 
 /// Returns the sensor id the topic names when this principal may perform `op`.
+///
+/// # Errors
+///
+/// Returns an error when the topic is malformed or this principal may not use it.
 pub fn authorize(principal: &Principal, op: AclOp, topic: &str) -> Result<String, &'static str> {
     let (sensor_id, side) = parse_topic(topic)?;
     match (principal, op, side) {
@@ -130,6 +143,7 @@ pub fn authorize(principal: &Principal, op: AclOp, topic: &str) -> Result<String
 }
 
 /// The worker only forwards a stored row to a subscriber in the same workspace.
+#[must_use]
 pub fn reading_visible(
     subscriber_customer: &str,
     subscriber_sensor: Option<&str>,
@@ -161,6 +175,11 @@ fn valid_metric_name(metric: &str) -> bool {
 }
 
 /// Structural checks shared with `/api/ingest`. The database still checks the sensor type.
+///
+/// # Errors
+///
+/// Returns an error when the reading is missing a field, has the wrong shape, or
+/// names a different sensor than `topic_sensor`.
 pub fn parse_reading(value: &Value, topic_sensor: Option<&str>) -> Result<Reading, &'static str> {
     let body_sensor = value.get("sensor_id").and_then(Value::as_str);
     let sensor_raw = match (topic_sensor, body_sensor) {
@@ -209,6 +228,7 @@ pub fn parse_reading(value: &Value, topic_sensor: Option<&str>) -> Result<Readin
     })
 }
 
+#[must_use]
 pub fn reading_json(reading: &Reading) -> Value {
     let mut body = json!({
         "sensor_id": reading.sensor_id,
@@ -229,6 +249,10 @@ pub enum ClientOp {
     Ping,
 }
 
+/// # Errors
+///
+/// Returns an error when `value` is not an object or its `op` is not a known client
+/// message.
 pub fn parse_client_message(value: &Value) -> Result<ClientOp, &'static str> {
     if !value.is_object() {
         return Err("Send a JSON object.");
@@ -298,6 +322,10 @@ pub struct ResolvedPrincipal {
     pub customer_id: String,
 }
 
+/// # Errors
+///
+/// Returns [`PrincipalFailure`] when the database row is an error or does not name
+/// a device or a viewer.
 pub fn principal_from_json(value: &Value) -> Result<ResolvedPrincipal, PrincipalFailure> {
     if let Some(error) = value.get("error").and_then(Value::as_str) {
         return Err(match error {
@@ -341,6 +369,10 @@ pub struct StreamUrls {
 }
 
 /// `base` is the Compute service root, including a path prefix when the gateway adds one.
+///
+/// # Errors
+///
+/// Returns an error when `base` is not an HTTP or HTTPS URL this client will use.
 pub fn stream_urls(base: &str) -> Result<StreamUrls, &'static str> {
     let base = base.trim().trim_end_matches('/');
     let url = parse_stream_base(base)?;
@@ -449,6 +481,7 @@ pub enum HttpRoute {
     Mqtt,
 }
 
+#[must_use]
 pub fn http_route(path_and_query: &str) -> Option<HttpRoute> {
     let path = path_and_query.split(['?', '#']).next().unwrap_or("");
     if path.contains('\\') || path.split('/').any(|part| part == "..") {
@@ -511,6 +544,10 @@ pub enum DecodeError {
 }
 
 /// `Ok(None)` means the buffer does not contain a whole packet yet.
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] when the bytes are a complete packet this codec rejects.
 pub fn decode_packet(buf: &[u8]) -> Result<Option<(Packet, usize)>, DecodeError> {
     if buf.is_empty() {
         return Ok(None);
@@ -630,6 +667,10 @@ fn decode_subscribe(body: &[u8]) -> Result<Packet, DecodeError> {
     Ok(Packet::Subscribe { packet_id, topics })
 }
 
+/// # Errors
+///
+/// Returns [`DecodeError::Malformed`] when a field is longer than MQTT allows, and
+/// [`DecodeError::Unsupported`] for a packet this codec does not write.
 pub fn encode_packet(packet: &Packet) -> Result<Vec<u8>, DecodeError> {
     let (first, body) = match packet {
         Packet::Connect {
@@ -794,14 +835,17 @@ fn write_varint(out: &mut Vec<u8>, mut value: usize) {
     }
 }
 
+#[must_use]
 pub fn ack_frame(event_id: &str) -> String {
     json!({"op": "ack", "event_id": event_id}).to_string()
 }
 
+#[must_use]
 pub fn error_frame(code: &str, event_id: Option<&str>) -> String {
     json!({"op": "error", "error": code, "event_id": event_id}).to_string()
 }
 
+#[must_use]
 pub fn nil_cursor() -> &'static str {
     NIL_UUID
 }

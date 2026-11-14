@@ -86,7 +86,7 @@ fn api_base() -> String {
         .to_owned()
 }
 
-/// Paired devices keep talking to the Fizz they paired with, unless FIZZ_API overrides it.
+/// Paired devices keep talking to the Fizz they paired with, unless `FIZZ_API` overrides it.
 fn config_api(config: &Map<String, Value>) -> String {
     match (
         env::var("FIZZ_API").ok().filter(|v| !v.is_empty()),

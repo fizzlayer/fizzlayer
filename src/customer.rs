@@ -18,10 +18,16 @@ pub const SUPABASE_COOKIE: &str = "fizz_supabase";
 pub const CLEAR_SUPABASE_COOKIE: &str =
     "fizz_supabase=; HttpOnly; Secure; SameSite=Lax; Path=/api; Max-Age=0";
 
+#[must_use]
 pub fn reply(status: u16, body: Value, cookie: Option<&str>) -> Response<ResponseBody> {
     reply_with(status, body, cookie.as_slice())
 }
 
+/// # Panics
+///
+/// Panics if a header value is not a valid HTTP header. Callers pass static
+/// header names and cookie strings this crate already built.
+#[must_use]
 pub fn reply_with(status: u16, body: Value, cookies: &[&str]) -> Response<ResponseBody> {
     let mut builder = Response::builder()
         .status(status)
@@ -40,6 +46,7 @@ pub fn reply_with(status: u16, body: Value, cookies: &[&str]) -> Response<Respon
 pub const DEVICE_LIMIT_MESSAGE: &str =
     "Your plan's device limit is reached. Remove a device or upgrade your plan to add more.";
 
+#[must_use]
 pub fn device_limit() -> Response<ResponseBody> {
     error(403, "device_limit", DEVICE_LIMIT_MESSAGE)
 }
@@ -58,6 +65,7 @@ pub struct ApiError {
 }
 
 impl ApiError {
+    #[must_use]
     pub fn new(status: u16, code: &'static str, message: &'static str) -> Self {
         Self {
             status,
@@ -69,11 +77,13 @@ impl ApiError {
 
     /// `Retry-After` in seconds. The value is a static header, the same way
     /// the rate-limit responses have always sent `60`.
+    #[must_use]
     pub fn retry_after(mut self, seconds: &'static str) -> Self {
         self.retry_after = Some(seconds);
         self
     }
 
+    #[must_use]
     pub fn into_response(self) -> Response<ResponseBody> {
         error_response(self.status, self.code, self.message, self.retry_after)
     }
@@ -87,6 +97,7 @@ impl fmt::Display for ApiError {
 
 impl StdError for ApiError {}
 
+#[must_use]
 pub fn error(status: u16, code: &str, message: &str) -> Response<ResponseBody> {
     error_response(status, code, message, None)
 }
@@ -110,11 +121,20 @@ fn error_response(
     response
 }
 
+/// # Errors
+///
+/// Returns 415 when the body is not JSON, 413 when it is over `limit`, and 400
+/// when it is not a JSON object.
 pub async fn json_body(request: Request, limit: usize) -> Result<Value, ApiError> {
     json_body_with(request, limit, "invalid_request").await
 }
 
 /// `json_body` with the error code to return when the body is over `limit`.
+///
+/// # Errors
+///
+/// Returns 415 when the body is not JSON, 413 with `too_large` when it is over
+/// `limit`, and 400 when it is not a JSON object.
 pub async fn json_body_with(
     request: Request,
     limit: usize,
@@ -168,6 +188,7 @@ fn ip_from_headers<'a>(header: impl Fn(&str) -> Option<&'a str>) -> Option<Strin
 
 /// A plausible address: one @, a dotted domain, no spaces or control characters.
 /// Delivery is the real test; this keeps obvious junk out of the list.
+#[must_use]
 pub fn normalize_email(value: &str) -> Option<String> {
     let email = value.trim().to_ascii_lowercase();
     let (local, domain) = email.split_once('@')?;
@@ -200,10 +221,12 @@ pub fn session_token(request: &Request) -> Option<String> {
         .map(str::to_owned)
 }
 
+#[must_use]
 pub fn session_cookie(token: &str) -> String {
     format!("{COOKIE_NAME}={token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=43200")
 }
 
+#[must_use]
 pub fn clear_cookie() -> &'static str {
     "fizz_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
 }

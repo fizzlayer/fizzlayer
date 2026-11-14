@@ -55,6 +55,11 @@ impl Supabase {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`ConnectionError::MissingConfiguration`] when the URL or service role
+    /// key is absent, [`ConnectionError::InvalidUrl`] when the URL is not usable, and
+    /// [`ConnectionError::RequestFailed`] when the HTTP client cannot be built.
     pub fn from_env() -> Result<Self, ConnectionError> {
         let project_url =
             env::var("SUPABASE_URL").map_err(|_| ConnectionError::MissingConfiguration)?;
@@ -96,7 +101,13 @@ impl Supabase {
         })
     }
 
-    /// Verify that PostgREST accepts the configured service role credential.
+    /// Verify that `PostgREST` accepts the configured service role credential.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConnectionError::RequestFailed`] when the request cannot be sent,
+    /// [`ConnectionError::Unauthorized`] on 401 or 403, and
+    /// [`ConnectionError::UnexpectedStatus`] for any other status.
     pub async fn check_connection(&self) -> Result<(), ConnectionError> {
         let response = self
             .client
@@ -116,6 +127,10 @@ impl Supabase {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Conflict`] when `PostgREST` reports a conflict, and
+    /// [`StoreError::Unavailable`] when the request fails or the status is not success.
     pub async fn rpc(&self, name: &str, payload: Value) -> Result<Value, StoreError> {
         let url = self
             .rest_url
@@ -162,6 +177,7 @@ impl Supabase {
 
     /// Where the browser starts a Supabase Auth OAuth sign-in. Supabase sends it back to
     /// `redirect_to` with a single-use `code` that only the holder of the PKCE verifier can use.
+    #[must_use]
     pub fn authorize_url(&self, provider: &str, redirect_to: &str, code_challenge: &str) -> Url {
         let mut url = self.browser_base();
         url.set_path("/auth/v1/authorize");
@@ -177,6 +193,11 @@ impl Supabase {
     /// return its status and JSON body so callers can map Supabase's error codes. `bearer` is a
     /// user's access token for endpoints that act as that user. `client_ip` is forwarded so
     /// Supabase's per-IP rate limits see the person rather than this server.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Unavailable`] when the request cannot be sent or the body
+    /// cannot be read. HTTP error statuses are returned in the `Ok` pair.
     pub async fn auth(
         &self,
         method: Method,
@@ -219,8 +240,13 @@ impl Supabase {
     }
 
     /// Call a Supabase Auth admin endpoint, such as `admin/users/{id}/passkeys`. A legacy
-    /// service_role key is a JWT and must also be the bearer; a newer secret key works as `apikey`
+    /// `service_role` key is a JWT and must also be the bearer; a newer secret key works as `apikey`
     /// alone and is rejected as a bearer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::Unavailable`] when the request cannot be sent or the body
+    /// cannot be read. HTTP error statuses are returned in the `Ok` pair.
     pub async fn auth_admin(
         &self,
         method: Method,

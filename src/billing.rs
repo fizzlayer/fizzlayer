@@ -27,6 +27,7 @@ pub struct Stripe {
 }
 
 impl Stripe {
+    #[must_use]
     pub fn from_env() -> Option<Self> {
         let read = |name: &str| {
             env::var(name)

@@ -40,6 +40,7 @@ fn describe(urls: &crate::live::StreamUrls) -> Value {
     })
 }
 
+#[must_use]
 pub fn config() -> Response<ResponseBody> {
     match urls() {
         Ok(Some(urls)) => reply(200, describe(&urls), None),

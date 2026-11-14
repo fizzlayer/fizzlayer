@@ -362,6 +362,7 @@ pub async fn dispatch(
 /// Where the dashboard sends someone to start the integration. My Home Assistant only
 /// forwards the domain; the pairing state is created inside Home Assistant and approved
 /// on the Fizzlayer page that it opens.
+#[must_use]
 pub fn redirect_url() -> &'static str {
     MY_HOME_ASSISTANT
 }

@@ -7,6 +7,7 @@ use crate::{customer::ApiError, store::Supabase};
 
 /// Self-host on a private HTTP network (the Docker gateway, or Ollama on another host).
 /// Production leaves this unset, so Supabase and chat URLs stay HTTPS except loopback.
+#[must_use]
 pub fn allow_insecure_http() -> bool {
     matches!(
         env::var("FIZZ_ALLOW_INSECURE_HTTP").ok().as_deref(),
@@ -31,6 +32,7 @@ fn public_host_match(host: &str) -> bool {
     })
 }
 
+#[must_use]
 pub fn site_origin(host: Option<&str>) -> Option<String> {
     let host = host?;
     if host.is_empty()
@@ -116,6 +118,10 @@ fn development_origin(
     Some(url.origin().ascii_serialization())
 }
 
+/// # Errors
+///
+/// Returns 400 when the host is not a configured origin, 403 when `Origin` does not
+/// match it, and 415 when a body is present and is not JSON.
 pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), ApiError> {
     let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok());
     // Never use client-supplied x-forwarded-host to authorize an origin.
@@ -145,6 +151,7 @@ pub fn guard_request<B>(request: &http::Request<B>) -> Result<(), ApiError> {
     Ok(())
 }
 
+#[must_use]
 pub fn is_json(content_type: &str) -> bool {
     content_type
         .split(';')
@@ -153,6 +160,11 @@ pub fn is_json(content_type: &str) -> bool {
 }
 
 /// Validate the session and consume a database-backed budget before paid work.
+///
+/// # Errors
+///
+/// Returns 401 when the session is missing, 402 when the plan has no credits, 429
+/// when the caller is over the rate limit, and 503 when the check cannot run.
 pub async fn paid_request_budget(
     store: &Supabase,
     token: &str,

@@ -11,7 +11,7 @@
 //! - `POST /api/auth` with `{"action": ...}` handles email and password, links from Supabase
 //!   emails (which arrive in `/app.html#access_token=...`), and passkeys.
 //!
-//! After any sign-in, the Supabase access token is kept for up to an hour in an HttpOnly cookie.
+//! After any sign-in, the Supabase access token is kept for up to an hour in an `HttpOnly` cookie.
 //! Supabase only lets a signed-in user register a passkey, and this is how "Add passkey" proves it.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -505,7 +505,7 @@ fn passkey_name(data: &Value) -> Option<String> {
         .then(|| name.to_owned())
 }
 
-/// The browser's WebAuthn response is passed to Supabase unchanged.
+/// The browser's `WebAuthn` response is passed to Supabase unchanged.
 fn passkey_body(data: &Value) -> Option<Value> {
     let challenge = data.get("challenge_id").and_then(Value::as_str)?;
     let credential = data.get("credential").filter(|c| c.is_object())?;

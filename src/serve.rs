@@ -29,6 +29,9 @@ use crate::{
     phone, security, sensors, status, stream, voice,
 };
 
+/// # Errors
+///
+/// Returns an error when `PORT` is not a socket address or the process cannot bind it.
 pub async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
     let addr: SocketAddr = format!("0.0.0.0:{port}").parse()?;
@@ -214,7 +217,7 @@ fn http_client() -> &'static reqwest::Client {
     })
 }
 
-/// Browser OAuth has to reach GoTrue. The server itself uses `SUPABASE_URL`.
+/// Browser OAuth has to reach `GoTrue`. The server itself uses `SUPABASE_URL`.
 async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     let upstream = match env::var("FIZZ_AUTH_UPSTREAM") {
         Ok(value) if !value.trim().is_empty() => value.trim().trim_end_matches('/').to_owned(),
@@ -281,6 +284,7 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
 }
 
 /// Permanent redirects for URLs that moved. Query strings are added by `redirect_target`.
+#[must_use]
 pub fn redirect_path(path: &str) -> Option<&'static str> {
     match path {
         "/sensors.html" => Some("/sensors"),
@@ -291,6 +295,7 @@ pub fn redirect_path(path: &str) -> Option<&'static str> {
     }
 }
 
+#[must_use]
 pub fn redirect_target(path: &str, query: Option<&str>) -> Option<String> {
     let dest = redirect_path(path)?;
     match query {
@@ -299,6 +304,7 @@ pub fn redirect_target(path: &str, query: Option<&str>) -> Option<String> {
     }
 }
 
+#[must_use]
 pub fn mapped_path(path: &str) -> &str {
     match path {
         "/" | "/index.html" => "/index.html",
