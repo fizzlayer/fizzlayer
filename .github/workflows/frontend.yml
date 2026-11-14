@@ -1,4 +1,4 @@
-# Gleam frontend: format, compile, test, and confirm the served scripts match.
+# Gleam frontend: format, test, build the bundles, and syntax-check them.
 name: Frontend
 
 on:
