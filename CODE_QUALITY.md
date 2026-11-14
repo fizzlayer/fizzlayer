@@ -70,7 +70,10 @@ cargo deny --manifest-path cli/Cargo.toml check
 cargo deny --manifest-path supabase/compute/fizz-worker/Cargo.toml check
 
 shellcheck scripts/*.sh deploy/*.sh public/install.sh
+bash scripts/check-no-build-output.sh
 ```
+
+The `no-build-output` job runs that script on every pull request and every push to `main`. The rule it enforces is [Build artifacts](#build-artifacts).
 
 Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync.
 
@@ -100,3 +103,17 @@ Turn these on in a follow-up once the code matches them. Allowing them globally 
 - JavaScript: `node --check` in the security workflow. There is no package manifest and no ESLint yet.
 - Python: Home Assistant's hassfest workflow covers the integration. Ruff is not in CI. The M5Stick firmware is MicroPython; don't apply CPython pyupgrade rules to it.
 - SQL: no SQL linter. Do not rewrite applied migrations to satisfy one.
+
+## Build artifacts
+
+Compiler output stays out of Git. A build step produces every deployable artifact. `scripts/check-no-build-output.sh` reads `git ls-files` and fails when a tracked path is inside `target/`, `build/`, `dist/`, `_build/`, `node_modules/`, `.lustre/`, `.local-bin/`, `__pycache__/`, `public/app/`, or `gateway/target/`; when the name ends in `.wasm`, `.o`, `.so`, `.a`, `.dylib`, `.dll`, `.exe`, `.beam`, `.pyc`, `.pyo`, `.class`, `.jar`, `.min.js`, or `.map`; or when the blob starts with an ELF, Mach-O, or PE header. The allowlist at the top of the script is the only exception. Each entry is an exact path with a comment saying why. Nothing is allowlisted.
+
+| Artifact | Build step |
+| --- | --- |
+| Gleam SPA at `/app` | `vercel.json` `buildCommand` runs `scripts/build-spa.sh`, which writes gitignored `public/app/`. `.github/workflows/gleam.yml` runs the same script. |
+| Vercel Rust functions | Vercel compiles `api/*.rs`. The SPA script does not compile them. |
+| API image `fizzlayer-api` | `.github/workflows/docker-publish.yml` builds `deploy/Dockerfile.api` with `cargo build --release --locked --bin fizz-serve`. |
+| Worker image `fizzlayer-worker` | The same workflow builds `supabase/compute/fizz-worker/Dockerfile` with `cargo build --release --locked --bin fizz-worker`. |
+| CLI release binaries | `.github/workflows/cli-release.yml` runs `cargo zigbuild --release` and attaches the binaries to the GitHub release. `public/install.sh` downloads that release. |
+
+`public/*.js` and `public/*.css` are hand-written source, including `public/app.js`. `public/fizz-demo.mp4` and `public/og.png` are media assets. `tools/og/render.mjs` regenerates `public/og.png` when the card changes. That render needs Chromium, and the page points at the committed file, so the PNG stays in Git and is not a Vercel or image build step. None of these pipelines reads a binary committed in this repository.

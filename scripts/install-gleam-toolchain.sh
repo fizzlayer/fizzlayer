@@ -111,7 +111,7 @@ PY
 fi
 
 {
-  # ${PATH} is text for the generated env file. It must not expand here.
+  # ${PATH} and ${LD_LIBRARY_PATH} are written literally. env.sh expands them when sourced.
   # shellcheck disable=SC2016
   printf 'export PATH="%s/bin:${PATH}"\n' "$prefix"
   if [[ "$installed_otp" -eq 1 ]]; then
