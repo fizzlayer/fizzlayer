@@ -698,11 +698,13 @@ async fn setup_action(
     }
     let response = if rpc == "fizz_create_sensor" {
         sensor_setup_reply(&result, true)
-    } else if result["status"] == "waiting_for_approval" && result["device_name"].is_string() {
-        Some(
-            json!({"reply":format!("Pairing requested for {}. Return to the device terminal, check the account name, and approve the request. Then run fizz run --every 60 to start streaming. The device appears in Sensors after approval.",result["device_name"].as_str().unwrap()),
-            "pairing":{"status":"waiting_for_approval","device_name":result["device_name"]}}),
-        )
+    } else if result["status"] == "waiting_for_approval"
+        && let Some(device_name) = result["device_name"].as_str()
+    {
+        Some(json!({
+            "reply": format!("Pairing requested for {device_name}. Return to the device terminal, check the account name, and approve the request. Then run fizz run --every 60 to start streaming. The device appears in Sensors after approval."),
+            "pairing": {"status": "waiting_for_approval", "device_name": device_name}
+        }))
     } else {
         None
     };

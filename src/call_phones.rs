@@ -81,12 +81,10 @@ fn phone_error(value: &Value) -> Option<Response<ResponseBody>> {
     let mut response = reply(status, body, None);
     if status == 429 {
         let header = retry.unwrap_or(60).to_string();
-        response.headers_mut().insert(
-            "retry-after",
-            header
-                .parse()
-                .unwrap_or_else(|_| "60".parse().expect("valid header")),
-        );
+        let value = header
+            .parse()
+            .unwrap_or_else(|_| http::HeaderValue::from_static("60"));
+        response.headers_mut().insert("retry-after", value);
     }
     Some(response)
 }

@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 //! Long-lived sensor stream for Fizzlayer.
 //!
 //! Supabase Compute runs this process. Vercel functions stay request-shaped.
@@ -16,7 +18,7 @@ use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{
-        Arc, Condvar, Mutex,
+        Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicUsize, Ordering},
         mpsc::{self, TrySendError},
     },
@@ -84,6 +86,8 @@ fn main() {
         );
     }
     let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
+    // Failing to bind is fatal: this process exists to accept sockets.
+    #[allow(clippy::expect_used)]
     let http = TcpListener::bind(format!("0.0.0.0:{port}")).expect("bind http");
     if let Ok(mqtt_port) = env::var("MQTT_TCP_PORT")
         && let Ok(port) = mqtt_port.parse::<u16>()
@@ -1140,11 +1144,11 @@ fn poll_loop(app: Arc<App>) {
     let Some(db) = app.db.clone() else { return };
     loop {
         let (cursor_at, cursor_id, generation) = {
-            let mut inner = app.hub.inner.lock().expect("hub");
+            let mut inner = app.hub.lock();
             while inner.subs.is_empty() {
                 inner.cursor_at = None;
                 inner.cursor_id = None;
-                inner = app.hub.wake.wait(inner).expect("hub");
+                inner = app.hub.wait(inner);
             }
             (
                 inner.cursor_at.clone(),
@@ -1164,7 +1168,7 @@ fn poll_loop(app: Arc<App>) {
             thread::sleep(Duration::from_secs(1));
             continue;
         };
-        let mut inner = app.hub.inner.lock().expect("hub");
+        let mut inner = app.hub.lock();
         if inner.generation != generation {
             continue;
         }
@@ -1212,8 +1216,20 @@ fn poll_loop(app: Arc<App>) {
 }
 
 impl Hub {
+    /// A poisoned hub means a thread panicked while updating subscribers.
+    /// Serving that torn state would mix customers, so the worker stops.
+    #[allow(clippy::expect_used)]
+    fn lock(&self) -> MutexGuard<'_, HubInner> {
+        self.inner.lock().expect("hub")
+    }
+
+    #[allow(clippy::expect_used)]
+    fn wait<'a>(&'a self, guard: MutexGuard<'a, HubInner>) -> MutexGuard<'a, HubInner> {
+        self.wake.wait(guard).expect("hub")
+    }
+
     fn insert(&self, mut sub: Sub) -> u64 {
-        let mut inner = self.inner.lock().expect("hub");
+        let mut inner = self.lock();
         let id = inner.next;
         inner.next += 1;
         sub.id = id;
@@ -1227,7 +1243,7 @@ impl Hub {
     }
 
     fn remove(&self, id: u64) {
-        let mut inner = self.inner.lock().expect("hub");
+        let mut inner = self.lock();
         let before = inner.subs.len();
         inner.subs.retain(|sub| sub.id != id);
         if before > 0 && inner.subs.is_empty() {

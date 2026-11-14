@@ -31,9 +31,20 @@ pub fn reply_with(status: u16, body: Value, cookies: &[&str]) -> Response<Respon
     for cookie in cookies {
         builder = builder.header("set-cookie", *cookie);
     }
-    builder
-        .body(ResponseBody::from(body))
-        .expect("valid response")
+    finish_response(builder, body)
+}
+
+/// Finish a response built from static or already-checked header values.
+///
+/// `Response::builder().body` fails only when a header value is invalid.
+/// Callers pass literals, or strings this crate already validated, so that
+/// failure is a programming bug. The `expect` stays in this one function.
+#[allow(clippy::expect_used)]
+pub fn finish_response(
+    builder: http::response::Builder,
+    body: impl Into<ResponseBody>,
+) -> Response<ResponseBody> {
+    builder.body(body.into()).expect("static headers are valid")
 }
 
 /// Shown wherever adding an API sensor, phone, or paired device would exceed the plan.

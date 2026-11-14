@@ -790,9 +790,7 @@ fn redirect(location: &str, cookies: &[&str]) -> Response<ResponseBody> {
     for cookie in cookies {
         builder = builder.header("set-cookie", *cookie);
     }
-    builder
-        .body(ResponseBody::from(()))
-        .expect("valid response")
+    crate::customer::finish_response(builder, ())
 }
 
 #[cfg(test)]

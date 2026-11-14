@@ -283,7 +283,9 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                 && let Some(token) = value.get("token").and_then(Value::as_str)
             {
                 value["url"] = json!(format!("/phone.html#pair={token}"));
-                value.as_object_mut().unwrap().remove("token");
+                if let Some(object) = value.as_object_mut() {
+                    object.remove("token");
+                }
             }
             respond(value)
         }
