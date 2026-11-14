@@ -72,8 +72,11 @@
 .quick-alert-fields .primary { padding: .3rem .7rem; font-size: 1.2rem; white-space: nowrap; }
 .quick-alert-notify { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin-top: .5rem; }
 .quick-alert-notify label { margin: 0; color: #bdd5dc; font-size: 1.15rem; }
-.quick-alert-notify select, .quick-alert-notify input { min-width: 0; border: 2px solid #47778a; background: #071b29; color: white; padding: .35rem; font-size: 1.15rem; }
-.quick-alert-notify input { flex: 1 1 14rem; width: auto; }
+.quick-alert-notify select, .quick-alert-notify input[type="url"], .quick-alert-notify input[type="text"] { min-width: 0; border: 2px solid #47778a; background: #071b29; color: white; padding: .35rem; font-size: 1.15rem; }
+.quick-alert-notify input[type="url"], .quick-alert-notify input[type="text"] { flex: 1 1 14rem; width: auto; }
+.quick-alert-notify input[hidden], .quick-alert-notify select[hidden] { display: none; }
+.quick-alert-notify legend { color: #bdd5dc; font-size: 1.15rem; padding: 0 .3rem; }
+.channel-paid { margin-left: .3rem; color: #f0c674; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; }
 .alert-meta .notify { color: #a9eaf7; }
 .alert-meta .notify.failed { color: #ffb9af; }
 .form-message { min-height: 1.2em; color: #a9eaf7; font-size: 1.1rem; margin: .35rem 0 0; }

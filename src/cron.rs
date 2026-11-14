@@ -109,12 +109,22 @@ async fn tick(store: &Supabase) -> Tick {
         }
     };
     // Dispatch even when the scan failed, so retries do not wait on it.
+    // Phone calls and the email/webhook queue are separate: a missing phone
+    // provider does not hold email or webhooks, and the other way around.
     let report = drain_queue(store, started).await;
+    let channels = notify::dispatch_channels(store, 4).await;
     let failed = silence.get("error").is_some();
+    let mut body = notifications(report);
+    body["channels"] = json!({
+        "claimed": channels.claimed,
+        "sent": channels.sent,
+        "retry": channels.retry,
+        "failed": channels.failed,
+    });
     Tick {
         ok: !failed,
         silence,
-        notifications: notifications(report),
+        notifications: body,
     }
 }
 
