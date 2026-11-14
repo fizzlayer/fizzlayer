@@ -134,6 +134,7 @@ name = "fizz"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "fizz-protocol",
  "http",
  "http-body-util",
  "hyper",
@@ -143,6 +144,13 @@ dependencies = [
  "serde_json",
  "tokio",
  "vercel_runtime",
+]
+
+[[package]]
+name = "fizz-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

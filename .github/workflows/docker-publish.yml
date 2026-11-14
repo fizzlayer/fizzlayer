@@ -6,6 +6,7 @@ on:
       - deploy/Dockerfile.api
       - deploy/migrate.sh
       - supabase/compute/fizz-worker/**
+      - supabase/compute/fizz-protocol/**
       - supabase/migrations/**
       - Cargo.toml
       - Cargo.lock
@@ -32,7 +33,7 @@ jobs:
             context: .
           - name: fizzlayer-worker
             file: supabase/compute/fizz-worker/Dockerfile
-            context: supabase/compute/fizz-worker
+            context: supabase/compute
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-qemu-action@v3

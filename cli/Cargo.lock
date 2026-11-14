@@ -167,11 +167,19 @@ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 name = "fizz-cli"
 version = "0.2.0"
 dependencies = [
+ "fizz-protocol",
  "libc",
  "serde_json",
  "tempfile",
  "tungstenite",
  "ureq",
+]
+
+[[package]]
+name = "fizz-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

@@ -14,15 +14,16 @@ These are the documents this repo follows. They are not copied here.
 
 ## Layout
 
-Three Rust packages, each with its own `Cargo.lock`. They are not a Cargo workspace. The API image, the CLI release, and the worker image build separately, and the worker's Docker context is `supabase/compute/fizz-worker`.
+Four Rust packages, each with its own `Cargo.lock`. They are not a Cargo workspace. The API image, the CLI release, and the worker image build separately. The worker image's Docker context is `supabase/compute` so it can copy both `fizz-worker` and `fizz-protocol`.
 
 | Package | Path | Role |
 | --- | --- | --- |
 | `fizz` | repository root | Library in `src/`. Vercel function binaries in `api/`. Self-host server `src/bin/fizz-serve.rs`. |
 | `fizz-cli` | `cli/` | Device binary `fizz`. Release builds use `panic = "abort"`. That setting is for this binary only. |
 | `fizz-worker` | `supabase/compute/fizz-worker/` | WebSocket and MQTT worker. |
+| `fizz-protocol` | `supabase/compute/fizz-protocol/` | Shared socket and MQTT rules. The API re-exports it from `src/live.rs`. The CLI and the worker depend on it. |
 
-`supabase/compute/fizz-worker/src/protocol.rs` is compiled into all three packages (`src/live.rs` and `cli/src/transport.rs` pull it in with `#[path]`). A change to that file has to pass Clippy for every package. Each crate uses a subset of the file, so the CLI and the worker allow `dead_code` on that module only. Dead code in `main.rs` is still reported. Splitting this into a real shared crate is follow-up work, not something to paper over with another copy of the file.
+`fizz-protocol` is a real library crate. Do not compile `lib.rs` into another package with `#[path]`. Public items are the crate's API, so unused items in one caller are not `dead_code`. The lint table is copied into each `Cargo.toml` and must stay in sync.
 
 Other code: browser JavaScript in `public/` (checked with `node --check` in the security workflow), the Home Assistant integration in `custom_components/fizzlayer/`, shell under `scripts/`, `deploy/`, and `public/install.sh`, and SQL in `supabase/migrations/`. Applied migrations are checksummed by Supabase. Do not reformat a migration that has already shipped.
 
@@ -60,14 +61,17 @@ The lint workflow (`.github/workflows/lint.yml`) fails the pull request. Run the
 cargo fmt --all -- --check
 cargo fmt --manifest-path cli/Cargo.toml -- --check
 cargo fmt --manifest-path supabase/compute/fizz-worker/Cargo.toml -- --check
+cargo fmt --manifest-path supabase/compute/fizz-protocol/Cargo.toml -- --check
 
 cargo clippy --locked --all-targets -- -D warnings
 cargo clippy --locked --all-targets --manifest-path cli/Cargo.toml -- -D warnings
 cargo clippy --locked --all-targets --manifest-path supabase/compute/fizz-worker/Cargo.toml -- -D warnings
+cargo clippy --locked --all-targets --manifest-path supabase/compute/fizz-protocol/Cargo.toml -- -D warnings
 
 cargo deny --manifest-path Cargo.toml check
 cargo deny --manifest-path cli/Cargo.toml check
 cargo deny --manifest-path supabase/compute/fizz-worker/Cargo.toml check
+cargo deny --manifest-path supabase/compute/fizz-protocol/Cargo.toml check
 
 shellcheck scripts/*.sh deploy/*.sh public/install.sh
 bash scripts/check-no-build-output.sh
@@ -75,7 +79,7 @@ bash scripts/check-no-build-output.sh
 
 The `no-build-output` job runs that script on every pull request and every push to `main`. The rule it enforces is [Build artifacts](#build-artifacts).
 
-Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync.
+Lint levels in the four `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the four `[lints]` tables in sync.
 
 `cargo test` and `cargo audit` stay in the security workflow. `cargo deny` checks advisories, licenses, bans, and sources on every pull request (`deny.toml`). Duplicate crate versions warn and do not fail the build. Version requirements must not be `*`. Dependencies come from crates.io only.
 

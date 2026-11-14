@@ -1,4 +1,2 @@
-#[path = "../supabase/compute/fizz-worker/src/protocol.rs"]
-mod protocol;
-
-pub use protocol::*;
+//! Re-exports the shared socket and MQTT protocol for the API crate.
+pub use fizz_protocol::*;
