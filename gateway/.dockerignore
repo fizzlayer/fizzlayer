@@ -1,0 +1,4 @@
+target
+.local-bin
+compose/.env
+compose/data
