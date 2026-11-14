@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bash scripts/build-spa.sh",
   "crons": [
     {
       "path": "/api/cron",
@@ -67,6 +68,18 @@
     {
       "source": "/api/waitlist",
       "destination": "/api/contact"
+    },
+    {
+      "source": "/app",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "/app/index.html"
     }
   ],
   "headers": [
@@ -135,6 +148,15 @@
     },
     {
       "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/app/config.json",
       "headers": [
         {
           "key": "Cache-Control",
