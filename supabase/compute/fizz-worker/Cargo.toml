@@ -12,7 +12,7 @@ name = "fizz-worker"
 path = "src/main.rs"
 
 [dependencies]
-fizz-protocol = { path = "../fizz-protocol" }
+fizz-protocol = { version = "0.1.0", path = "../fizz-protocol" }
 base64 = "0.22"
 serde_json = "1"
 sha1 = "0.10"

@@ -11,7 +11,7 @@ name = "fizz"
 path = "src/main.rs"
 
 [dependencies]
-fizz-protocol = { path = "../supabase/compute/fizz-protocol" }
+fizz-protocol = { version = "0.1.0", path = "../supabase/compute/fizz-protocol" }
 libc = "0.2"
 serde_json = "1"
 tempfile = "3"
