@@ -1,20 +1,44 @@
-// Vercel Web Analytics: cookieless page views. Kept in a file because the CSP blocks inline scripts.
-// Only the page path is sent: query strings and fragments can carry sign-in links, pairing codes,
-// or billing results, so they are removed before any event leaves the browser.
+// Generated from frontend/ by scripts/build-frontend.sh. Do not edit.
 (() => {
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  window.va('beforeSend', (event) => {
-    try {
-      const url = new URL(event.url, location.origin);
-      return { ...event, url: url.origin + url.pathname };
-    } catch {
-      return null;
+  // build/dev/javascript/fizzlayer_web/analytics_ffi.mjs
+  function install() {
+    window.va = window.va || function() {
+      (window.vaq = window.vaq || []).push(arguments);
+    };
+    window.va("beforeSend", (event) => {
+      try {
+        const url = new URL(event.url, location.origin);
+        return { ...event, url: page_url(url.origin, url.pathname) };
+      } catch {
+        return null;
+      }
+    });
+    if (!track_on_this_host(location.hostname)) return;
+    const script = document.createElement("script");
+    script.src = "/_vercel/insights/script.js";
+    script.defer = true;
+    document.head.append(script);
+  }
+
+  // build/dev/javascript/fizzlayer_web/analytics.mjs
+  function track_on_this_host(hostname) {
+    if (hostname === "localhost") {
+      return false;
+    } else if (hostname === "127.0.0.1") {
+      return false;
+    } else if (hostname === "[::1]") {
+      return false;
+    } else {
+      return true;
     }
-  });
-  // The insights routes exist only on Vercel deployments with Web Analytics enabled.
-  if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) return;
-  const script = document.createElement('script');
-  script.src = '/_vercel/insights/script.js';
-  script.defer = true;
-  document.head.append(script);
+  }
+  function page_url(origin, pathname) {
+    return origin + pathname;
+  }
+  function install2() {
+    return install();
+  }
+
+  // entries/analytics.js
+  install2();
 })();

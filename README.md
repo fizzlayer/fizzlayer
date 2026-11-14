@@ -189,6 +189,8 @@ scripts/dev.sh --local-db                                      # in another
 
 `stripe listen --print-secret` prints the webhook secret. Sign up at `http://localhost:3000`, confirm the email in the local inbox (`http://127.0.0.1:54324`), then upgrade in **Settings** with the test card `4242 4242 4242 4242`. The script refuses live Stripe keys. See [billing with Stripe](docs/REFERENCE.md#billing-with-stripe) for details.
 
+The browser scripts that have moved to Gleam are built with `scripts/build-frontend.sh`. That writes the files in `public/` the site already serves. The [frontend guide](frontend/README.md) covers the commands and what is still JavaScript.
+
 Run the Rust test suites:
 
 ```sh
@@ -199,6 +201,7 @@ cargo test --locked --manifest-path cli/Cargo.toml
 | Path | Contents |
 | --- | --- |
 | `public/` | Landing page, dashboard, phone pairing, and CLI installer |
+| `frontend/` | Gleam sources for the browser scripts that have moved off hand-written JavaScript. See [frontend/README.md](frontend/README.md). |
 | `api/` | Rust Vercel Function entry points |
 | `src/` | Authentication, sensor ingestion, MCP, chat, and integrations |
 | `cli/` | The `fizz` device CLI |

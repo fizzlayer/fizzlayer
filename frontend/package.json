@@ -1,0 +1,8 @@
+{
+  "name": "fizzlayer-web",
+  "private": true,
+  "description": "Bundles the Gleam frontend into the classic scripts served from public/.",
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}
