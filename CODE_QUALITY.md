@@ -41,7 +41,7 @@ Other code: browser JavaScript in `public/` (checked with `node --check` in the 
 - Process boundaries may exit: `fizz-serve` prints the error and exits, the CLI returns `ExitCode`, and the worker may `expect` when it cannot bind its listen socket. That is the edge, not a pattern to copy into `src/`.
 - Tests may use `unwrap` on fixtures.
 - New error types implement `Debug`, `Display`, and `std::error::Error`, with variants that say what failed in domain terms (API guideline C-GOOD-ERR). `ConnectionError` and `StoreError` predate that and do not implement `Error`. `selfhost::init` and much of the CLI still use `Result<_, String>`. Don't add more stringly errors; fixing the existing ones is follow-up.
-- Handlers today return `Result<T, Response<ResponseBody>>`. `Response` is larger than Clippy's `result_large_err` threshold, so that lint is allowed on the `fizz` package only, with the reason in `Cargo.toml`. New code should use a small error and map it to a response at the boundary.
+- Helpers that fail as an HTTP response return `customer::ApiError`: a status, a stable `code`, a message, and an optional `Retry-After`. `ApiError::into_response` is the only mapping onto the JSON body and headers. `customer::error` uses that same mapping when a handler returns a response directly. Do not put `Response` in a `Result` error.
 - `unsafe` is for the CLI's `libc` calls and for tests that set environment variables. Every `unsafe` block needs a `SAFETY` comment that states the invariant, not only the purpose of the call. `clippy::undocumented_unsafe_blocks` is not denied yet.
 
 ## Names, types, and comments
@@ -72,7 +72,7 @@ cargo deny --manifest-path supabase/compute/fizz-worker/Cargo.toml check
 shellcheck scripts/*.sh deploy/*.sh public/install.sh
 ```
 
-Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync, except `clippy::result_large_err`, which is allowed only on `fizz`.
+Lint levels in the three `Cargo.toml` files are `warn`. CI passes `-D warnings`, so a warning fails the build. Keep the three `[lints]` tables in sync.
 
 `cargo test` and `cargo audit` stay in the security workflow. `cargo deny` checks advisories, licenses, bans, and sources on every pull request (`deny.toml`). Duplicate crate versions warn and do not fail the build. Version requirements must not be `*`. Dependencies come from crates.io only.
 

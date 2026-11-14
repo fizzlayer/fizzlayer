@@ -26,7 +26,7 @@ panic = "abort"
 
 # Keep this table in sync with the root Cargo.toml and
 # supabase/compute/fizz-worker/Cargo.toml. protocol.rs is compiled into all
-# three packages. `result_large_err` is allowed only on the API crate.
+# three packages.
 #
 # Levels are warn. The lint workflow passes `-D warnings`, so a warning fails CI.
 [lints.rust]

@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use vercel_runtime::{Request, Response, ResponseBody};
 
 use crate::{
-    customer::{error, json_body, reply, session_token},
+    customer::{ApiError, error, json_body, reply, session_token},
     notify,
     store::Supabase,
 };
@@ -76,7 +76,7 @@ fn silence_minutes(value: Option<&Value>) -> Result<i64, &'static str> {
     }
 }
 
-fn notify_choice(data: &Value) -> Result<Option<String>, Response<ResponseBody>> {
+fn notify_choice(data: &Value) -> Result<Option<String>, ApiError> {
     match data
         .get("notify_channel")
         .and_then(Value::as_str)
@@ -88,8 +88,8 @@ fn notify_choice(data: &Value) -> Result<Option<String>, Response<ResponseBody>>
             .and_then(Value::as_str)
             .and_then(notify::us_phone)
             .map(Some)
-            .ok_or_else(|| error(400, "invalid_notify", "Enter a valid US phone number.")),
-        _ => Err(error(
+            .ok_or_else(|| ApiError::new(400, "invalid_notify", "Enter a valid US phone number.")),
+        _ => Err(ApiError::new(
             400,
             "invalid_notify",
             "Choose a phone call or dashboard-only alert.",
@@ -105,12 +105,12 @@ fn with_phone(mut payload: Value, phone: Option<String>) -> Value {
     payload
 }
 
-fn alert_create_payload(token: &str, data: &Value) -> Result<Value, Response<ResponseBody>> {
+fn alert_create_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
     let Some(sensor_id) = data.get("sensor_id").and_then(Value::as_str) else {
-        return Err(error(400, "invalid_rule", "Choose a sensor."));
+        return Err(ApiError::new(400, "invalid_rule", "Choose a sensor."));
     };
     if !uuid(sensor_id) {
-        return Err(error(400, "invalid_rule", "Choose a valid sensor."));
+        return Err(ApiError::new(400, "invalid_rule", "Choose a valid sensor."));
     }
     let phone = notify_choice(data)?;
     let kind = data
@@ -120,12 +120,12 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, Response<Res
     let payload = match kind {
         "silence" => {
             let minutes = silence_minutes(data.get("silence_minutes"))
-                .map_err(|message| error(400, "invalid_rule", message))?;
+                .map_err(|message| ApiError::new(400, "invalid_rule", message))?;
             if data
                 .get("notify_recovery")
                 .is_some_and(|value| !value.is_boolean())
             {
-                return Err(error(
+                return Err(ApiError::new(
                     400,
                     "invalid_rule",
                     "Choose whether to notify when readings resume.",
@@ -149,28 +149,32 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, Response<Res
                     (false, true) => "silence_minutes belongs on a silence alert.",
                     (false, false) => "Choose a threshold or silence alert.",
                 };
-                return Err(error(400, "invalid_rule", message));
+                return Err(ApiError::new(400, "invalid_rule", message));
             }
             let Some(metric) = data.get("metric").and_then(Value::as_str) else {
-                return Err(error(400, "invalid_rule", "Choose a metric."));
+                return Err(ApiError::new(400, "invalid_rule", "Choose a metric."));
             };
             let Some(comparator) = data.get("comparator").and_then(Value::as_str) else {
-                return Err(error(400, "invalid_rule", "Choose a comparison."));
+                return Err(ApiError::new(400, "invalid_rule", "Choose a comparison."));
             };
             let Some(threshold) = data
                 .get("threshold")
                 .and_then(Value::as_f64)
                 .filter(|n| n.is_finite())
             else {
-                return Err(error(400, "invalid_rule", "Enter a finite threshold."));
+                return Err(ApiError::new(
+                    400,
+                    "invalid_rule",
+                    "Enter a finite threshold.",
+                ));
             };
             let Some(unit) = data.get("unit").and_then(Value::as_str) else {
-                return Err(error(400, "invalid_rule", "Choose a unit."));
+                return Err(ApiError::new(400, "invalid_rule", "Choose a unit."));
             };
             json!({"p_token":token,"p_sensor_id":sensor_id,"p_metric":metric,"p_comparator":comparator,"p_threshold":threshold,"p_unit":unit,"p_kind":"threshold"})
         }
         _ => {
-            return Err(error(
+            return Err(ApiError::new(
                 400,
                 "invalid_rule",
                 "Choose a threshold or silence alert.",
@@ -190,12 +194,12 @@ pub async fn alerts(request: Request) -> Response<ResponseBody> {
         "POST" | "PATCH" | "DELETE" => {
             let data = match json_body(request, MAX_ALERT_BODY_BYTES).await {
                 Ok(v) => v,
-                Err(e) => return e,
+                Err(failure) => return failure.into_response(),
             };
             match method.as_str() {
                 "POST" => match alert_create_payload(&token, &data) {
                     Ok(payload) => payload,
-                    Err(response) => return response,
+                    Err(failure) => return failure.into_response(),
                 },
                 "PATCH" => {
                     let Some(id) = data.get("id").and_then(Value::as_str) else {
@@ -718,7 +722,7 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
     };
     let data = match json_body(request, MAX_CHAT_BODY_BYTES).await {
         Ok(v) => v,
-        Err(e) => return e,
+        Err(failure) => return failure.into_response(),
     };
     let Some(message) = chat_message(&data) else {
         return error(
@@ -745,21 +749,21 @@ pub async fn chat(request: Request) -> Response<ResponseBody> {
             "Chat is temporarily unavailable.",
         );
     };
-    if let Err(response) = crate::security::paid_request_budget(&store, &token, "chat").await {
-        return response;
+    if let Err(failure) = crate::security::paid_request_budget(&store, &token, "chat").await {
+        return failure.into_response();
     }
     // The credit is spent before Fizz answers. Give it back only when the model was never
     // asked: once the request is sent it costs the same whatever comes back.
     let prepared = match prepare(&store, &token).await {
         Ok(prepared) => prepared,
-        Err(response) => {
+        Err(failure) => {
             if let Err(problem) = store
                 .rpc("fizz_refund_credit", json!({"p_token": token}))
                 .await
             {
                 eprintln!("Fizz chat credit could not be refunded: {problem:?}");
             }
-            return response;
+            return failure.into_response();
         }
     };
     answer(&store, &token, message, history, prepared).await
@@ -832,17 +836,17 @@ fn chat_transport() -> Result<ChatTransport, &'static str> {
     })
 }
 
-async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<ResponseBody>> {
+async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, ApiError> {
     let mut context = match store
         .rpc("fizz_chat_context", json!({"p_token":token}))
         .await
     {
         Ok(v) if v.get("error").and_then(Value::as_str) == Some("unauthorized") => {
-            return Err(error(401, "unauthorized", "Sign in to continue."));
+            return Err(ApiError::new(401, "unauthorized", "Sign in to continue."));
         }
         Ok(v) if v.get("sensors").is_some() => v,
         _ => {
-            return Err(error(
+            return Err(ApiError::new(
                 503,
                 "database_unavailable",
                 "Chat is temporarily unavailable.",
@@ -854,11 +858,11 @@ async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<Res
         .await
     {
         Ok(v) if v.get("error").and_then(Value::as_str) == Some("unauthorized") => {
-            return Err(error(401, "unauthorized", "Sign in to continue."));
+            return Err(ApiError::new(401, "unauthorized", "Sign in to continue."));
         }
         Ok(v) if v.get("clips").and_then(Value::as_array).is_some() => v["clips"].clone(),
         _ => {
-            return Err(error(
+            return Err(ApiError::new(
                 503,
                 "database_unavailable",
                 "Voice clips are temporarily unavailable.",
@@ -873,14 +877,14 @@ async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<Res
     } = match chat_transport() {
         Ok(transport) => transport,
         Err("invalid") => {
-            return Err(error(
+            return Err(ApiError::new(
                 503,
                 "chat_unavailable",
                 "Fizz chat is not configured yet. OPENAI_BASE_URL must be an https URL, or http on localhost. Set FIZZ_ALLOW_INSECURE_HTTP=1 for another http host such as Ollama.",
             ));
         }
         Err(_) => {
-            return Err(error(
+            return Err(ApiError::new(
                 503,
                 "chat_unavailable",
                 "Fizz chat is not configured yet. Set AI_GATEWAY_API_KEY, or OPENAI_BASE_URL for an OpenAI-compatible server such as Ollama.",
@@ -891,7 +895,7 @@ async fn prepare(store: &Supabase, token: &str) -> Result<Prepared, Response<Res
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(25))
         .build()
-        .map_err(|_| error(503, "chat_unavailable", "Fizz is temporarily unavailable."))?;
+        .map_err(|_| ApiError::new(503, "chat_unavailable", "Fizz is temporarily unavailable."))?;
     Ok(Prepared {
         context,
         credential,

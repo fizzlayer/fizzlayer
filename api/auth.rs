@@ -8,8 +8,8 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn handler(request: Request) -> Result<Response<ResponseBody>, Error> {
-    if let Err(response) = fizz::security::guard_request(&request) {
-        return Ok(response);
+    if let Err(failure) = fizz::security::guard_request(&request) {
+        return Ok(failure.into_response());
     }
     Ok(match request.method().as_str() {
         "GET" => oauth(request).await,
