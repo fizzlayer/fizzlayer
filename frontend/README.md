@@ -1,6 +1,8 @@
 # Frontend
 
-The pages under `public/` are static HTML and CSS. Some of their scripts are Gleam compiled to JavaScript. The rest are still the original JavaScript files. Both are loaded by the same `<script src>` tags, and Vercel serves `public/` without a frontend build step.
+The pages under `public/` are static HTML and CSS. Some of their scripts are Gleam compiled to JavaScript. The rest are still the original JavaScript files. Both are loaded by the same `<script src>` tags.
+
+The six Gleam bundles are not in git. `scripts/build-frontend.sh` installs Gleam 1.19.2 and writes them into `public/` before a server starts.
 
 ## Stack
 
@@ -18,7 +20,7 @@ From the repository root:
 scripts/build-frontend.sh
 ```
 
-The script installs Gleam 1.19.2 if it is missing, compiles `frontend/`, and bundles six classic scripts into `public/`:
+The script picks the pinned Gleam 1.19.2 binary for the machine (`x86_64` or `aarch64`), compiles `frontend/`, and bundles six classic scripts:
 
 | Script | Gleam module | What it does |
 | --- | --- | --- |
@@ -29,7 +31,7 @@ The script installs Gleam 1.19.2 if it is missing, compiles `frontend/`, and bun
 | `public/enterprise.js` | `contact` | Enterprise contact form. |
 | `public/gateway-beta.js` | `contact` | Gateway beta list form. |
 
-Commit the regenerated scripts with the Gleam change. CI runs `git diff --exit-code` on them. A local preview is `scripts/dev.sh` after that build, or any static server rooted at `public/`.
+Those paths are gitignored. Vercel runs `bash scripts/build-frontend.sh` as the project `buildCommand` in `vercel.json`, for preview and production, then serves `public/` as before. The API image (`deploy/Dockerfile.api`) runs the same script and copies the resulting `public/` into the container. `scripts/dev.sh` runs the build when any of the six files is missing.
 
 Check formatting, then run the tests:
 
@@ -39,7 +41,7 @@ gleam format --check
 gleam test
 ```
 
-`gleam.toml` sets the JavaScript target, so `gleam build` and `gleam test` use Node. The tests cover kind formatting and ordering, relative-time buckets, menu transitions, contact validation, and the status rows and view.
+`gleam.toml` sets the JavaScript target, so `gleam build` and `gleam test` use Node. The tests cover kind formatting and ordering, relative-time buckets, menu transitions, contact validation, and the status rows and view. CI builds the bundles and runs `node --check` on them.
 
 ## Still JavaScript
 

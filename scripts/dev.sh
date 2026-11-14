@@ -134,5 +134,9 @@ if [[ $local_db -eq 1 ]]; then
   info "Create an account at the app URL, then confirm it from the email inbox."
   info "Supabase keeps running after you exit; stop it with: supabase stop"
 fi
+if [[ ! -f public/analytics.js || ! -f public/nav.js || ! -f public/sensor-kinds.js || ! -f public/status.js || ! -f public/enterprise.js || ! -f public/gateway-beta.js ]]; then
+  info "Building the Gleam frontend"
+  "${root}/scripts/build-frontend.sh"
+fi
 info "Starting Fizzlayer at $origin (the first request compiles the API)"
 FIZZ_DEV_ORIGIN="$origin" "${vercel[@]}" dev --listen "$port"

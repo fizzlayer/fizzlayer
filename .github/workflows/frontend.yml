@@ -27,5 +27,9 @@ jobs:
         run: cd frontend && gleam test
       - name: Build the scripts the site serves
         run: scripts/build-frontend.sh
-      - name: Fail if the served scripts were not regenerated
-        run: git diff --exit-code -- public/analytics.js public/enterprise.js public/gateway-beta.js public/nav.js public/sensor-kinds.js public/status.js
+      - name: Check the generated scripts
+        run: |
+          for script in public/analytics.js public/enterprise.js public/gateway-beta.js public/nav.js public/sensor-kinds.js public/status.js; do
+            test -s "$script"
+            node --check "$script"
+          done

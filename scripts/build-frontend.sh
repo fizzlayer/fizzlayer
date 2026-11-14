@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Compile the Gleam frontend and write the classic scripts in public/.
-# Vercel serves those files as they are; it does not run Gleam.
+# Those scripts are gitignored. Vercel runs this as its build command, and the
+# API image runs it before copying public/ into the container.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

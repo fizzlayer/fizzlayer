@@ -1,3 +1,20 @@
+FROM docker.io/library/node:22-bookworm-slim AS frontend
+WORKDIR /src
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
+COPY frontend/package.json frontend/package-lock.json frontend/
+COPY frontend frontend
+COPY scripts/build-frontend.sh scripts/install-gleam.sh scripts/
+COPY public public
+RUN bash scripts/build-frontend.sh \
+  && test -s public/analytics.js \
+  && test -s public/enterprise.js \
+  && test -s public/gateway-beta.js \
+  && test -s public/nav.js \
+  && test -s public/sensor-kinds.js \
+  && test -s public/status.js
+
 FROM docker.io/library/rust:1.94-bookworm AS build
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
@@ -11,7 +28,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/target/release/fizz-serve /usr/local/bin/fizz-serve
-COPY public /app/public
+COPY --from=frontend /src/public /app/public
 COPY supabase/migrations /migrations
 COPY deploy/migrate.sh /migrate.sh
 RUN chmod 755 /migrate.sh

@@ -4,6 +4,14 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="1.19.2"
+case "$(uname -m)" in
+  x86_64 | amd64) gleam_target="x86_64-unknown-linux-musl" ;;
+  aarch64 | arm64) gleam_target="aarch64-unknown-linux-musl" ;;
+  *)
+    printf 'error: no pinned Gleam %s build for %s\n' "${version}" "$(uname -m)" >&2
+    exit 1
+    ;;
+esac
 tool="${root}/frontend/.tool"
 mkdir -p "${tool}"
 
@@ -13,7 +21,7 @@ elif command -v gleam >/dev/null 2>&1 && [[ "$(gleam --version)" == "gleam ${ver
   tool="$(dirname "$(command -v gleam)")"
 else
   archive="${tool}/gleam.tar.gz"
-  url="https://github.com/gleam-lang/gleam/releases/download/v${version}/gleam-v${version}-x86_64-unknown-linux-musl.tar.gz"
+  url="https://github.com/gleam-lang/gleam/releases/download/v${version}/gleam-v${version}-${gleam_target}.tar.gz"
   curl -fsSL "${url}" -o "${archive}"
   tar -xzf "${archive}" -C "${tool}"
   rm -f "${archive}"

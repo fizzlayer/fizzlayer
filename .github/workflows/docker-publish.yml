@@ -12,6 +12,9 @@ on:
       - src/**
       - api/**
       - public/**
+      - frontend/**
+      - scripts/build-frontend.sh
+      - scripts/install-gleam.sh
   push:
     branches: [main]
     tags: ["v*"]

@@ -1,5 +1,8 @@
 .git
 target
+frontend/node_modules
+frontend/build
+frontend/.tool
 cli/target
 supabase/compute/fizz-worker/target
 **/*.md

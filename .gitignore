@@ -11,3 +11,10 @@ __pycache__/
 /frontend/build/
 /frontend/node_modules/
 /frontend/.tool/
+# Written by scripts/build-frontend.sh. Vercel and the API image generate them.
+/public/analytics.js
+/public/enterprise.js
+/public/gateway-beta.js
+/public/nav.js
+/public/sensor-kinds.js
+/public/status.js

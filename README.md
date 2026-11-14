@@ -189,7 +189,7 @@ scripts/dev.sh --local-db                                      # in another
 
 `stripe listen --print-secret` prints the webhook secret. Sign up at `http://localhost:3000`, confirm the email in the local inbox (`http://127.0.0.1:54324`), then upgrade in **Settings** with the test card `4242 4242 4242 4242`. The script refuses live Stripe keys. See [billing with Stripe](docs/REFERENCE.md#billing-with-stripe) for details.
 
-The browser scripts that have moved to Gleam are built with `scripts/build-frontend.sh`. That writes the files in `public/` the site already serves. The [frontend guide](frontend/README.md) covers the commands and what is still JavaScript.
+The browser scripts that have moved to Gleam are built with `scripts/build-frontend.sh`. The generated files stay out of git. Vercel runs that script as its build command, and the API image runs it before serving `public/`. The [frontend guide](frontend/README.md) covers local builds and what is still JavaScript.
 
 Run the Rust test suites:
 
