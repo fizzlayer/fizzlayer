@@ -15,7 +15,7 @@ Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings t
 - **Give agents access through MCP.** Issue revocable tokens to read sensor data and optionally create dashboard alerts.
 - **Let a browser agent do it for you.** Every page exposes [WebMCP](docs/REFERENCE.md#webmcp-browser-agents) tools, so an agent pointed at the site can onboard, manage sensors and alerts, and start a plan checkout. Agents that read first can start at [`/llms.txt`](https://fizzlayer.com/llms.txt).
 - **Ask Fizz about your readings.** Use typed chat or optional voice conversations to understand measurements and create threshold alerts.
-- **Act on changes.** Track alerts in the dashboard. Phone calls to US numbers are on paid plans. Hobbyist gets dashboard alerts and MCP.
+- **Act on changes.** Track alerts in the dashboard. Phone calls to US numbers are on paid plans. Email and webhook alerts are included on every plan. Hobbyist gets dashboard alerts and MCP.
 
 Fizzlayer includes a static web app, a Rust API deployed as Vercel Functions, a Supabase database and authentication layer, and a Rust device CLI. It monitors sensor data; physical actuator control is not implemented.
 

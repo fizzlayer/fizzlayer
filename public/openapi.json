@@ -13,6 +13,7 @@
   "tags": [
     { "name": "Readings", "description": "Send readings from devices, scripts, and microcontrollers." },
     { "name": "Agents", "description": "The remote MCP server for AI agents." },
+    { "name": "Alerts", "description": "Threshold and silence alerts for the signed-in account. Phone calls stay on paid plans. Email and webhook are included on every plan until the owner gates them." },
     { "name": "Service", "description": "Service status and sales contact." }
   ],
   "paths": {
@@ -116,12 +117,70 @@
         }
       }
     },
+    "/api/alerts": {
+      "post": {
+        "tags": ["Alerts"],
+        "operationId": "createAlert",
+        "summary": "Create a threshold or silence alert",
+        "description": "Requires the signed-in dashboard session. channels lists dashboard, phone, email, and webhook. Omit it for a dashboard alert, or send notify_channel \"call\" with notify_phone for the existing phone behavior (dashboard plus that call). Phone calls require a paired US number and Tinkerer, Pro, or Enterprise. Email is sent only to the account's verified address and is refused unless RESEND_API_KEY and FIZZ_ALERT_FROM are set. webhook_url must be public https. An optional webhook_secret (16 to 128 characters) signs that alert; otherwise the account secret does. Repeating an identical alert returns the existing rule.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AlertWrite" },
+              "example": {
+                "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13",
+                "metric": "temperature_c",
+                "comparator": "gt",
+                "threshold": 30,
+                "unit": "C",
+                "channels": ["dashboard", "email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "The alert rule, with created true or false when an identical rule was already active." },
+          "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "description": "Phone calls, or email and webhook when the owner has gated them, are not included on this plan." },
+          "404": { "description": "The sensor is not in this account." }
+        }
+      },
+      "patch": {
+        "tags": ["Alerts"],
+        "operationId": "updateAlert",
+        "summary": "Pause, resume, or change how an alert notifies",
+        "description": "Requires the signed-in dashboard session. Send enabled to pause or resume, which is what the dashboard does today. Also send channels to replace dashboard, phone, email, and webhook. Phone, email, and webhook follow the same rules as create. Omit channels to leave them unchanged.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AlertUpdate" },
+              "example": {
+                "id": "8b1a0c2e-4d55-4a1e-9c20-6f0a1b2c3d4e",
+                "enabled": true,
+                "channels": ["dashboard", "webhook"],
+                "webhook_url": "https://alerts.example.com/fizz"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "The updated rule." },
+          "400": { "$ref": "#/components/responses/InvalidRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "description": "The selected channels are not included on this plan." },
+          "404": { "description": "The alert is not in this account." }
+        }
+      }
+    },
     "/api/mcp": {
       "post": {
         "tags": ["Agents"],
         "operationId": "mcp",
         "summary": "Model Context Protocol endpoint (Streamable HTTP)",
-        "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (threshold or silence alerts; tokens allowed to create alerts), and pair_device. create_alert may call a US number only when the owner has already paired it in the dashboard and the plan includes calls (Tinkerer, Pro, or Enterprise). Agent tokens cannot pair a phone number. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
+        "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (threshold or silence alerts; tokens allowed to create alerts), and pair_device. create_alert accepts channels of dashboard, phone, email, and webhook. Phone calls require a number the owner has already paired and a plan that includes calls (Tinkerer, Pro, or Enterprise). Email uses the account's verified address. webhook_url must be a public https URL, and the JSON body is signed with HMAC-SHA256 in X-Fizzlayer-Signature. Agent tokens cannot pair a phone number. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
         "security": [{ "agentToken": [] }],
         "requestBody": {
           "required": true,
@@ -311,6 +370,37 @@
           }
         },
         "required": ["jsonrpc"]
+      },
+      "AlertWrite": {
+        "type": "object",
+        "properties": {
+          "sensor_id": { "type": "string", "format": "uuid" },
+          "kind": { "type": "string", "enum": ["threshold", "silence"], "default": "threshold" },
+          "metric": { "type": "string" },
+          "comparator": { "type": "string", "enum": ["gt", "gte", "lt", "lte"] },
+          "threshold": { "type": "number" },
+          "unit": { "type": "string" },
+          "silence_minutes": { "type": "integer", "minimum": 1, "maximum": 10080 },
+          "notify_recovery": { "type": "boolean" },
+          "notify_channel": { "type": "string", "enum": ["none", "call"], "description": "Legacy choice. none is dashboard. call is dashboard plus notify_phone. Ignored when channels is set, except that call without the phone channel is rejected." },
+          "notify_phone": { "type": "string", "description": "US number, required when phone is selected." },
+          "channels": { "type": "array", "items": { "type": "string", "enum": ["dashboard", "phone", "email", "webhook"] } },
+          "webhook_url": { "type": "string", "format": "uri" },
+          "webhook_secret": { "type": "string", "minLength": 16, "maxLength": 128 }
+        },
+        "required": ["sensor_id"]
+      },
+      "AlertUpdate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "enabled": { "type": "boolean" },
+          "channels": { "type": "array", "items": { "type": "string", "enum": ["dashboard", "phone", "email", "webhook"] } },
+          "notify_phone": { "type": "string" },
+          "webhook_url": { "type": "string", "format": "uri" },
+          "webhook_secret": { "type": "string", "minLength": 16, "maxLength": 128 }
+        },
+        "required": ["id"]
       },
       "Error": {
         "type": "object",

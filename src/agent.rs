@@ -34,6 +34,21 @@ fn rpc_error(value: &Value) -> Option<Response<ResponseBody>> {
             code,
             "Enter a real US phone number. Toll-free, premium, and fictional numbers can't be called.",
         ),
+        "invalid_channels" => error(
+            400,
+            code,
+            "Choose dashboard, phone, email, webhook, or a combination.",
+        ),
+        "invalid_webhook" => error(
+            400,
+            code,
+            "Use an https webhook URL on a public host. Private and loopback addresses are refused.",
+        ),
+        "channels_not_included" => error(
+            402,
+            code,
+            "Email and webhook alerts are not included on this plan.",
+        ),
         "phone_not_paired" => error(400, code, crate::call_phones::PHONE_NOT_PAIRED),
         "calls_not_included" => error(402, code, crate::call_phones::CALLS_NOT_INCLUDED),
         "simulated_sensor" => error(400, code, SAMPLE_SILENCE),
@@ -76,33 +91,38 @@ fn silence_minutes(value: Option<&Value>) -> Result<i64, &'static str> {
     }
 }
 
-fn notify_choice(data: &Value) -> Result<Option<String>, ApiError> {
-    match data
-        .get("notify_channel")
-        .and_then(Value::as_str)
-        .unwrap_or("none")
-    {
-        "none" => Ok(None),
-        "call" => data
-            .get("notify_phone")
-            .and_then(Value::as_str)
-            .and_then(notify::us_phone)
-            .map(Some)
-            .ok_or_else(|| ApiError::new(400, "invalid_notify", "Enter a valid US phone number.")),
-        _ => Err(ApiError::new(
-            400,
-            "invalid_notify",
-            "Choose a phone call or dashboard-only alert.",
-        )),
+fn channel_fields(payload: &mut Value, choice: crate::channels::ChannelChoice, legacy: bool) {
+    payload["p_channels"] = json!(choice.channels);
+    if let Some(phone) = choice.phone {
+        payload["p_notify_phone"] = json!(phone);
+        if legacy {
+            payload["p_notify_channel"] = json!("call");
+        }
+    } else if legacy {
+        payload["p_notify_channel"] = json!("none");
+    }
+    if let Some(url) = choice.webhook_url {
+        payload["p_webhook_url"] = json!(url);
+    }
+    if let Some(secret) = choice.webhook_secret {
+        payload["p_webhook_secret"] = json!(secret);
     }
 }
 
-fn with_phone(mut payload: Value, phone: Option<String>) -> Value {
-    if let Some(phone) = phone {
-        payload["p_notify_channel"] = json!("call");
-        payload["p_notify_phone"] = json!(phone);
-    }
-    payload
+fn chosen_channels(data: &Value) -> Result<crate::channels::ChannelChoice, ApiError> {
+    crate::channels::select_channels(data, crate::mail::configured()).map_err(|failure| {
+        let code = match failure {
+            crate::channels::ChannelError::Phone => "invalid_notify",
+            crate::channels::ChannelError::Webhook | crate::channels::ChannelError::Secret => {
+                "invalid_webhook"
+            }
+            crate::channels::ChannelError::EmailUnavailable => "email_not_configured",
+            crate::channels::ChannelError::Unknown | crate::channels::ChannelError::Empty => {
+                "invalid_channels"
+            }
+        };
+        ApiError::new(400, code, failure.message())
+    })
 }
 
 fn alert_create_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
@@ -112,12 +132,12 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
     if !uuid(sensor_id) {
         return Err(ApiError::new(400, "invalid_rule", "Choose a valid sensor."));
     }
-    let phone = notify_choice(data)?;
+    let choice = chosen_channels(data)?;
     let kind = data
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or("threshold");
-    let payload = match kind {
+    match kind {
         "silence" => {
             let minutes = silence_minutes(data.get("silence_minutes"))
                 .map_err(|message| ApiError::new(400, "invalid_rule", message))?;
@@ -135,7 +155,9 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
                 .get("notify_recovery")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
-            json!({"p_token":token,"p_sensor_id":sensor_id,"p_kind":"silence","p_silence_minutes":minutes,"p_notify_recovery":recovery})
+            let mut payload = json!({"p_token":token,"p_sensor_id":sensor_id,"p_kind":"silence","p_silence_minutes":minutes,"p_notify_recovery":recovery});
+            channel_fields(&mut payload, choice, true);
+            Ok(payload)
         }
         "threshold" => {
             let recovery = data.get("notify_recovery").and_then(Value::as_bool) == Some(true);
@@ -171,17 +193,50 @@ fn alert_create_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
             let Some(unit) = data.get("unit").and_then(Value::as_str) else {
                 return Err(ApiError::new(400, "invalid_rule", "Choose a unit."));
             };
-            json!({"p_token":token,"p_sensor_id":sensor_id,"p_metric":metric,"p_comparator":comparator,"p_threshold":threshold,"p_unit":unit,"p_kind":"threshold"})
+            let mut payload = json!({"p_token":token,"p_sensor_id":sensor_id,"p_metric":metric,"p_comparator":comparator,"p_threshold":threshold,"p_unit":unit,"p_kind":"threshold"});
+            channel_fields(&mut payload, choice, true);
+            Ok(payload)
         }
-        _ => {
+        _ => Err(ApiError::new(
+            400,
+            "invalid_rule",
+            "Choose a threshold or silence alert.",
+        )),
+    }
+}
+
+fn alert_update_payload(token: &str, data: &Value) -> Result<Value, ApiError> {
+    let Some(id) = data.get("id").and_then(Value::as_str) else {
+        return Err(ApiError::new(400, "invalid_rule", "Choose an alert."));
+    };
+    if !uuid(id) {
+        return Err(ApiError::new(400, "invalid_rule", "Choose a valid alert."));
+    }
+    let mut payload = json!({"p_token": token, "p_rule_id": id, "p_delete": false});
+    if let Some(enabled) = data.get("enabled") {
+        let Some(enabled) = enabled.as_bool() else {
             return Err(ApiError::new(
                 400,
                 "invalid_rule",
-                "Choose a threshold or silence alert.",
+                "Choose an enabled state.",
             ));
-        }
-    };
-    Ok(with_phone(payload, phone))
+        };
+        payload["p_enabled"] = json!(enabled);
+    }
+    let replacing = data.get("channels").is_some()
+        || data.get("webhook_url").is_some()
+        || data.get("webhook_secret").is_some();
+    if replacing {
+        let choice = chosen_channels(data)?;
+        channel_fields(&mut payload, choice, false);
+    } else if payload.get("p_enabled").is_none() {
+        return Err(ApiError::new(
+            400,
+            "invalid_rule",
+            "Choose an enabled state.",
+        ));
+    }
+    Ok(payload)
 }
 
 pub async fn alerts(request: Request) -> Response<ResponseBody> {
@@ -201,18 +256,10 @@ pub async fn alerts(request: Request) -> Response<ResponseBody> {
                     Ok(payload) => payload,
                     Err(failure) => return failure.into_response(),
                 },
-                "PATCH" => {
-                    let Some(id) = data.get("id").and_then(Value::as_str) else {
-                        return error(400, "invalid_rule", "Choose an alert.");
-                    };
-                    if !uuid(id) {
-                        return error(400, "invalid_rule", "Choose a valid alert.");
-                    }
-                    let Some(enabled) = data.get("enabled").and_then(Value::as_bool) else {
-                        return error(400, "invalid_rule", "Choose an enabled state.");
-                    };
-                    json!({"p_token":token,"p_rule_id":id,"p_enabled":enabled,"p_delete":false})
-                }
+                "PATCH" => match alert_update_payload(&token, &data) {
+                    Ok(payload) => payload,
+                    Err(failure) => return failure.into_response(),
+                },
                 _ => {
                     let Some(id) = data.get("id").and_then(Value::as_str) else {
                         return error(400, "invalid_rule", "Choose an alert.");
@@ -245,10 +292,20 @@ pub async fn alerts(request: Request) -> Response<ResponseBody> {
         );
     };
     match store.rpc(rpc, payload).await {
-        Ok(value) => match rpc_error(&value) {
-            Some(response) => response,
-            None => reply(200, value, None),
-        },
+        Ok(mut value) => {
+            if let Some(response) = rpc_error(&value) {
+                return response;
+            }
+            if rpc == "fizz_list_alerts"
+                && let Some(object) = value.as_object_mut()
+            {
+                object.insert(
+                    "email_configured".to_owned(),
+                    json!(crate::mail::configured()),
+                );
+            }
+            reply(200, value, None)
+        }
         Err(_) => error(
             503,
             "database_unavailable",

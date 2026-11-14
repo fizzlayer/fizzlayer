@@ -9,7 +9,7 @@
   const eventPreview = 5;
   let timer = null;
   let sensors = [];
-  let alertData = { rules: [], events: [], schedulerActive: true };
+  let alertData = { rules: [], events: [], schedulerActive: true, emailConfigured: false, messageChannelsIncluded: true, accountWebhookSecret: '' };
   let phoneData = { calls_included: false, phones: [], pending: null };
   let showAllEvents = false;
   let requestInFlight = false;
@@ -254,7 +254,14 @@
       const [inventory, alerts] = await Promise.all([api('/api/sensors'), api('/api/alerts')]);
       if (version !== sessionGeneration || $('dashboard').hidden) return;
       sensors = inventory.sensors || [];
-      alertData = { rules: alerts.rules || [], events: alerts.events || [], schedulerActive: alerts.silence_scheduler_active !== false };
+      alertData = {
+        rules: alerts.rules || [],
+        events: alerts.events || [],
+        schedulerActive: alerts.silence_scheduler_active !== false,
+        emailConfigured: alerts.email_configured === true,
+        messageChannelsIncluded: alerts.message_channels_included !== false,
+        accountWebhookSecret: alerts.account_webhook_secret || '',
+      };
       try {
         const phones = await api('/api/phones');
         if (version !== sessionGeneration || $('dashboard').hidden) return;
@@ -317,21 +324,33 @@
   }
 
   // How a triggered alert reached the owner's phone.
-  function notifyNote(event) {
-    if (!notifyNoun[event.notify_channel]) return null;
-    const noun = notifyNoun[event.notify_channel];
-    const phone = formatPhone(event.notify_phone);
+  function deliveryNote(channel, status, error, phone) {
+    const target = channel === 'call' || channel === 'phone' ? formatPhone(phone) : channel === 'email' ? 'email' : 'webhook';
     const text = {
-      pending: `${noun} to ${phone} queued`,
-      sending: `Calling ${phone}…`,
-      sent: `Called ${phone}`,
-      failed: `${noun} to ${phone} failed${event.notify_error ? `: ${event.notify_error}` : ''}`,
-      skipped: event.notify_error || `${noun} skipped: sent one recently`,
-    }[event.notify_status];
+      pending: `${channel === 'call' ? 'Call' : channel === 'email' ? 'Email' : 'Webhook'} to ${target} queued`,
+      sending: channel === 'call' ? `Calling ${target}…` : `Sending ${target}…`,
+      sent: channel === 'call' ? `Called ${target}` : channel === 'email' ? 'Emailed you' : 'Webhook delivered',
+      failed: `${channel === 'call' ? 'Call' : channel === 'email' ? 'Email' : 'Webhook'} failed${error ? `: ${error}` : ''}`,
+      skipped: error || `${channel === 'call' ? 'Call' : channel === 'email' ? 'Email' : 'Webhook'} skipped: sent one recently`,
+    }[status];
     if (!text) return null;
-    const note = node('span', `notify${event.notify_status === 'failed' ? ' failed' : ''}`, text);
-    if (event.notify_status === 'sent') note.append(' ', icon('check'));
+    const note = node('span', `notify${status === 'failed' ? ' failed' : ''}`, text);
+    if (status === 'sent') note.append(' ', icon('check'));
     return note;
+  }
+
+  function notifyNote(event) {
+    const notes = [];
+    const phone = deliveryNote('call', event.notify_status, event.notify_error, event.notify_phone);
+    if (phone && notifyNoun[event.notify_channel]) notes.push(phone);
+    for (const delivery of event.deliveries || []) {
+      const note = deliveryNote(delivery.channel, delivery.status, delivery.error);
+      if (note) notes.push(note);
+    }
+    if (!notes.length) return null;
+    const wrap = node('span', 'notify-group');
+    for (const note of notes) wrap.append(note);
+    return wrap;
   }
 
   function ruleStatus(rule) {
@@ -400,12 +419,15 @@
       : `Alert when ${kinds.metricLabel(rule.metric)} is ${limitText(rule)}`);
     line.title = silenceRule(rule) ? 'No reading' : rule.metric;
     const meta = node('p', 'alert-meta');
-    if (notifyNoun[rule.notify_channel]) {
+    const channels = rule.channels || (rule.notify_channel === 'call' ? ['dashboard', 'phone'] : ['dashboard']);
+    if (channels.includes('phone') || notifyNoun[rule.notify_channel]) {
       meta.append(node('span', 'notify', `Calls ${formatPhone(rule.notify_phone)}`));
       const paired = phoneData.phones.some((phone) => phone.phone === rule.notify_phone);
       if (!phoneData.calls_included) meta.append(node('span', 'over', 'Won’t call on the Hobbyist plan'));
       else if (!paired) meta.append(node('span', 'over', 'Not paired · won’t dial until you pair this number'));
     }
+    if (channels.includes('email')) meta.append(node('span', 'notify', 'Email'));
+    if (channels.includes('webhook')) meta.append(node('span', 'notify', 'Webhook'));
     if (silenceRule(rule) && rule.notify_recovery) meta.append(node('span', '', 'Notifies when readings resume'));
     const latest = sensor?.latest_reading;
     if (silenceRule(rule)) {
@@ -655,20 +677,52 @@
     }
     if ([...select.options].some((option) => option.value === current)) select.value = current;
   }
-  function syncAlertCall() {
-    const call = $('alert-notify').value === 'call';
+  function selectedChannels() {
+    const channels = [];
+    if ($('alert-channel-dashboard').checked) channels.push('dashboard');
+    if ($('alert-channel-phone').checked) channels.push('phone');
+    if ($('alert-channel-email').checked) channels.push('email');
+    if ($('alert-channel-webhook').checked) channels.push('webhook');
+    return channels;
+  }
+  function syncAlertChannels() {
+    const call = $('alert-channel-phone').checked;
+    const webhook = $('alert-channel-webhook').checked;
     const ready = phoneData.calls_included && phoneData.phones.length > 0;
     const note = $('alert-call-note');
+    $('alert-channel-email-wrap').hidden = !alertData.emailConfigured;
+    if (!alertData.emailConfigured) $('alert-channel-email').checked = false;
+    $('alert-channel-email').disabled = !alertData.messageChannelsIncluded;
+    $('alert-channel-webhook').disabled = !alertData.messageChannelsIncluded;
     $('alert-phone').hidden = !call || !ready;
     $('alert-phone').required = call && ready;
+    $('alert-webhook-url').hidden = !webhook;
+    $('alert-webhook-url').required = webhook;
+    $('alert-webhook-secret').hidden = !webhook;
+    const account = $('alert-account-secret');
+    if (webhook && alertData.accountWebhookSecret) {
+      account.hidden = false;
+      account.textContent = `Signs with your account secret unless this alert has its own. Account secret: ${alertData.accountWebhookSecret}`;
+    } else if (webhook) {
+      account.hidden = false;
+      account.textContent = 'Leave the secret blank to create an account signing secret, shown here after you save.';
+    } else {
+      account.hidden = true;
+      account.textContent = '';
+    }
     if (!call) {
+      if (!alertData.messageChannelsIncluded) {
+        note.hidden = false;
+        note.textContent = 'Email and webhook need a paid plan on this server. Phone calls need Tinkerer, Pro, or Enterprise.';
+        return;
+      }
       note.hidden = true;
       note.textContent = '';
       return;
     }
     if (!phoneData.calls_included) {
       note.hidden = false;
-      note.textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Leave this as dashboard only, or upgrade in Settings.';
+      note.textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Dashboard, email, and webhook still work, or upgrade in Settings.';
       return;
     }
     if (!phoneData.phones.length) {
@@ -731,7 +785,7 @@
       banner.textContent = '';
     }
     fillAlertPhones();
-    syncAlertCall();
+    syncAlertChannels();
     const pending = phoneData.pending;
     const confirm = $('phone-confirm-form');
     if (phoneData.calls_included && pending?.phone) {
@@ -770,7 +824,9 @@
       $('phone-resend').disabled = false;
     }
   }
-  $('alert-notify').addEventListener('change', syncAlertCall);
+  for (const id of ['alert-channel-dashboard', 'alert-channel-phone', 'alert-channel-email', 'alert-channel-webhook']) {
+    $(id).addEventListener('change', syncAlertChannels);
+  }
   $('phone-pair-form').addEventListener('submit', (event) => {
     event.preventDefault();
     void startPairing($('phone-number').value.trim());
@@ -803,27 +859,41 @@
     const button = $('quick-alert').querySelector('button[type=submit]');
     button.disabled = true;
     try {
-      const notify = $('alert-notify').value;
+      const channels = selectedChannels();
       const silence = $('alert-kind').value === 'silence';
       const rule = silence
-        ? { kind: 'silence', sensor_id: $('alert-sensor').value, silence_minutes: Number($('alert-minutes').value), notify_recovery: $('alert-recovery').checked }
-        : { sensor_id: $('alert-sensor').value, metric: $('alert-metric').value.trim(), comparator: $('alert-operator').value, threshold: Number($('alert-threshold').value), unit: $('alert-unit').value.trim() };
-      if (notify === 'call') {
+        ? { kind: 'silence', sensor_id: $('alert-sensor').value, silence_minutes: Number($('alert-minutes').value), notify_recovery: $('alert-recovery').checked, channels }
+        : { sensor_id: $('alert-sensor').value, metric: $('alert-metric').value.trim(), comparator: $('alert-operator').value, threshold: Number($('alert-threshold').value), unit: $('alert-unit').value.trim(), channels };
+      if (!channels.length) {
+        $('alert-message').textContent = 'Choose at least one way to be notified.';
+        return;
+      }
+      if (channels.includes('phone')) {
         if (!phoneData.calls_included) {
-          $('alert-message').textContent = 'Phone calls are included with Tinkerer, Pro, and Enterprise. Upgrade in Settings, or leave this as a dashboard-only alert.';
+          $('alert-message').textContent = 'Phone calls are included with Tinkerer, Pro, and Enterprise. Upgrade in Settings, or leave the phone box unchecked.';
           return;
         }
         if (!$('alert-phone').value) {
           $('alert-message').textContent = 'Pair a phone number above before an alert can call it.';
           return;
         }
-        Object.assign(rule, { notify_channel: 'call', notify_phone: $('alert-phone').value });
+        Object.assign(rule, { notify_phone: $('alert-phone').value });
+      }
+      if (channels.includes('webhook')) {
+        const url = $('alert-webhook-url').value.trim();
+        if (!url) {
+          $('alert-message').textContent = 'Enter an https webhook URL.';
+          return;
+        }
+        rule.webhook_url = url;
+        const secret = $('alert-webhook-secret').value.trim();
+        if (secret) rule.webhook_secret = secret;
       }
       await api('/api/alerts', 'POST', rule);
-      const ready = silence ? 'Fizz will call you if it goes quiet.' : 'Fizz will call you when it triggers.';
+      const names = channels.map((channel) => ({ dashboard: 'the dashboard', phone: 'a phone call', email: 'email', webhook: 'a webhook' }[channel])).join(', ');
       $('alert-message').textContent = silence && !alertData.schedulerActive
         ? 'Alert saved, but silence checks are not running on this server yet, so it will not fire until they are.'
-        : notify === 'none' ? 'Alert is active.' : `Alert is active. ${ready}`;
+        : `Alert is active. Fizz will use ${names}.`;
       $('alert-threshold').value = '';
       await refresh();
     } catch (error) { $('alert-message').textContent = error.message; }
@@ -891,7 +961,7 @@
       readingHistory.clear();
       sensorFilter = 'all';
       for (const filter of document.querySelectorAll('[data-sensor-filter]')) filter.setAttribute('aria-pressed', String(filter.dataset.sensorFilter === 'all'));
-      alertData = { rules: [], events: [], schedulerActive: true };
+      alertData = { rules: [], events: [], schedulerActive: true, emailConfigured: false, messageChannelsIncluded: true, accountWebhookSecret: '' };
       showAllEvents = false;
       setThinking(false);
       window.fizzVoiceClips.reset();
@@ -899,10 +969,19 @@
       appendMessage('agent', 'Hi, I’m Fizz. I can add sensors, pair devices, and help you understand your readings. What would you like to know?');
       $('chat-input').value = '';
       $('chat-error').textContent = '';
-      $('alert-notify').value = 'none';
+      $('alert-channel-dashboard').checked = true;
+      $('alert-channel-phone').checked = false;
+      $('alert-channel-email').checked = false;
+      $('alert-channel-webhook').checked = false;
+      $('alert-webhook-url').value = '';
+      $('alert-webhook-secret').value = '';
       $('alert-phone').replaceChildren();
       $('alert-phone').hidden = true;
       $('alert-phone').required = false;
+      $('alert-webhook-url').hidden = true;
+      $('alert-webhook-url').required = false;
+      $('alert-webhook-secret').hidden = true;
+      $('alert-account-secret').hidden = true;
       $('alert-call-note').hidden = true;
       $('alert-call-note').textContent = '';
       $('phone-message').textContent = '';

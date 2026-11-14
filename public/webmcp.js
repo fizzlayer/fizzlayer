@@ -86,7 +86,7 @@
       annotations: { readOnlyHint: true },
       async execute() {
         const me = await session();
-        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors and Fizz are available now at /sensors. Phone-call alerts are on paid plans. Hobbyist gets dashboard alerts and MCP. An account today is a Sensors account.';
+        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors and Fizz are available now at /sensors. Phone-call alerts are on paid plans. Email and webhook alerts are included on every plan. Hobbyist gets dashboard alerts and MCP. An account today is a Sensors account.';
         if (!me) {
           return text({
             about, signed_in: false, page: location.pathname,
@@ -437,7 +437,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. Optionally call a US phone number the person has already paired in the dashboard. Phone calls require Tinkerer, Pro, or Enterprise. This tool cannot pair a number. Asking again for the same alert returns the existing one.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -449,12 +449,15 @@
           unit: { type: 'string', description: 'Threshold alerts. Defaults to the metric\'s unit.' },
           silence_minutes: { type: 'integer', minimum: 1, maximum: 10080, default: 10, description: 'Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor.' },
           notify_recovery: { type: 'boolean', default: false, description: 'Silence alerts. Also notify when readings resume.' },
-          call_phone: { type: 'string', description: 'Optional US number to call. The owner must already have paired it under Phones in the dashboard. Pairing is owner-only and is not available from this tool.' },
+          channels: { type: 'array', items: { type: 'string', enum: ['dashboard', 'phone', 'email', 'webhook'] }, description: 'Where to notify. Default is the dashboard. phone is paid. email uses the verified account address. webhook needs webhook_url.' },
+          call_phone: { type: 'string', description: 'US number when phone is a channel. The owner must already have paired it under Phones. Pairing is owner-only.' },
+          webhook_url: { type: 'string', description: 'Public https URL for the webhook channel.' },
+          webhook_secret: { type: 'string', description: 'Optional per-alert HMAC secret, 16 to 128 characters. Omit to use the account secret.' },
         },
         required: ['sensor_id'],
       },
       annotations: { consequentialHint: true },
-      async execute({ sensor_id: id, kind, metric, comparator, threshold, unit, silence_minutes: minutes, notify_recovery: recovery, call_phone: phone }) {
+      async execute({ sensor_id: id, kind, metric, comparator, threshold, unit, silence_minutes: minutes, notify_recovery: recovery, call_phone: phone, channels, webhook_url: webhookUrl, webhook_secret: webhookSecret }) {
         const sensors = (await api('/api/sensors')).sensors || [];
         const sensor = sensors.find((item) => item.id === id);
         if (!sensor) throw new ToolError('No sensor with that sensor_id. Call list_sensors.');
@@ -469,7 +472,12 @@
         const rule = silence
           ? { kind: 'silence', sensor_id: id, silence_minutes: minutes == null ? 10 : Number(minutes), notify_recovery: recovery === true }
           : { sensor_id: id, metric: (metric || info.metric).trim(), comparator, threshold: Number(threshold), unit: unit ?? (metric && metric !== info.metric ? '' : info.unit) };
-        if (phone) Object.assign(rule, { notify_channel: 'call', notify_phone: phone });
+        if (Array.isArray(channels) && channels.length) rule.channels = channels;
+        if (phone && (!rule.channels || rule.channels.includes('phone'))) {
+          Object.assign(rule, { notify_channel: 'call', notify_phone: phone });
+        }
+        if (webhookUrl) rule.webhook_url = String(webhookUrl);
+        if (webhookSecret) rule.webhook_secret = String(webhookSecret);
         const result = await api('/api/alerts', 'POST', rule);
         changed('alerts');
         return text({ ok: true, rule: result.rule || result });
@@ -477,10 +485,28 @@
     },
     {
       name: 'set_alert_enabled',
-      description: 'Pause or resume an alert rule.',
-      inputSchema: { type: 'object', properties: { alert_id: { type: 'string' }, enabled: { type: 'boolean' } }, required: ['alert_id', 'enabled'] },
-      async execute({ alert_id: id, enabled }) {
-        await api('/api/alerts', 'PATCH', { id: required(id, 'Provide an alert_id.'), enabled: Boolean(enabled) });
+      description: 'Pause or resume an alert rule. Optionally replace its notification channels.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          alert_id: { type: 'string' },
+          enabled: { type: 'boolean' },
+          channels: { type: 'array', items: { type: 'string', enum: ['dashboard', 'phone', 'email', 'webhook'] }, description: 'Replace where this alert notifies. phone needs call_phone. webhook needs webhook_url.' },
+          call_phone: { type: 'string' },
+          webhook_url: { type: 'string' },
+          webhook_secret: { type: 'string' },
+        },
+        required: ['alert_id', 'enabled'],
+      },
+      async execute({ alert_id: id, enabled, channels, call_phone: phone, webhook_url: webhookUrl, webhook_secret: webhookSecret }) {
+        const body = { id: required(id, 'Provide an alert_id.'), enabled: Boolean(enabled) };
+        if (Array.isArray(channels) && channels.length) {
+          body.channels = channels;
+          if (phone) body.notify_phone = phone;
+          if (webhookUrl) body.webhook_url = String(webhookUrl);
+          if (webhookSecret) body.webhook_secret = String(webhookSecret);
+        }
+        await api('/api/alerts', 'PATCH', body);
         changed('alerts');
         return text({ ok: true, enabled: Boolean(enabled) });
       },
