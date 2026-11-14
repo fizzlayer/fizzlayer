@@ -39,10 +39,11 @@ jobs:
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
       - name: Fetch the pinned agentgateway binary
-        run: gateway/scripts/fetch-agentgateway.sh
+        id: agentgateway
+        run: echo "bin=$(gateway/scripts/fetch-agentgateway.sh)" >> "$GITHUB_OUTPUT"
       - name: Unit tests
         env:
-          AGENTGATEWAY_BIN: gateway/.local-bin/agentgateway
+          AGENTGATEWAY_BIN: ${{ steps.agentgateway.outputs.bin }}
           REQUIRE_UPSTREAM_VALIDATE: "1"
         run: cargo test --locked --manifest-path gateway/Cargo.toml
       - name: Compose end to end

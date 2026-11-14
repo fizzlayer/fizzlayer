@@ -528,14 +528,11 @@ mod tests {
 
     #[test]
     fn upstream_binary_accepts_the_render_when_requested() {
-        let bin = match std::env::var("AGENTGATEWAY_BIN") {
-            Ok(value) if !value.is_empty() => value,
-            _ => {
-                if std::env::var("REQUIRE_UPSTREAM_VALIDATE").ok().as_deref() == Some("1") {
-                    panic!("AGENTGATEWAY_BIN is required");
-                }
-                return;
+        let Some(bin) = upstream_binary() else {
+            if std::env::var("REQUIRE_UPSTREAM_VALIDATE").ok().as_deref() == Some("1") {
+                panic!("AGENTGATEWAY_BIN must point at the pinned agentgateway binary");
             }
+            return;
         };
         let dir = std::env::temp_dir().join(format!("fizz-ag-{}", Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
@@ -558,5 +555,26 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Cargo runs this test with the crate directory as the working directory,
+    /// while CI sets a path relative to the repository root.
+    fn upstream_binary() -> Option<std::path::PathBuf> {
+        let raw = std::env::var("AGENTGATEWAY_BIN").ok()?;
+        if raw.is_empty() {
+            return None;
+        }
+        let given = std::path::PathBuf::from(&raw);
+        if given.is_file() {
+            return Some(given);
+        }
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let from_crate = manifest.join(&given);
+        if from_crate.is_file() {
+            return Some(from_crate);
+        }
+        let stripped = given.strip_prefix("gateway").ok()?;
+        let from_root_prefix = manifest.join(stripped);
+        from_root_prefix.is_file().then_some(from_root_prefix)
     }
 }
