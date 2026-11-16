@@ -2,7 +2,7 @@
   "name": "fizz",
   "title": "Fizzlayer",
   "version": "0.1.0",
-  "description": "Read a Fizzlayer customer's sensors, readings, and alerts, create alerts, and claim device pairing codes. create_alert can call a US number only after the owner has paired it in the dashboard. Agent tokens cannot pair a phone.",
+  "description": "Read a Fizzlayer customer's sensors, readings, and alerts, create alerts, and claim device pairing codes. create_alert can call a US number only after the owner has paired it, and only on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is sent only when mail is configured. Agent tokens cannot pair a phone.",
   "url": "https://fizzlayer.com/api/mcp",
   "transport": "streamable-http",
   "protocolVersion": "2026-07-28",

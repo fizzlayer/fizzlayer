@@ -423,7 +423,7 @@
     if (channels.includes('phone') || notifyNoun[rule.notify_channel]) {
       meta.append(node('span', 'notify', `Calls ${formatPhone(rule.notify_phone)}`));
       const paired = phoneData.phones.some((phone) => phone.phone === rule.notify_phone);
-      if (!phoneData.calls_included) meta.append(node('span', 'over', 'Won’t call on the Hobbyist plan'));
+      if (!phoneData.calls_included) meta.append(node('span', 'over', 'Won’t call on Hobbyist. Dashboard and webhook still notify.'));
       else if (!paired) meta.append(node('span', 'over', 'Not paired · won’t dial until you pair this number'));
     }
     if (channels.includes('email')) meta.append(node('span', 'notify', 'Email'));
@@ -722,7 +722,9 @@
     }
     if (!phoneData.calls_included) {
       note.hidden = false;
-      note.textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Dashboard, email, and webhook still work, or upgrade in Settings.';
+      note.textContent = alertData.emailConfigured
+        ? 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Dashboard, email, and webhook alerts still work on Hobbyist, or upgrade in Settings.'
+        : 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Dashboard and webhook alerts still work on Hobbyist. Email is included on every plan and appears here when mail is configured.';
       return;
     }
     if (!phoneData.phones.length) {
@@ -767,7 +769,11 @@
       upgrade.hidden = false;
       const link = node('a', '', 'Upgrade in Settings');
       link.href = '/settings.html';
-      upgrade.append('Phone calls are included with Tinkerer, Pro, and Enterprise. ', link, '. Dashboard alerts still work on Hobbyist.');
+      const paid = 'Phone calls are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. ';
+      const rest = alertData.emailConfigured
+        ? 'Dashboard, email, and webhook alerts still work on Hobbyist.'
+        : 'Dashboard and webhook alerts still work on Hobbyist. Email is included on every plan and appears when mail is configured.';
+      upgrade.append(paid, link, '. ', rest);
       $('phone-pair-form').hidden = true;
       $('phone-confirm-form').hidden = true;
     }
@@ -776,7 +782,7 @@
     const unpaired = callRules.filter((rule) => !phones.some((phone) => phone.phone === rule.notify_phone));
     if (!phoneData.calls_included && callRules.length) {
       banner.hidden = false;
-      banner.textContent = 'Calls are paused. These alerts are set to call a phone, but the Hobbyist plan does not place calls. Upgrade to Tinkerer, Pro, or Enterprise, then pair each number. Until then, alerts still show here and will not dial.';
+      banner.textContent = 'Calls are paused. These alerts are set to call a phone, but Hobbyist does not place calls. Upgrade to Tinkerer, Pro, or Enterprise, then pair each number. Until then, they still show on the dashboard and nothing is dialed.';
     } else if (unpaired.length) {
       banner.hidden = false;
       banner.textContent = 'Calls are paused. Numbers saved on alerts before verification are not paired, so Fizzlayer will not dial them until you pair each one here.';
@@ -870,7 +876,7 @@
       }
       if (channels.includes('phone')) {
         if (!phoneData.calls_included) {
-          $('alert-message').textContent = 'Phone calls are included with Tinkerer, Pro, and Enterprise. Upgrade in Settings, or leave the phone box unchecked.';
+          $('alert-message').textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Leave the phone box unchecked to keep a dashboard or webhook alert.';
           return;
         }
         if (!$('alert-phone').value) {
