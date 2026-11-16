@@ -59,7 +59,9 @@
     const reset = new Date(plan.credits_reset_at).toLocaleDateString([], { month: 'long', day: 'numeric', timeZone: 'UTC' });
     $('plan-credits').textContent = plan.monthly_credits === null ? `${count(plan.credits_used)} used this month · Unlimited`
       : `${count(plan.credits_used)} of ${count(plan.monthly_credits)} used · Resets ${reset}`;
-    $('plan-calls').textContent = plan.calls_included ? 'Included' : 'Not included · Tinkerer, Pro, and Enterprise';
+    $('plan-calls').textContent = plan.calls_included
+      ? 'Included · Tinkerer and Pro share one monthly cap with phone approvals. That cap is not enforced yet.'
+      : 'Not included on Hobbyist · Tinkerer and Pro include phone calls';
   }
   function render(account) {
     $('settings-username').textContent = account.username;

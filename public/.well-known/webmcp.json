@@ -36,7 +36,7 @@
     },
     {
       "name": "list_plans",
-      "description": "Fizzlayer plans with price, device limit, monthly Fizz credits, and whether phone calls are included.",
+      "description": "Fizzlayer plans with price, device limit, monthly Fizz credits, and whether phone calls are included. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. Hobbyist ($0) includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured.",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -456,7 +456,7 @@
     },
     {
       "name": "create_alert",
-      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL. Asking again for the same alert returns the existing one.",
+      "description": "Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -517,7 +517,7 @@
                 "webhook"
               ]
             },
-            "description": "Where to notify. Default is the dashboard. phone is paid. email uses the verified account address. webhook needs webhook_url."
+            "description": "Where to notify. Default is the dashboard. phone is a paid call on Tinkerer and Pro, which share one monthly call cap. email is hidden until mail is configured. webhook is on every plan, including Hobbyist, and needs webhook_url."
           },
           "call_phone": {
             "type": "string",

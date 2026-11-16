@@ -360,7 +360,7 @@ The Compose file maps `host.docker.internal` to the host. Pull a model that supp
 
 **Voice.** `GET /api/voice` returns `{"available":false}` until `ELEVENLABS_API_KEY` is set. A voice request then returns 503: "Voice chat isn't available yet. You can still type to Fizz."
 
-**Phone calls.** Leave `AGENTPHONE_API_KEY` empty and alerts stay on the dashboard. Nothing is dialed. There is no self-hosted dialer. Calls are US voice only, and the account's plan must include them (Tinkerer, Pro, or Enterprise). Hobbyist does not place calls.
+**Phone calls.** Leave `AGENTPHONE_API_KEY` empty and nothing is dialed. There is no self-hosted dialer. Phone-call alerts and the pairing call are US voice only, and the account's plan must include them (Tinkerer, Pro, or Enterprise). Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist does not place calls. Dashboard and webhook alerts still work. Email alerts are included on every plan and stay hidden until `RESEND_API_KEY` and `FIZZ_ALERT_FROM` are both set.
 
 **Stripe.** Leave the four `STRIPE_*` variables empty. `GET /api/billing` returns `{"available":false}`. Sign-up skips the plan screen and checkout, shows no upgrade prompt, and continues to sensor selection. `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
 
@@ -519,7 +519,7 @@ Add these server-side environment variables to each environment you use:
 | `FIZZ_ALLOW_INSECURE_HTTP` | For the Docker gateway | Set to `1` to allow an `http://` Supabase URL that is not loopback, and an `http://` chat base on another host. Leave unset in production |
 | `SUPABASE_PUBLIC_URL` | When the browser cannot open `SUPABASE_URL` | Browser OAuth origin. The Docker stack sets this to `http://localhost:8080` while the API calls GoTrue at `http://gateway:8000` |
 
-Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion and dashboard alerts work without chat, speech, or phone calls. Pairing calls and alert calls use the same `AGENTPHONE_API_KEY` and `AGENTPHONE_AGENT_ID`. No new variable is required. Hobbyist accounts are not able to place either call.
+Keep credentials in Vercel's environment settings. The service-role key bypasses database RLS and must never appear in `public/`, client JavaScript, or committed files. No browser Supabase key is required. Optional provider credentials can be omitted; ingestion, dashboard alerts, and webhook alerts work without chat, speech, or phone calls. Email alerts need both `RESEND_API_KEY` and `FIZZ_ALERT_FROM`, and the dashboard hides email until both are set. Pairing calls and alert calls use the same `AGENTPHONE_API_KEY` and `AGENTPHONE_AGENT_ID`. No new variable is required for calls. Hobbyist accounts are not able to place either call. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. That cap is not enforced yet.
 
 AgentPhone requires an agent with an attached voice-enabled number. Calls use its first attached number. Configure provider spending limits before enabling paid features. Set call credentials only in environments that should dispatch notifications: setting a key in a preview also enables sending there.
 

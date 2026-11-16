@@ -384,7 +384,7 @@
       const threshold = Number(match[2]);
       const wantsCall = /call|phone/.test(text);
       if (wantsCall && !pairedPhones.length) {
-        return `I can watch ${sensor.name}, but a call needs a paired number. Use Phones above: the demo shows the code the real app would read aloud. Or ask for a dashboard alert, which does not call.`;
+        return `I can watch ${sensor.name}, but a call needs a paired number. Use Phones above: the demo shows the code the real app would read aloud. Or ask for a dashboard notice. This preview does not send email or a webhook.`;
       }
       const notification = wantsCall ? 'call' : 'dashboard';
       const created = addRule(sensor.id, comparator, threshold, notification);

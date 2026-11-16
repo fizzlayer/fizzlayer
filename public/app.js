@@ -16,10 +16,10 @@ const oauthProviders = { google: 'Google', github: 'GitHub' };
 let oauthEnabled = Object.keys(oauthProviders);
 // Same names, prices, and limits as the pricing page. Paid rows stay hidden when Stripe is unset.
 const signupPlans = [
-  { id: 'hobbyist', name: 'Hobbyist', tag: 'For your first sensors', price: '$0', detail: '3 connected devices · 10 Fizz credits / month · Phone calls: Dashboard only' },
-  { id: 'tinkerer', name: 'Tinkerer', tag: 'For the home lab', price: '$10', period: '/ month', detail: '10 connected devices · 100 Fizz credits / month · Phone calls: Included', paid: true },
-  { id: 'pro', name: 'Pro', tag: 'For serious setups', price: '$25', period: '/ month', detail: '50 connected devices · 1,000 Fizz credits / month · Phone calls: Included', paid: true },
-  { id: 'enterprise', name: 'Enterprise', tag: 'For teams and sites', price: 'Custom', detail: 'Custom connected devices · Custom Fizz credits · Phone calls: Included', href: '/enterprise' },
+  { id: 'hobbyist', name: 'Hobbyist', tag: 'For your first sensors', price: '$0', detail: '3 connected devices · 10 Fizz credits / month · Dashboard and webhook alerts · Email when mail is configured · No phone calls' },
+  { id: 'tinkerer', name: 'Tinkerer', tag: 'For the home lab', price: '$10', period: '/ month', detail: '10 connected devices · 100 Fizz credits / month · Phone calls share one monthly cap with approvals · Cap not enforced yet', paid: true },
+  { id: 'pro', name: 'Pro', tag: 'For serious setups', price: '$25', period: '/ month', detail: '50 connected devices · 1,000 Fizz credits / month · Phone calls share one monthly cap with approvals · Cap not enforced yet', paid: true },
+  { id: 'enterprise', name: 'Enterprise', tag: 'For teams and sites', price: 'Custom', detail: 'Custom connected devices · Custom Fizz credits · Phone calls: custom', href: '/enterprise' },
 ];
 const PLAN_KEY = 'fizz.signupPlan';
 const SIGNUP_FLAG = 'fizz.expectSignup';
