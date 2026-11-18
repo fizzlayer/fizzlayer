@@ -48,6 +48,7 @@ pub type Model {
 
 pub type Msg {
   Navigated(Uri)
+  LinkClicked(String)
   ConfigLoaded(#(Bool, String))
   ProvidersLoaded(#(Int, String))
   SessionLoaded(#(Bool, String, String))
@@ -77,6 +78,30 @@ pub fn main() -> Nil {
   }
 }
 
+/// Route changes. modem only reports Back and Forward and `modem.push`;
+/// `nav_ffi.mjs` decides which link clicks stay in the app.
+fn routing() -> Effect(Msg) {
+  effect.batch([
+    modem.advanced(
+      modem.Options(handle_internal_links: False, handle_external_links: False),
+      Navigated,
+    ),
+    effect.from(fn(dispatch) {
+      on_app_link(fn(href) { dispatch(LinkClicked(href)) })
+    }),
+  ])
+}
+
+@external(javascript, "./nav_ffi.mjs", "on_app_link")
+fn on_app_link(dispatch: fn(String) -> Nil) -> Nil
+
+/// The model the app starts with at `uri`, before any effect runs. The
+/// pre-rendered HTML for a route is `view(first_model(uri))`, so the first
+/// client render matches it.
+pub fn first_model(uri: Uri) -> Model {
+  boot_uri(blank(), uri).0
+}
+
 fn blank() -> Model {
   Model(
     route: route.SignIn,
@@ -97,7 +122,7 @@ fn blank() -> Model {
 fn init(_flags: Nil) -> #(Model, Effect(Msg)) {
   case modem.initial_uri() {
     Ok(uri) -> boot_uri(blank(), uri)
-    Error(_) -> #(blank(), effect.batch([modem.init(Navigated), load_config()]))
+    Error(_) -> #(blank(), effect.batch([routing(), load_config()]))
   }
 }
 
@@ -114,23 +139,31 @@ fn boot_uri(model: Model, uri: Uri) -> #(Model, Effect(Msg)) {
         account: SignedOut,
         gate: gateway.preview(name),
       ),
-      modem.init(Navigated),
+      routing(),
     )
     _ -> #(
       Model(
         ..model,
         route: parsed,
-        creating: wants_create(uri.query),
+        creating: wants_create(uri.path, uri.query),
         plan: wanted_plan(uri.query),
         notice: arrival_notice(uri.query),
       ),
-      effect.batch([modem.init(Navigated), load_config()]),
+      effect.batch([routing(), load_config()]),
     )
   }
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
+    LinkClicked(href) ->
+      case uri.parse(href) {
+        Ok(target) -> #(
+          model,
+          modem.push(target.path, target.query, target.fragment),
+        )
+        Error(_) -> #(model, effect.none())
+      }
     Navigated(uri) ->
       case route.parse(uri.path) {
         route.Leave(_) -> #(model, modem.load(uri))
@@ -466,10 +499,11 @@ fn text_or(message: String, fallback: String) -> String {
   }
 }
 
-fn wants_create(query: Option(String)) -> Bool {
-  case query {
-    Some(text) -> !route.query_flag(text, "mode", "sign-in")
-    None -> True
+fn wants_create(path: String, query: Option(String)) -> Bool {
+  case path, query {
+    "/app/sign-in", _ | "/app/sign-in/", _ -> False
+    _, Some(text) -> !route.query_flag(text, "mode", "sign-in")
+    _, None -> True
   }
 }
 
@@ -627,11 +661,12 @@ fn screen(model: Model) -> Element(Msg) {
       card("Page not found", [
         ui.lead(path <> " is not part of this app."),
         ui.actions([
-          ui.link_button(ui.Secondary, route.sign_in_path, [
+          ui.link_button(ui.Secondary, route.sign_in_form_path, [
             text("Back to sign-in"),
           ]),
         ]),
       ])
+    route.SignIn, Booting -> sign_in(model)
     _, Booting -> card("Loading…", [ui.muted("Checking your session.")])
     _, Unconfigured(message) ->
       card("Sign-in isn't configured", [
@@ -648,7 +683,9 @@ fn screen(model: Model) -> Element(Msg) {
             notice(model.notice),
             ui.lead("Sign in to set up a gateway."),
             ui.actions([
-              ui.link_button(ui.Primary, route.sign_in_path, [text("Sign in")]),
+              ui.link_button(ui.Primary, route.sign_in_form_path, [
+                text("Sign in"),
+              ]),
             ]),
           ])
       }

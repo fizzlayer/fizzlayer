@@ -29,7 +29,12 @@ pub type Route {
   Leave(path: String)
 }
 
+/// Where sign-in starts, and where OAuth and email links return to. Supabase
+/// allows this URL, so keep it stable.
 pub const sign_in_path = "/app"
+
+/// The sign-in form, as opposed to account creation at `/app`.
+pub const sign_in_form_path = "/app/sign-in"
 
 pub const start_path = "/app/start"
 
@@ -70,7 +75,7 @@ pub fn preview_path(name: String) -> String {
 /// do a full page load and hit the static site.
 pub fn parse(path: String) -> Route {
   case segments(path) {
-    [] | [""] | ["app"] | ["app", "index.html"] -> SignIn
+    [] | [""] | ["app"] | ["app", "index.html"] | ["app", "sign-in"] -> SignIn
     ["start"] | ["app", "start"] -> Start
     ["onboarding"] | ["app", "onboarding"] -> Onboarding(id: "", step: Create)
     ["onboarding", id, step] | ["app", "onboarding", id, step] ->

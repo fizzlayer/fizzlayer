@@ -14,6 +14,7 @@ import config
 import fizz_spa
 import gateway
 import openapi_routes
+import prerender
 import rewrites
 import route
 import site/landing
@@ -367,4 +368,24 @@ pub fn landing_keeps_waitlist_and_agent_hooks_test() {
   assert string.contains(html, "id=\"beta-company\"")
   assert string.contains(html, "id=\"beta-status\"")
   assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn sign_in_form_has_its_own_url_test() {
+  route.parse("/app/sign-in") |> should.equal(route.SignIn)
+  route.parse("/pricing") |> should.equal(route.Leave("/pricing"))
+}
+
+pub fn app_pages_are_prerendered_test() {
+  let create = prerender.app_page("/app", "Create your account")
+  assert string.contains(create, "<div id=\"app\"><div>")
+  assert string.contains(create, "Create your account")
+  assert string.contains(create, "src=\"/app/fizz_spa.js\"")
+  let sign_in = prerender.app_page("/app/sign-in", "Sign in")
+  assert string.contains(sign_in, "<h2>Sign in</h2>")
+    || string.contains(sign_in, ">Sign in</h")
+  assert !string.contains(sign_in, "Create your account</h")
+  let shell = prerender.app_page("/app/gateways", "Fizzlayer")
+  assert string.contains(shell, "Checking your session.")
+  let tools = prerender.app_page("/app/preview/tools", "Example")
+  assert string.contains(tools, ">Ask first<")
 }

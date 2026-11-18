@@ -337,7 +337,22 @@ fn safe_file(root: &Path, url_path: &str) -> Option<PathBuf> {
             _ => return None,
         }
     }
-    path.is_file().then_some(path)
+    if path.is_file() {
+        return Some(path);
+    }
+    // The Gleam app under /app: a pre-rendered page for a static URL, or the
+    // loading shell for the rest, as the Vercel rewrites do.
+    if url_path == "/app" || url_path.starts_with("/app/") {
+        let index = path.join("index.html");
+        if index.is_file() {
+            return Some(index);
+        }
+        let shell = root.join("app").join("shell.html");
+        if url_path.starts_with("/app/") && shell.is_file() {
+            return Some(shell);
+        }
+    }
+    None
 }
 
 async fn static_file(url_path: &str) -> Response<Full<Bytes>> {
@@ -533,5 +548,23 @@ mod tests {
         let root = Path::new("public");
         assert!(safe_file(root, "/../Cargo.toml").is_none());
         assert!(safe_file(root, "/index.html").is_some());
+    }
+
+    #[test]
+    fn app_paths_use_prerendered_pages_then_the_shell() {
+        let root = env::temp_dir().join(format!("fizz-serve-app-{}", std::process::id()));
+        fs::create_dir_all(root.join("app/sign-in")).unwrap();
+        fs::write(root.join("app/index.html"), "create").unwrap();
+        fs::write(root.join("app/sign-in/index.html"), "sign in").unwrap();
+        fs::write(root.join("app/shell.html"), "shell").unwrap();
+        let read =
+            |path: &str| safe_file(&root, path).map(|file| fs::read_to_string(file).unwrap());
+        assert_eq!(read("/app").as_deref(), Some("create"));
+        assert_eq!(read("/app/").as_deref(), Some("create"));
+        assert_eq!(read("/app/sign-in").as_deref(), Some("sign in"));
+        assert_eq!(read("/app/gateways/abc/tools").as_deref(), Some("shell"));
+        assert_eq!(read("/apple"), None);
+        assert_eq!(read("/app/../Cargo.toml"), None);
+        fs::remove_dir_all(&root).unwrap();
     }
 }

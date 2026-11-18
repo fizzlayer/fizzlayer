@@ -111,7 +111,7 @@ fn header() -> Element(msg) {
         html.a(
           [
             attribute.class("site-nav-link"),
-            attribute.href("/app?mode=sign-in"),
+            attribute.href("/app/sign-in"),
           ],
           [text("Sign in")],
         ),
@@ -125,7 +125,7 @@ fn header() -> Element(msg) {
             html.a(
               [
                 attribute.class("site-nav-link"),
-                attribute.href("/app?mode=sign-in"),
+                attribute.href("/app/sign-in"),
               ],
               [text("Sign in")],
             ),
