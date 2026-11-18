@@ -12,7 +12,12 @@ pub fn page() -> Element(msg) {
       description: "Fizzlayer sits between your AI agents and the tools they call. Allow a tool, block it, or approve each call before it runs.",
       path: "/",
       image_alt: "Fizzlayer between an AI agent and its tools, with Allow, Block and Ask first rules.",
-      scripts: ["/gateway-beta.js", "/webmcp.js", "/analytics.js"],
+      scripts: [
+        "/auth-redirect.js",
+        "/gateway-beta.js",
+        "/webmcp.js",
+        "/analytics.js",
+      ],
     ),
     [
       hero(),

@@ -135,12 +135,6 @@ fn plain(value: String) -> Bool {
   })
 }
 
-pub type AuthNext {
-  SignedIn
-  ConfirmEmail
-  AuthFailed(String)
-}
-
 pub type Failure {
   Upgrade(String)
   Message(String)
@@ -269,21 +263,6 @@ pub fn cap_label(cap: Cap) -> String {
   }
 }
 
-pub fn auth_outcome(status: Int, body: String) -> AuthNext {
-  case status {
-    200 ->
-      case json.parse(body, confirm_decoder()) {
-        Ok(True) -> ConfirmEmail
-        _ ->
-          case json.parse(body, ok_decoder()) {
-            Ok(True) -> SignedIn
-            _ -> AuthFailed("Sign-in could not be finished.")
-          }
-      }
-    _ -> AuthFailed(error_message(body, "Sign-in could not be finished."))
-  }
-}
-
 pub fn failure(status: Int, body: String, fallback: String) -> Failure {
   let message = error_message(body, fallback)
   case status {
@@ -301,15 +280,6 @@ pub fn hosted_available(status: Int, body: String) -> Bool {
       }
     _ -> False
   }
-}
-
-pub fn auth_body(action: String, email: String, password: String) -> String {
-  json.object([
-    #("action", json.string(action)),
-    #("email", json.string(email)),
-    #("password", json.string(password)),
-  ])
-  |> json.to_string
 }
 
 pub fn gateway_body(name: String, mode: String, public_url: String) -> String {
@@ -503,11 +473,6 @@ pub fn client_token_ok(token: String) -> Bool {
   && !string.contains(token, "\"")
   && !string.contains(token, "\n")
   && list.all(parts, fn(part) { part != "" })
-}
-
-fn confirm_decoder() -> decode.Decoder(Bool) {
-  use confirm <- decode.field("confirm_email", decode.bool)
-  decode.success(confirm)
 }
 
 fn hosted_decoder() -> decode.Decoder(Bool) {

@@ -1,3 +1,13 @@
+// DEPRECATED. Sign-in moved to the Gleam app at /app/sign-in (app/src/signin.gleam).
+// This page now only shows the Sensors setup and workspace to a signed-in account,
+// until they move into the app at /app/sensors. Signed-out visitors, email links and
+// sign-in errors are sent to /app/sign-in. The sign-in code below no longer runs and
+// goes when this file does.
+const SIGN_IN = '/app/sign-in';
+if (/(^|&)(access_token|error|error_code|auth_error)=/.test(location.hash.slice(1))) {
+  location.replace(SIGN_IN + location.search + location.hash);
+}
+
 const $ = (id) => document.getElementById(id);
 const form = $('account-form');
 const sensorNames = {
@@ -512,10 +522,7 @@ async function signOut() {
     $('setup').hidden = true;
     $('plan-screen').hidden = true;
     $('dashboard').hidden = true;
-    $('account-panel').hidden = false;
-    document.querySelector('.shell').classList.remove('setup-active', 'dashboard-active', 'plan-active');
-    chosenKinds = [];
-    setMode('sign-in');
+    location.assign(SIGN_IN);
   } catch { /* Keep the signed-in view if the server could not revoke the session. */ }
 }
 $('sign-out').addEventListener('click', signOut);
@@ -570,13 +577,13 @@ if (linkToken && hash.get('type') === 'recovery') {
   fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
     .then((response) => response.ok ? response.json() : null)
     .then((data) => {
-      if (!data?.username) return;
+      if (!data?.username) return location.replace(SIGN_IN + location.search);
       if (billingNotice) return showBillingReturn(data.username);
       const signup = sessionStorage.getItem(SIGNUP_FLAG) === '1';
       if (signup || localStorage.getItem(PLAN_KEY)) return continueAfterSignup(data.username, signup);
       showSetup(data.username);
     })
-    .catch(() => {});
+    .catch(() => location.replace(SIGN_IN + location.search));
 }
 
 billingKnown = fetch('/api/billing', { credentials: 'same-origin', cache: 'no-store' })

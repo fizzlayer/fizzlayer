@@ -85,6 +85,11 @@ pub fn app_page(path: String, title: String) -> String {
           attribute.attribute("crossorigin", ""),
         ]),
         html.link([attribute.rel("stylesheet"), attribute.href("/app/fizz.css")]),
+        // Passkey sign-in uses window.fizzPasskey; it must run before the app.
+        html.script(
+          [attribute.src("/passkey.js"), attribute.attribute("defer", "")],
+          "",
+        ),
         html.script(
           [attribute.type_("module"), attribute.src("/app/fizz_spa.js")],
           "",

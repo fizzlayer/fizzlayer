@@ -31,7 +31,18 @@ function resolve(urlPath) {
   return null;
 }
 
+// No API runs here. Answer like a server with nobody signed in, so pages show
+// their signed-out state instead of a connection error.
+function api(request, response) {
+  const signedOut = request.url.startsWith("/api/me");
+  response.writeHead(signedOut ? 401 : 503, { "content-type": "application/json" });
+  response.end(JSON.stringify({ error: signedOut
+    ? { code: "unauthorized", message: "Sign in first." }
+    : { code: "preview", message: "The API isn't running in this preview." } }));
+}
+
 const server = http.createServer((request, response) => {
+  if ((request.url ?? "").startsWith("/api/")) return api(request, response);
   const file = resolve(request.url ?? "/");
   if (!file) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });

@@ -383,6 +383,22 @@
   .plan ul { margin: 0 0 var(--space-3); color: var(--color-text-muted); font-size: var(--text-sm); }
 }
 
+@layer components {
+  /* Sign-in */
+  .segmented { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; gap: 4px; margin: var(--space-4) 0 var(--space-5); padding: 4px; border-radius: 999px; background: var(--color-subtle); border: 1px solid var(--color-border); }
+  .segmented-option { min-height: 36px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-muted); font-weight: 600; font-size: var(--text-sm); cursor: pointer; }
+  .segmented-option:hover { color: var(--color-text); }
+  .segmented-option[aria-pressed='true'] { background: var(--color-primary); color: #fff; }
+  .button-block { display: flex; width: 100%; justify-content: center; }
+  .button-provider { gap: var(--space-2); }
+  .provider-mark { display: inline-flex; width: 18px; height: 18px; }
+  .divider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-5) 0 var(--space-4); color: var(--color-text-muted); font-size: var(--text-sm); }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--color-border); }
+  .fine-print { margin: var(--space-5) 0 0; color: var(--color-text-muted); font-size: var(--text-xs); text-align: center; }
+  .field-extra { display: flex; justify-content: flex-end; margin-top: var(--space-2); font-size: var(--text-sm); }
+  form > .button-block { margin-top: var(--space-5); }
+}
+
 @layer site {
   /* Public site pages: landing, product, pricing. Larger type, more air. */
   .site { color: var(--color-body); font-size: var(--text-md); line-height: 1.6; }

@@ -9,7 +9,7 @@
 //! - `GET /api/auth?provider=google` (or `github`) starts sign-in with PKCE, and
 //!   `GET /api/auth?code=...` finishes it.
 //! - `POST /api/auth` with `{"action": ...}` handles email and password, links from Supabase
-//!   emails (which arrive in `/app.html#access_token=...`), and passkeys.
+//!   emails (which arrive in `/app/sign-in#access_token=...`), and passkeys.
 //!
 //! After any sign-in, the Supabase access token is kept for up to an hour in an HttpOnly cookie.
 //! Supabase only lets a signed-in user register a passkey, and this is how "Add passkey" proves it.
@@ -28,6 +28,11 @@ use crate::customer::{
     session_cookie,
 };
 use crate::security::request_origin;
+
+/// The sign-in page in the Gleam app. Email links and Google or GitHub sign-in come back here.
+/// Supabase must allow `{origin}/app/sign-in` as a redirect URL; otherwise it falls back to the
+/// site URL and `public/auth-redirect.js` forwards the link here.
+pub const SIGN_IN_PATH: &str = "/app/sign-in";
 #[cfg(test)]
 use crate::security::site_origin;
 use crate::store::Supabase;
@@ -202,7 +207,7 @@ pub async fn action(request: Request) -> Response<ResponseBody> {
     let ctx = Ctx {
         store,
         ip,
-        app_url: format!("{origin}/app.html"),
+        app_url: format!("{origin}{SIGN_IN_PATH}"),
     };
     let text = |key: &str| data.get(key).and_then(Value::as_str).unwrap_or("");
     match text("action") {
@@ -776,8 +781,8 @@ fn pkce_challenge(verifier: &str) -> String {
 
 fn back_to_app(auth_error: Option<&str>, cookies: &[&str]) -> Response<ResponseBody> {
     match auth_error {
-        Some(code) => redirect(&format!("/app.html#auth_error={code}"), cookies),
-        None => redirect("/app.html", cookies),
+        Some(code) => redirect(&format!("{SIGN_IN_PATH}#auth_error={code}"), cookies),
+        None => redirect(SIGN_IN_PATH, cookies),
     }
 }
 

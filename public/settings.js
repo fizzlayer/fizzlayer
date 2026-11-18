@@ -178,11 +178,11 @@
     catch (error) { $('page-error').textContent = error.message; }
   }
   $('settings-sign-out').addEventListener('click', () => signOut('/app.html'));
-  $('sign-in-again').addEventListener('click', () => signOut('/app.html#sign-in'));
+  $('sign-in-again').addEventListener('click', () => signOut('/app/sign-in'));
 
   for (const slot of document.querySelectorAll('[data-key-icon]')) slot.append(keyIcon());
   refresh().then(afterCheckout).catch((error) => {
-    if (error.status === 401) location.href = '/app.html#sign-in';
+    if (error.status === 401) location.href = '/app/sign-in';
     else $('page-error').textContent = error.message;
   });
 })();

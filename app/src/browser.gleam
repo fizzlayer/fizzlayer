@@ -66,23 +66,6 @@ pub fn get_session(done: fn(#(Bool, String, String)) -> Nil) -> Nil {
   done(#(False, "Sessions are only available in the browser", ""))
 }
 
-@external(javascript, "./supabase_ffi.mjs", "sign_in_with_otp")
-pub fn sign_in_with_otp(
-  _email: String,
-  _redirect_to: String,
-  done: fn(#(Bool, String)) -> Nil,
-) -> Nil {
-  done(#(False, "Magic links are only available in the browser"))
-}
-
-@external(javascript, "./supabase_ffi.mjs", "sign_in_with_github")
-pub fn sign_in_with_github(
-  _redirect_to: String,
-  done: fn(#(Bool, String)) -> Nil,
-) -> Nil {
-  done(#(False, "GitHub sign-in is only available in the browser"))
-}
-
 @external(javascript, "./supabase_ffi.mjs", "sign_out_local")
 pub fn sign_out_local(done: fn(#(Bool, String)) -> Nil) -> Nil {
   done(#(False, "Sign-out is only available in the browser"))
