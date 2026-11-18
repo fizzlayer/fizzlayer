@@ -23,7 +23,7 @@ def main() -> None:
         return match.group(0)
 
     updated = re.sub(r'\b(src|href)="([^"]+)"', replace, html_path.read_text(encoding="utf-8"))
-    if 'src="/app/fizz_spa.js"' not in updated or 'href="/app/spa.css"' not in updated:
+    if 'src="/app/fizz_spa.js"' not in updated or 'href="/app/fizz.css"' not in updated:
         sys.stderr.write("SPA index.html is missing its /app asset paths.\n")
         sys.exit(1)
     html_path.write_text(updated, encoding="utf-8")

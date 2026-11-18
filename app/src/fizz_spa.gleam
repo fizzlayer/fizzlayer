@@ -14,6 +14,7 @@ import browser
 import config
 import gateway
 import route.{type Route}
+import ui
 
 pub type Notice {
   Quiet
@@ -579,42 +580,35 @@ fn push(path: String) -> Effect(Msg) {
 
 pub fn view(model: Model) -> Element(Msg) {
   let wide = case model.route {
-    route.SignIn -> ""
-    _ -> " wide"
+    route.SignIn -> False
+    _ -> True
   }
-  html.div([attribute.class("page")], [
-    html.header([attribute.class("top")], [
-      html.a([attribute.class("brand"), attribute.href(route.sign_in_path)], [
-        html.img([
-          attribute.src("/fizz-logo.svg"),
-          attribute.alt("Fizzlayer"),
-          attribute.width(28),
-          attribute.height(28),
-        ]),
-        text("Fizzlayer"),
-      ]),
-      case model.route {
-        route.Preview(_) ->
-          html.span([attribute.class("preview")], [text("Example")])
+  let on_gateway = case model.route {
+    route.SignIn | route.NotFound(_) | route.Leave(_) -> False
+    _ -> True
+  }
+  html.div([], [
+    ui.app_header([
+      ui.wordmark("/"),
+      case model.account {
+        SignedIn(_, _) ->
+          ui.nav("Sections", [
+            ui.nav_link(route.gateways_path, "Gateway", on_gateway),
+            ui.nav_link("/sensors", "Sensors", False),
+          ])
         _ -> element.none()
       },
-      html.span([attribute.class("spacer")], []),
+      case model.route {
+        route.Preview(_) -> ui.badge("Example")
+        _ -> element.none()
+      },
       case model.account {
         SignedIn(username, _) ->
-          html.span([attribute.class("who")], [text(username)])
-        _ -> element.none()
-      },
-      html.a([attribute.href(route.gateways_path)], [text("Gateways")]),
-      html.a([attribute.href("/sensors")], [text("Sensors")]),
-      html.a([attribute.href("/")], [text("Home")]),
-      case model.account {
-        SignedIn(_, _) -> sign_out_button(model.busy)
+          ui.account([ui.user(username), sign_out_button(model.busy)])
         _ -> element.none()
       },
     ]),
-    html.main([attribute.id("main"), attribute.class("main" <> wide)], [
-      screen(model),
-    ]),
+    ui.main(wide, [screen(model)]),
   ])
 }
 
@@ -622,34 +616,29 @@ fn screen(model: Model) -> Element(Msg) {
   case model.route, model.account {
     route.Preview(_), _ ->
       html.div([], [
-        html.p([attribute.class("info")], [
-          text("Example data for layout. This is not your account."),
-        ]),
+        ui.notice_text(
+          ui.Neutral,
+          "Example data for layout. This is not your account.",
+        ),
         element.map(gateway.view(model.gate), Gate),
       ])
-    route.Leave(_), _ ->
-      card("Opening…", [html.p([], [text("Leaving this page.")])])
+    route.Leave(_), _ -> card("Opening…", [ui.muted("Leaving this page.")])
     route.NotFound(path), _ ->
       card("Page not found", [
-        html.p([attribute.class("muted")], [
-          text(path <> " is not part of this app."),
-        ]),
-        html.a([attribute.class("button"), attribute.href(route.sign_in_path)], [
-          text("Back to sign-in"),
+        ui.lead(path <> " is not part of this app."),
+        ui.actions([
+          ui.link_button(ui.Secondary, route.sign_in_path, [
+            text("Back to sign-in"),
+          ]),
         ]),
       ])
-    _, Booting ->
-      card("Loading…", [
-        html.p([attribute.class("muted")], [text("Checking your session.")]),
-      ])
+    _, Booting -> card("Loading…", [ui.muted("Checking your session.")])
     _, Unconfigured(message) ->
       card("Sign-in isn't configured", [
         alert(message),
-        html.p([attribute.class("muted")], [
-          text(
-            "Set SUPABASE_URL and SUPABASE_ANON_KEY for the build. Use the anon or publishable key, never the service-role key.",
-          ),
-        ]),
+        ui.muted(
+          "Set SUPABASE_URL and SUPABASE_ANON_KEY for the build. Use the anon or publishable key, never the service-role key.",
+        ),
       ])
     _, SignedOut ->
       case model.route {
@@ -657,14 +646,10 @@ fn screen(model: Model) -> Element(Msg) {
         _ ->
           card("Sign in", [
             notice(model.notice),
-            html.p([], [text("Sign in to set up a gateway.")]),
-            html.a(
-              [
-                attribute.class("button primary"),
-                attribute.href(route.sign_in_path),
-              ],
-              [text("Sign in")],
-            ),
+            ui.lead("Sign in to set up a gateway."),
+            ui.actions([
+              ui.link_button(ui.Primary, route.sign_in_path, [text("Sign in")]),
+            ]),
           ])
       }
     _, SignedIn(_, _) ->
@@ -682,79 +667,53 @@ fn sign_in(model: Model) -> Element(Msg) {
   }
   card(title, [
     notice(model.notice),
-    html.p([attribute.class("muted")], [
-      text(case model.creating {
-        True ->
-          "After the account exists you choose a gateway or Sensors. Gateway is the default. A new account starts on Hobbyist."
-        False ->
-          "Sign in with your email and password. A magic link works for an account that already exists."
-      }),
-    ]),
-    html.div([attribute.class("row")], [
-      html.button(
-        [
-          attribute.type_("button"),
-          attribute.class(case model.creating {
-            True -> "primary"
-            False -> "ghost"
-          }),
-          event.on_click(ShowCreate),
-        ],
-        [text("Create account")],
-      ),
-      html.button(
-        [
-          attribute.type_("button"),
-          attribute.class(case model.creating {
-            False -> "primary"
-            True -> "ghost"
-          }),
-          event.on_click(ShowSignIn),
-        ],
-        [text("Sign in")],
-      ),
-    ]),
+    ui.lead(case model.creating {
+      True ->
+        "Your account starts on the free Hobbyist plan. Next, you choose what to set up."
+      False -> "Use your email and password, or get a sign-in link by email."
+    }),
     html.form([event.on_submit(fn(_) { SubmitPassword })], [
-      html.label([attribute.for("email")], [text("Email")]),
-      html.input([
-        attribute.id("email"),
-        attribute.name("email"),
-        attribute.type_("email"),
-        attribute.autocomplete("email"),
-        attribute.required(True),
-        attribute.placeholder("you@example.com"),
-        attribute.value(model.email),
-        attribute.disabled(model.busy),
-        event.on_input(EmailEdited),
-      ]),
-      html.label([attribute.for("password")], [text("Password")]),
-      html.input([
-        attribute.id("password"),
-        attribute.name("password"),
-        attribute.type_("password"),
-        attribute.autocomplete(case model.creating {
-          True -> "new-password"
-          False -> "current-password"
-        }),
-        attribute.required(True),
-        attribute.value(model.password),
-        attribute.disabled(model.busy),
-        event.on_input(PasswordEdited),
-      ]),
-      case model.creating {
-        True ->
-          html.p([attribute.class("muted")], [
-            text("At least 12 characters, up to 72 bytes."),
-          ])
-        False -> element.none()
-      },
-      html.div([attribute.class("row")], [
-        html.button(
-          [
-            attribute.class("primary"),
-            attribute.type_("submit"),
-            attribute.disabled(model.busy),
-          ],
+      ui.field(
+        "Email",
+        "email",
+        "",
+        ui.input([
+          attribute.id("email"),
+          attribute.name("email"),
+          attribute.type_("email"),
+          attribute.autocomplete("email"),
+          attribute.required(True),
+          attribute.placeholder("you@example.com"),
+          attribute.value(model.email),
+          attribute.disabled(model.busy),
+          event.on_input(EmailEdited),
+        ]),
+      ),
+      ui.field(
+        "Password",
+        "password",
+        case model.creating {
+          True -> "At least 12 characters."
+          False -> ""
+        },
+        ui.input([
+          attribute.id("password"),
+          attribute.name("password"),
+          attribute.type_("password"),
+          attribute.autocomplete(case model.creating {
+            True -> "new-password"
+            False -> "current-password"
+          }),
+          attribute.required(True),
+          attribute.value(model.password),
+          attribute.disabled(model.busy),
+          event.on_input(PasswordEdited),
+        ]),
+      ),
+      ui.actions([
+        ui.button(
+          ui.Primary,
+          [attribute.type_("submit"), attribute.disabled(model.busy)],
           [
             text(case model.busy, model.creating {
               True, _ -> "Please wait…"
@@ -763,46 +722,61 @@ fn sign_in(model: Model) -> Element(Msg) {
             }),
           ],
         ),
+        case model.creating {
+          False ->
+            ui.button(
+              ui.Secondary,
+              [
+                attribute.type_("button"),
+                attribute.disabled(model.busy),
+                event.on_click(SendMagicLink),
+              ],
+              [text("Email me a sign-in link")],
+            )
+          True -> element.none()
+        },
+        case model.github {
+          False -> element.none()
+          True ->
+            ui.button(
+              ui.Secondary,
+              [
+                attribute.type_("button"),
+                attribute.disabled(model.busy),
+                event.on_click(StartGitHub),
+              ],
+              [text("Continue with GitHub")],
+            )
+        },
       ]),
     ]),
-    case model.creating {
-      False ->
-        html.button(
-          [
-            attribute.class("ghost"),
-            attribute.type_("button"),
-            attribute.disabled(model.busy),
-            event.on_click(SendMagicLink),
-          ],
-          [text("Email me a sign-in link")],
-        )
-      True -> element.none()
-    },
-    case model.github {
-      False -> element.none()
-      True ->
-        html.button(
-          [
-            attribute.class("ghost"),
-            attribute.type_("button"),
-            attribute.disabled(model.busy),
-            event.on_click(StartGitHub),
-          ],
-          [
-            text(case model.creating {
-              True -> "Sign up with GitHub"
-              False -> "Continue with GitHub"
-            }),
-          ],
-        )
-    },
+    html.p([], [
+      text(case model.creating {
+        True -> "Already have an account? "
+        False -> "New to Fizzlayer? "
+      }),
+      ui.text_button(
+        [
+          event.on_click(case model.creating {
+            True -> ShowSignIn
+            False -> ShowCreate
+          }),
+        ],
+        [
+          text(case model.creating {
+            True -> "Sign in"
+            False -> "Create an account"
+          }),
+        ],
+      ),
+    ]),
   ])
 }
 
 fn sign_out_button(busy: Bool) -> Element(Msg) {
-  html.button(
+  ui.button(
+    ui.Secondary,
     [
-      attribute.class("ghost"),
       attribute.type_("button"),
       attribute.disabled(busy),
       event.on_click(SignOutClicked),
@@ -812,20 +786,17 @@ fn sign_out_button(busy: Bool) -> Element(Msg) {
 }
 
 fn card(title: String, body: List(Element(Msg))) -> Element(Msg) {
-  html.section([attribute.class("card")], [html.h1([], [text(title)]), ..body])
+  ui.card([], [html.h1([], [text(title)]), ..body])
 }
 
 fn notice(notice: Notice) -> Element(Msg) {
   case notice {
     Quiet -> element.none()
-    Info(message) ->
-      html.p([attribute.role("status"), attribute.class("info")], [
-        text(message),
-      ])
+    Info(message) -> ui.notice_text(ui.Good, message)
     Alert(message) -> alert(message)
   }
 }
 
 fn alert(message: String) -> Element(Msg) {
-  html.p([attribute.role("alert"), attribute.class("alert")], [text(message)])
+  ui.notice_text(ui.Bad, message)
 }

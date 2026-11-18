@@ -22,6 +22,8 @@ jobs:
       - name: Check formatting
         working-directory: app
         run: gleam format --check
+      - name: Classes only in ui.gleam
+        run: bash scripts/check-ui-classes.sh
       - name: Test
         working-directory: app
         run: npm ci && gleam test

@@ -17,6 +17,7 @@ import api
 import browser
 import clients
 import route.{type Route}
+import ui
 
 pub type Screen {
   Choose
@@ -493,7 +494,7 @@ fn save_policy(
               )
           }
         _, _, _ -> #(
-          bad(model, "Choose allow, deny, or approve."),
+          bad(model, "Choose Allow, Block, or Ask first."),
           effect.none(),
           "",
         )
@@ -780,7 +781,7 @@ fn probe_ok(model: Model, body: String) -> Model {
     [] ->
       "That server returned no tools. Name the ones you want to rule, or come back after the gateway has listed them."
     _ ->
-      "These names came from the server just now. A missing rule denies the call."
+      "These names came from the server just now. Tools without a rule are blocked."
   }
   Model(..model, discovered: names, probe_note: note)
 }
@@ -1031,37 +1032,27 @@ pub fn view(model: Model) -> Element(Msg) {
 }
 
 fn choose(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-choose")], [
+  ui.card([attribute.id("step-choose")], [
     html.h1([], [text("What do you want to set up?")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "Gateway is the default. It is one MCP endpoint, with a rule for each tool. Sensors are the devices and phone alerts you already have.",
-      ),
-    ]),
-    html.div([attribute.class("choices")], [
-      html.div([attribute.class("choice default")], [
+    ui.lead("You can add the other one later."),
+    ui.choices([
+      ui.choice(True, [
         html.h2([], [text("Gateway")]),
         html.p([], [
           text(
-            "Add an MCP server, set allow, deny, or approve, and connect a client.",
+            "Choose which tools your AI agents can use, and approve risky calls before they run.",
           ),
         ]),
-        html.a(
-          [
-            attribute.class("button primary"),
-            attribute.href(route.onboarding_path("", route.Create)),
-          ],
-          [text("Set up a gateway")],
-        ),
+        ui.link_button(ui.Primary, route.onboarding_path("", route.Create), [
+          text("Set up a gateway"),
+        ]),
       ]),
-      html.div([attribute.class("choice")], [
+      ui.choice(False, [
         html.h2([], [text("Sensors")]),
         html.p([], [
-          text(
-            "Pair a device, watch readings, and keep the sensor app where it is.",
-          ),
+          text("Connect devices, watch their readings, and get alerts."),
         ]),
-        html.a([attribute.class("button ghost"), attribute.href("/sensors")], [
+        ui.link_button(ui.Secondary, "/sensors", [
           text("Open Sensors"),
         ]),
       ]),
@@ -1079,7 +1070,7 @@ fn choose(model: Model) -> Element(Msg) {
 }
 
 fn create_form(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-create")], [
+  ui.card([attribute.id("step-create")], [
     steps(model),
     html.h1([], [text("Create a gateway")]),
     hosted_note(model),
@@ -1093,25 +1084,30 @@ fn create_form(model: Model) -> Element(Msg) {
         False,
         NameEdited,
       ),
-      html.label([attribute.for("gateway-mode")], [text("Where it runs")]),
-      html.select(
-        [
-          attribute.id("gateway-mode"),
-          attribute.disabled(model.busy),
-          event.on_change(ModeEdited),
-        ],
-        [
-          option("shared", "Shared", model.mode == "shared"),
-          option("selfhost", "Self-host", model.mode == "selfhost"),
-          case model.plan.dedicated {
-            True -> option("dedicated", "Dedicated", model.mode == "dedicated")
-            False ->
-              html.option(
-                [attribute.value("dedicated"), attribute.disabled(True)],
-                "Dedicated (Pro)",
-              )
-          },
-        ],
+      ui.field(
+        "Where it runs",
+        "gateway-mode",
+        "",
+        ui.select(
+          [
+            attribute.id("gateway-mode"),
+            attribute.disabled(model.busy),
+            event.on_change(ModeEdited),
+          ],
+          [
+            option("shared", "Shared", model.mode == "shared"),
+            option("selfhost", "Self-host", model.mode == "selfhost"),
+            case model.plan.dedicated {
+              True ->
+                option("dedicated", "Dedicated", model.mode == "dedicated")
+              False ->
+                html.option(
+                  [attribute.value("dedicated"), attribute.disabled(True)],
+                  "Dedicated (Pro)",
+                )
+            },
+          ],
+        ),
       ),
       case model.mode == "selfhost" {
         True ->
@@ -1125,10 +1121,10 @@ fn create_form(model: Model) -> Element(Msg) {
           )
         False -> element.none()
       },
-      html.div([attribute.class("row")], [
-        html.button(
+      ui.actions([
+        ui.button(
+          ui.Primary,
           [
-            attribute.class("primary"),
             attribute.type_("submit"),
             attribute.disabled(model.busy),
           ],
@@ -1140,14 +1136,12 @@ fn create_form(model: Model) -> Element(Msg) {
 }
 
 fn server_form(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-server")], [
+  ui.card([attribute.id("step-server")], [
     steps(model),
     html.h1([], [text("Add an MCP server")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "Paste the server URL. If it needs a key, it is stored encrypted and is not shown again. This page does not keep the key after you submit.",
-      ),
-    ]),
+    ui.muted(
+      "Paste the server URL. If it needs a key, it is stored encrypted and is not shown again. This page does not keep the key after you submit.",
+    ),
     html.form([event.on_submit(fn(_) { SubmitServer })], [
       field(
         "Server name",
@@ -1165,22 +1159,26 @@ fn server_form(model: Model) -> Element(Msg) {
         False,
         ServerUrlEdited,
       ),
-      html.label([attribute.for("auth-kind")], [text("Auth")]),
-      html.select(
-        [
-          attribute.id("auth-kind"),
-          attribute.disabled(model.busy),
-          event.on_change(AuthKindEdited),
-        ],
-        [
-          option("none", "No extra credential", model.auth_kind == "none"),
-          option("key", "API key or token", model.auth_kind == "key"),
-          option(
-            "passthrough",
-            "Pass the client token through",
-            model.auth_kind == "passthrough",
-          ),
-        ],
+      ui.field(
+        "Auth",
+        "auth-kind",
+        "",
+        ui.select(
+          [
+            attribute.id("auth-kind"),
+            attribute.disabled(model.busy),
+            event.on_change(AuthKindEdited),
+          ],
+          [
+            option("none", "No extra credential", model.auth_kind == "none"),
+            option("key", "API key or token", model.auth_kind == "key"),
+            option(
+              "passthrough",
+              "Pass the client token through",
+              model.auth_kind == "passthrough",
+            ),
+          ],
+        ),
       ),
       case model.auth_kind == "key" {
         True ->
@@ -1194,10 +1192,10 @@ fn server_form(model: Model) -> Element(Msg) {
           )
         False -> element.none()
       },
-      html.div([attribute.class("row")], [
-        html.button(
+      ui.actions([
+        ui.button(
+          ui.Primary,
           [
-            attribute.class("primary"),
             attribute.type_("submit"),
             attribute.disabled(model.busy),
           ],
@@ -1210,29 +1208,28 @@ fn server_form(model: Model) -> Element(Msg) {
 }
 
 fn tools(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-tools")], [
+  ui.card([attribute.id("step-tools")], [
     steps(model),
     html.h1([], [text("Rules for each tool")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "Allow runs the tool. Deny blocks it. Approve rejects the call until you allow that same call once, then the agent retries. A tool with no rule is denied.",
-      ),
-    ]),
+    ui.lead(
+      "Allow runs the tool. Block stops it. Ask first holds each call until you approve it, then the agent tries again. Tools without a rule are blocked.",
+    ),
     channel_field(model),
     case model.probe_note {
       "" -> element.none()
-      note -> html.p([attribute.class("muted")], [text(note)])
+      note -> ui.muted(note)
     },
     server_picker(model),
-    tool_row(model, "*"),
+    ui.list([
+      tool_row(model, "*"),
+      ..list.map(tool_names(model), fn(name) { tool_row(model, name) })
+    ]),
     case tool_names(model) {
       [] ->
-        html.p([attribute.class("muted")], [
-          text(
-            "No tool names yet. Type one, or wait until the gateway lists them.",
-          ),
-        ])
-      names -> html.div([], list.map(names, fn(name) { tool_row(model, name) }))
+        ui.muted(
+          "No tool names yet. Type one, or wait until the gateway lists them.",
+        )
+      _ -> element.none()
     },
     html.form([event.on_submit(fn(_) { SaveNamedTool })], [
       field(
@@ -1243,10 +1240,10 @@ fn tools(model: Model) -> Element(Msg) {
         False,
         ToolEdited,
       ),
-      html.div([attribute.class("row")], [
-        html.button(
+      ui.actions([
+        ui.button(
+          ui.Secondary,
           [
-            attribute.class("primary"),
             attribute.type_("submit"),
             attribute.disabled(model.busy),
           ],
@@ -1254,10 +1251,10 @@ fn tools(model: Model) -> Element(Msg) {
         ),
       ]),
     ]),
-    html.div([attribute.class("row")], [
-      html.button(
+    ui.actions([
+      ui.button(
+        ui.Primary,
         [
-          attribute.class("primary"),
           attribute.type_("button"),
           attribute.disabled(model.busy),
           event.on_click(Continue(route.Pin)),
@@ -1269,28 +1266,24 @@ fn tools(model: Model) -> Element(Msg) {
 }
 
 fn pins(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-pin")], [
+  ui.card([attribute.id("step-pin")], [
     steps(model),
     html.h1([], [text("Pin tool descriptions")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "A pin is the description the gateway has seen. If that text changes later, the tool is hidden until you approve the new one. Calls stay denied until the pin is approved.",
-      ),
-    ]),
+    ui.muted(
+      "A pin is the description the gateway has seen. If that text changes later, the tool is hidden until you approve the new one. Calls stay denied until the pin is approved.",
+    ),
     case model.pins {
       [] ->
-        html.p([attribute.class("muted")], [
-          text(
-            "Nothing is pinned yet. Pins show up after the gateway lists the server's tools. You can connect a client and come back.",
-          ),
-        ])
-      rows -> html.div([], list.map(rows, pin_row))
+        ui.muted(
+          "Nothing is pinned yet. Pins show up after the gateway lists the server's tools. You can connect a client and come back.",
+        )
+      rows -> ui.list(list.map(rows, pin_row))
     },
     open_alerts(model),
-    html.div([attribute.class("row")], [
-      html.button(
+    ui.actions([
+      ui.button(
+        ui.Primary,
         [
-          attribute.class("primary"),
           attribute.type_("button"),
           attribute.disabled(model.busy),
           event.on_click(Continue(route.Client)),
@@ -1305,20 +1298,18 @@ fn client(model: Model) -> Element(Msg) {
   let hosted = model.hosted == Up
   let url =
     clients.endpoint(hosted, current_mode(model), current_public_url(model))
-  html.section([attribute.class("card"), attribute.id("step-client")], [
+  ui.card([attribute.id("step-client")], [
     steps(model),
     html.h1([], [text("Connect a client")]),
     case hosted {
       True ->
         html.div([], [
           html.p([], [text("Clients use this URL.")]),
-          html.p([attribute.class("secret")], [text(current_public_url(model))]),
+          ui.code_block(current_public_url(model)),
           html.h2([], [text("Run it yourself")]),
-          html.p([attribute.class("muted")], [
-            text(
-              "Linked mode still uses a registration token. That token is not the client token.",
-            ),
-          ]),
+          ui.muted(
+            "Linked mode still uses a registration token. That token is not the client token.",
+          ),
           registration_box(model),
         ])
       False -> self_host(model)
@@ -1332,10 +1323,10 @@ fn client(model: Model) -> Element(Msg) {
         False,
         TokenNameEdited,
       ),
-      html.div([attribute.class("row")], [
-        html.button(
+      ui.actions([
+        ui.button(
+          ui.Primary,
           [
-            attribute.class("primary"),
             attribute.type_("submit"),
             attribute.disabled(model.busy),
           ],
@@ -1344,10 +1335,7 @@ fn client(model: Model) -> Element(Msg) {
       ]),
     ]),
     case api.client_token_ok(model.minted) {
-      False ->
-        html.p([attribute.class("muted")], [
-          text("Mint a token to fill the snippets. It is shown once."),
-        ])
+      False -> ui.muted("Mint a token to fill the snippets. It is shown once.")
       True -> snippets(url, model.minted)
     },
     html.p([], [
@@ -1388,11 +1376,9 @@ fn self_host(model: Model) -> Element(Msg) {
       text("."),
     ]),
     registration_box(model),
-    html.p([attribute.class("muted")], [
-      text(
-        "The snippets below use http://127.0.0.1:3000/mcp, which is the local compose port. Replace it with the URL you publish. The client token is not the registration token.",
-      ),
-    ]),
+    ui.muted(
+      "The snippets below use http://127.0.0.1:3000/mcp, which is the local compose port. Replace it with the URL you publish. The client token is not the registration token.",
+    ),
   ])
 }
 
@@ -1400,31 +1386,36 @@ fn registration_box(model: Model) -> Element(Msg) {
   case api.registration_ok(model.registration) {
     False ->
       html.div([], [
-        html.p([attribute.class("muted")], [
-          text(
-            "The registration token is shown once. If you left this page, rotate it. The new value replaces the old one.",
+        ui.muted(
+          "The registration token is shown once. If you left this page, rotate it. The new value replaces the old one.",
+        ),
+        ui.actions([
+          ui.button(
+            ui.Secondary,
+            [
+              attribute.type_("button"),
+              attribute.disabled(model.busy),
+              event.on_click(RotateRegistration),
+            ],
+            [text("Rotate registration token")],
           ),
         ]),
-        html.button(
-          [
-            attribute.type_("button"),
-            attribute.disabled(model.busy),
-            event.on_click(RotateRegistration),
-          ],
-          [text("Rotate registration token")],
-        ),
       ])
     True ->
       html.div([], [
-        html.p([], [text("Registration token, for fizz-agent only")]),
-        secret_block(model.registration),
-        html.button(
+        ui.snippet(
+          "Registration token, for fizz-agent only",
+          model.registration,
           [
-            attribute.type_("button"),
-            attribute.class("ghost"),
-            event.on_click(Copy(model.registration)),
+            ui.button(
+              ui.Secondary,
+              [
+                attribute.type_("button"),
+                event.on_click(Copy(model.registration)),
+              ],
+              [text("Copy")],
+            ),
           ],
-          [text("Copy registration token")],
         ),
       ])
   }
@@ -1440,27 +1431,21 @@ fn snippets(url: String, token: String) -> Element(Msg) {
 }
 
 fn snippet(title: String, body: String) -> Element(Msg) {
-  html.div([attribute.class("snippet")], [
-    html.h2([], [text(title)]),
-    html.pre([], [text(body)]),
-    html.button(
-      [
-        attribute.type_("button"),
-        attribute.class("ghost"),
-        event.on_click(Copy(body)),
-      ],
+  ui.snippet(title, body, [
+    ui.button(
+      ui.Secondary,
+      [attribute.type_("button"), event.on_click(Copy(body))],
       [text("Copy")],
     ),
   ])
 }
 
 fn list_page(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-gateways")], [
+  ui.card([attribute.id("step-gateways")], [
     html.h1([], [text("Gateways")]),
     plan_card(model.plan),
     case model.loaded, model.gateways {
-      False, _ ->
-        html.p([attribute.class("muted")], [text("Loading gateways…")])
+      False, _ -> ui.muted("Loading gateways…")
       True, [] ->
         html.p([], [
           text("No gateway yet. "),
@@ -1469,23 +1454,19 @@ fn list_page(model: Model) -> Element(Msg) {
           ]),
           text("."),
         ])
-      True, rows -> html.div([], list.map(rows, gateway_row))
+      True, rows -> ui.list(list.map(rows, gateway_row))
     },
     html.p([], [
-      html.a(
-        [
-          attribute.class("button primary"),
-          attribute.href(route.onboarding_path("", route.Create)),
-        ],
-        [text("New gateway")],
-      ),
+      ui.link_button(ui.Primary, route.onboarding_path("", route.Create), [
+        text("New gateway"),
+      ]),
     ]),
   ])
 }
 
 fn home(model: Model) -> Element(Msg) {
   let row = current_gateway(model)
-  html.section([attribute.class("card"), attribute.id("step-home")], [
+  ui.card([attribute.id("step-home")], [
     html.h1([], [
       text(case row {
         Ok(gateway) -> gateway.name
@@ -1496,32 +1477,31 @@ fn home(model: Model) -> Element(Msg) {
       Ok(gateway) ->
         html.div([], [
           html.p([], [
-            text(
-              "Mode " <> gateway.mode <> ". Status " <> gateway.status <> ".",
-            ),
+            ui.badge(mode_label(gateway.mode)),
+            text(" "),
+            ui.badge(gateway.status),
           ]),
           case gateway.status {
             "disabled" ->
-              html.p([attribute.class("alert")], [
-                text(
-                  "This gateway is disabled because it is over the plan limit. Remove one or upgrade, then it can run again.",
-                ),
-              ])
+              ui.notice_text(
+                ui.Bad,
+                "This gateway is paused because your plan's gateway limit is reached. Remove a gateway or upgrade to run it again.",
+              )
             _ -> element.none()
           },
-          html.p([attribute.class("secret")], [text(gateway.public_url)]),
+          ui.code_block(gateway.public_url),
         ])
-      Error(_) -> html.p([attribute.class("muted")], [text("Loading…")])
+      Error(_) -> ui.muted("Loading…")
     },
     nav_links(model.id),
     server_list(model),
     registration_box(model),
     case model.confirm_delete {
       False ->
-        html.button(
+        ui.button(
+          ui.Secondary,
           [
             attribute.type_("button"),
-            attribute.class("ghost"),
             event.on_click(AskDelete),
           ],
           [text("Delete gateway")],
@@ -1529,10 +1509,10 @@ fn home(model: Model) -> Element(Msg) {
       True ->
         html.div([], [
           html.p([], [text("Delete this gateway, its servers, and its tokens?")]),
-          html.button(
+          ui.button(
+            ui.Primary,
             [
               attribute.type_("button"),
-              attribute.class("primary"),
               attribute.disabled(model.busy),
               event.on_click(DeleteGateway),
             ],
@@ -1546,42 +1526,36 @@ fn home(model: Model) -> Element(Msg) {
 fn inbox(model: Model) -> Element(Msg) {
   let pending =
     list.filter(model.approvals, fn(row) { row.status == "pending" })
-  html.section([attribute.class("card"), attribute.id("step-approvals")], [
+  ui.card([attribute.id("step-approvals")], [
     html.h1([], [text("Approvals")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "Approve or deny a pending call. Approving allows that same call once. The agent has to retry it.",
-      ),
-    ]),
+    ui.muted(
+      "Approve or deny a pending call. Approving allows that same call once. The agent has to retry it.",
+    ),
     nav_links(model.id),
     case pending {
       [] -> html.p([], [text("No pending approvals.")])
-      rows -> html.div([], list.map(rows, approval_row))
+      rows -> ui.list(list.map(rows, approval_row))
     },
   ])
 }
 
 fn alerts(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-alerts")], [
+  ui.card([attribute.id("step-alerts")], [
     html.h1([], [text("Changed tools")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "The description below is text from the MCP server. Treat it as untrusted. Approving the pin stores the new hash. Dismiss only hides the alert.",
-      ),
-    ]),
+    ui.muted(
+      "The description below is text from the MCP server. Treat it as untrusted. Approving the pin stores the new hash. Dismiss only hides the alert.",
+    ),
     nav_links(model.id),
     open_alerts(model),
   ])
 }
 
 fn token_page(model: Model) -> Element(Msg) {
-  html.section([attribute.class("card"), attribute.id("step-tokens")], [
+  ui.card([attribute.id("step-tokens")], [
     html.h1([], [text("Client tokens")]),
-    html.p([attribute.class("muted")], [
-      text(
-        "Revoking a token blocks it on the next call. The JWT itself is only shown when you mint it.",
-      ),
-    ]),
+    ui.muted(
+      "Revoking a token blocks it on the next call. The JWT itself is only shown when you mint it.",
+    ),
     nav_links(model.id),
     case api.client_token_ok(model.minted) {
       True ->
@@ -1600,9 +1574,9 @@ fn token_page(model: Model) -> Element(Msg) {
         False,
         TokenNameEdited,
       ),
-      html.button(
+      ui.button(
+        ui.Primary,
         [
-          attribute.class("primary"),
           attribute.type_("submit"),
           attribute.disabled(model.busy),
         ],
@@ -1610,112 +1584,115 @@ fn token_page(model: Model) -> Element(Msg) {
       ),
     ]),
     case model.tokens {
-      [] -> html.p([attribute.class("muted")], [text("No client tokens yet.")])
-      rows -> html.div([], list.map(rows, token_row))
+      [] -> ui.muted("No client tokens yet.")
+      rows -> ui.list(list.map(rows, token_row))
     },
   ])
 }
 
 fn approval_row(row: api.ApprovalRow) -> Element(Msg) {
-  html.div([attribute.class("tool-row")], [
-    html.strong([], [text(row.tool_name)]),
-    html.span([], [text(row.server_name <> " · " <> row.args_preview)]),
-    html.button(
-      [attribute.type_("button"), event.on_click(Decide(row.id, "approved"))],
-      [text("Approve")],
-    ),
-    html.button(
-      [
-        attribute.type_("button"),
-        attribute.class("ghost"),
-        event.on_click(Decide(row.id, "denied")),
-      ],
-      [text("Deny")],
-    ),
-  ])
+  ui.list_row(
+    row.tool_name,
+    [text(row.server_name <> " · " <> row.args_preview)],
+    [
+      ui.button(
+        ui.Primary,
+        [attribute.type_("button"), event.on_click(Decide(row.id, "approved"))],
+        [text("Approve")],
+      ),
+      ui.button(
+        ui.Secondary,
+        [attribute.type_("button"), event.on_click(Decide(row.id, "denied"))],
+        [text("Reject")],
+      ),
+    ],
+  )
 }
 
 fn token_row(row: api.TokenRow) -> Element(Msg) {
-  html.div([attribute.class("tool-row")], [
-    html.strong([], [text(row.name)]),
-    html.span([], [
-      text(case row.revoked {
-        True -> "revoked"
-        False -> "active"
+  ui.list_row(
+    row.name,
+    [
+      ui.badge(case row.revoked {
+        True -> "Revoked"
+        False -> "Active"
       }),
-    ]),
-    case row.revoked {
-      True -> element.none()
-      False ->
-        html.button(
-          [
-            attribute.type_("button"),
-            attribute.class("ghost"),
-            event.on_click(RevokeToken(row.id)),
-          ],
-          [text("Revoke")],
-        )
-    },
-  ])
+    ],
+    [
+      case row.revoked {
+        True -> element.none()
+        False ->
+          ui.button(
+            ui.Danger,
+            [attribute.type_("button"), event.on_click(RevokeToken(row.id))],
+            [text("Revoke")],
+          )
+      },
+    ],
+  )
 }
 
 fn pin_row(row: api.PinRow) -> Element(Msg) {
-  html.div([attribute.class("tool-row")], [
-    html.strong([], [text(row.server_name <> " / " <> row.tool_name)]),
-    html.span([], [text(row.status)]),
-    case row.status == "approved" {
-      True -> element.none()
-      False ->
-        html.button(
-          [
-            attribute.type_("button"),
-            event.on_click(ApprovePin(row.server_name, row.tool_name)),
-          ],
-          [text("Approve pin")],
-        )
-    },
-  ])
+  ui.list_row(
+    row.server_name <> " / " <> row.tool_name,
+    [ui.badge(row.status)],
+    [
+      case row.status == "approved" {
+        True -> element.none()
+        False ->
+          ui.button(
+            ui.Secondary,
+            [
+              attribute.type_("button"),
+              event.on_click(ApprovePin(row.server_name, row.tool_name)),
+            ],
+            [text("Approve pin")],
+          )
+      },
+    ],
+  )
 }
 
 fn open_alerts(model: Model) -> Element(Msg) {
   let open = list.filter(model.alerts, fn(row) { !row.acknowledged })
   case open {
-    [] -> html.p([], [text("No open pin alerts.")])
+    [] -> ui.muted("No changed tools.")
     rows ->
-      html.div(
-        [],
+      ui.list(
         list.map(rows, fn(row) {
-          html.div([attribute.class("tool-row")], [
-            html.strong([], [text(row.server_name <> " / " <> row.tool_name)]),
-            html.p([], [text(row.preview)]),
-            html.button(
-              [
-                attribute.type_("button"),
-                event.on_click(ApprovePin(row.server_name, row.tool_name)),
-              ],
-              [text("Approve the new description")],
-            ),
-            html.button(
-              [
-                attribute.type_("button"),
-                attribute.class("ghost"),
-                event.on_click(AckAlert(row.id)),
-              ],
-              [text("Dismiss")],
-            ),
-          ])
+          ui.list_row(
+            row.server_name <> " / " <> row.tool_name,
+            [html.p([], [text(row.preview)])],
+            [
+              ui.button(
+                ui.Primary,
+                [
+                  attribute.type_("button"),
+                  event.on_click(ApprovePin(row.server_name, row.tool_name)),
+                ],
+                [text("Approve the new description")],
+              ),
+              ui.button(
+                ui.Secondary,
+                [attribute.type_("button"), event.on_click(AckAlert(row.id))],
+                [text("Dismiss")],
+              ),
+            ],
+          )
         }),
       )
   }
 }
 
 fn tool_row(model: Model, name: String) -> Element(Msg) {
-  html.div([attribute.class("tool-row")], [
-    html.strong([], [text(name)]),
-    html.span([], [text(policy_label(model, name))]),
-    rule_button(model, name, "allow", "Allow"),
-    rule_button(model, name, "deny", "Deny"),
-    rule_button(model, name, "approve", "Ask"),
+  let title = case name {
+    "*" -> "Every tool (default)"
+    _ -> name
+  }
+  ui.list_row(title, [text(policy_label(model, name))], [
+    rule_button(model, name, "allow"),
+    rule_button(model, name, "deny"),
+    rule_button(model, name, "approve"),
   ])
 }
 
@@ -1723,27 +1700,59 @@ fn rule_button(
   model: Model,
   tool: String,
   effect_name: String,
-  label: String,
 ) -> Element(Msg) {
-  html.button(
+  let current = current_effect(model, tool) == Ok(effect_name)
+  ui.button(
+    case current {
+      True -> ui.Primary
+      False -> ui.Secondary
+    },
     [
       attribute.type_("button"),
+      attribute.aria_pressed(case current {
+        True -> "true"
+        False -> "false"
+      }),
       attribute.disabled(model.busy),
       event.on_click(SavePolicy(model.server_pick, tool, effect_name)),
     ],
-    [text(label)],
+    [text(rule_label(effect_name))],
   )
 }
 
+/// The UI names for rule effects. The API keeps allow, deny, and approve.
+pub fn rule_label(effect_name: String) -> String {
+  case effect_name {
+    "allow" -> "Allow"
+    "deny" -> "Block"
+    "approve" -> "Ask first"
+    other -> other
+  }
+}
+
+fn current_policy(model: Model, tool: String) -> Result(api.PolicyRow, Nil) {
+  list.find(model.policies, fn(row) {
+    row.tool_name == tool
+    && { row.server_id == model.server_pick || row.server_id == "" }
+  })
+}
+
+fn current_effect(model: Model, tool: String) -> Result(String, Nil) {
+  case current_policy(model, tool) {
+    Ok(row) -> Ok(row.effect)
+    Error(_) -> Error(Nil)
+  }
+}
+
 fn policy_label(model: Model, tool: String) -> String {
-  case
-    list.find(model.policies, fn(row) {
-      row.tool_name == tool
-      && { row.server_id == model.server_pick || row.server_id == "" }
-    })
-  {
-    Ok(row) -> row.effect <> " · " <> row.notify_channel
-    Error(_) -> "no rule yet"
+  case current_policy(model, tool) {
+    Ok(row) ->
+      case row.effect {
+        "approve" ->
+          rule_label(row.effect) <> " · notify by " <> row.notify_channel
+        _ -> rule_label(row.effect)
+      }
+    Error(_) -> "No rule yet"
   }
 }
 
@@ -1776,12 +1785,16 @@ fn server_picker(model: Model) -> Element(Msg) {
     [] -> element.none()
     rows ->
       html.div([], [
-        html.label([attribute.for("server-pick")], [text("Server")]),
-        html.select(
-          [attribute.id("server-pick"), event.on_change(ServerPicked)],
-          list.map(rows, fn(row) {
-            option(row.id, row.name, row.id == model.server_pick)
-          }),
+        ui.field(
+          "Server",
+          "server-pick",
+          "",
+          ui.select(
+            [attribute.id("server-pick"), event.on_change(ServerPicked)],
+            list.map(rows, fn(row) {
+              option(row.id, row.name, row.id == model.server_pick)
+            }),
+          ),
         ),
       ])
   }
@@ -1791,12 +1804,11 @@ fn server_list(model: Model) -> Element(Msg) {
   case model.servers {
     [] -> element.none()
     rows ->
-      html.div(
-        [],
+      ui.list(
         list.map(rows, fn(row) {
-          html.div([attribute.class("tool-row")], [
-            html.strong([], [text(row.name)]),
-            html.span([], [
+          ui.list_row(
+            row.name,
+            [
               text(
                 row.url
                 <> case row.has_secret {
@@ -1804,64 +1816,72 @@ fn server_list(model: Model) -> Element(Msg) {
                   False -> ""
                 },
               ),
-            ]),
-            html.button(
-              [
-                attribute.type_("button"),
-                attribute.class("ghost"),
-                event.on_click(RemoveServer(row.id)),
-              ],
-              [text("Remove")],
-            ),
-          ])
+            ],
+            [
+              ui.button(
+                ui.Secondary,
+                [
+                  attribute.type_("button"),
+                  event.on_click(RemoveServer(row.id)),
+                ],
+                [text("Remove")],
+              ),
+            ],
+          )
         }),
       )
   }
 }
 
 fn gateway_row(row: api.GatewayRow) -> Element(Msg) {
-  html.div([attribute.class("tool-row")], [
-    html.strong([], [text(row.name)]),
-    html.span([], [text(row.mode <> " · " <> row.status)]),
-    html.a([attribute.href(route.gateway_path(row.id))], [text("Open")]),
-    html.a([attribute.href(route.approvals_path(row.id))], [text("Approvals")]),
-    html.a([attribute.href(route.alerts_path(row.id))], [text("Changed tools")]),
-    html.a([attribute.href(route.tokens_path(row.id))], [text("Tokens")]),
+  ui.list_row(row.name, [text(mode_label(row.mode) <> " · " <> row.status)], [
+    ui.link_button(ui.Secondary, route.gateway_path(row.id), [text("Open")]),
+    ui.link_button(ui.Quiet, route.approvals_path(row.id), [text("Approvals")]),
+    ui.link_button(ui.Quiet, route.alerts_path(row.id), [text("Changed tools")]),
+    ui.link_button(ui.Quiet, route.tokens_path(row.id), [text("Tokens")]),
   ])
 }
 
+fn mode_label(mode: String) -> String {
+  case mode {
+    "shared" -> "Shared"
+    "selfhost" -> "Self-hosted"
+    "dedicated" -> "Dedicated"
+    other -> other
+  }
+}
+
 fn nav_links(id: String) -> Element(Msg) {
-  html.p([attribute.class("row")], [
-    html.a([attribute.href(route.gateways_path)], [text("All gateways")]),
-    html.a([attribute.href(route.approvals_path(id))], [text("Approvals")]),
-    html.a([attribute.href(route.alerts_path(id))], [text("Changed tools")]),
-    html.a([attribute.href(route.tokens_path(id))], [text("Tokens")]),
-    html.a([attribute.href(route.onboarding_path(id, route.Tools))], [
-      text("Rules"),
-    ]),
+  ui.nav("Gateway pages", [
+    ui.nav_link(route.gateways_path, "All gateways", False),
+    ui.nav_link(route.approvals_path(id), "Approvals", False),
+    ui.nav_link(route.alerts_path(id), "Changed tools", False),
+    ui.nav_link(route.tokens_path(id), "Tokens", False),
+    ui.nav_link(route.onboarding_path(id, route.Tools), "Rules", False),
   ])
 }
 
 fn channel_field(model: Model) -> Element(Msg) {
   html.div([], [
-    html.label([attribute.for("notify")], [text("When a tool asks")]),
-    html.select([attribute.id("notify"), event.on_change(ChannelEdited)], [
-      option("log", "Log", model.channel == "log"),
-      option("webhook", "Webhook", model.channel == "webhook"),
-      case api.phone_ok(model.plan) {
-        True -> option("phone", "Phone", model.channel == "phone")
-        False -> element.none()
-      },
-    ]),
+    ui.field(
+      "When a tool asks",
+      "notify",
+      "",
+      ui.select([attribute.id("notify"), event.on_change(ChannelEdited)], [
+        option("log", "Log", model.channel == "log"),
+        option("webhook", "Webhook", model.channel == "webhook"),
+        case api.phone_ok(model.plan) {
+          True -> option("phone", "Phone", model.channel == "phone")
+          False -> element.none()
+        },
+      ]),
+    ),
     case api.phone_ok(model.plan) {
-      True ->
-        html.p([attribute.class("muted")], [
-          text("Phone calls share the monthly cap with sensor alerts."),
-        ])
+      True -> ui.muted("Phone calls share the monthly cap with sensor alerts.")
       False ->
-        html.p([attribute.class("muted")], [
+        ui.muted_content([
           text(
-            "Phone is on Tinkerer and Pro. This plan can log the approval or send a webhook. ",
+            "Phone calls are on Tinkerer and Pro. This plan can log the request or send a webhook. ",
           ),
           html.a([attribute.href("/pricing")], [text("See plans")]),
           text("."),
@@ -1872,10 +1892,7 @@ fn channel_field(model: Model) -> Element(Msg) {
 
 fn hosted_note(model: Model) -> Element(Msg) {
   case model.hosted {
-    Unknown ->
-      html.p([attribute.class("muted")], [
-        text("Checking whether the shared gateway is up…"),
-      ])
+    Unknown -> ui.muted("Checking whether the shared gateway is up…")
     Up ->
       html.p([], [
         text(
@@ -1892,7 +1909,7 @@ fn hosted_note(model: Model) -> Element(Msg) {
 }
 
 fn plan_card(plan: api.Plan) -> Element(Msg) {
-  html.section([attribute.class("plan"), attribute.id("plan-limits")], [
+  ui.plan([attribute.id("plan-limits")], [
     html.h2([], [text(plan.name)]),
     html.ul([], [
       html.li([], [text("Gateways: " <> api.cap_label(plan.gateway_limit))]),
@@ -1925,27 +1942,21 @@ fn plan_card(plan: api.Plan) -> Element(Msg) {
 }
 
 fn steps(model: Model) -> Element(Msg) {
-  let items = [
-    #(route.Create, "Gateway"),
-    #(route.Server, "Server"),
-    #(route.Tools, "Tools"),
-    #(route.Pin, "Pin"),
-    #(route.Client, "Client"),
-  ]
-  html.ol(
-    [attribute.class("steps")],
-    list.map(items, fn(item) {
-      let #(step, label) = item
-      let on = case step_of_screen(model.screen) {
-        Ok(current) if current == step -> "on"
-        _ -> ""
-      }
-      html.li([attribute.class(on)], [
-        html.a([attribute.href(route.onboarding_path(model.id, step))], [
-          text(label),
-        ]),
-      ])
-    }),
+  let current = step_of_screen(model.screen)
+  ui.steps(
+    list.map(
+      [
+        #(route.Create, "Gateway"),
+        #(route.Server, "Server"),
+        #(route.Tools, "Rules"),
+        #(route.Pin, "Pin"),
+        #(route.Client, "Connect"),
+      ],
+      fn(item) {
+        let #(step, label) = item
+        #(route.onboarding_path(model.id, step), label, current == Ok(step))
+      },
+    ),
   )
 }
 
@@ -1968,9 +1979,11 @@ fn field(
   secret: Bool,
   msg: fn(String) -> Msg,
 ) -> Element(Msg) {
-  html.div([], [
-    html.label([attribute.for(id)], [text(label)]),
-    html.input([
+  ui.field(
+    label,
+    id,
+    "",
+    ui.input([
       attribute.id(id),
       attribute.type_(case secret {
         True -> "password"
@@ -1981,7 +1994,7 @@ fn field(
       attribute.value(value),
       event.on_input(msg),
     ]),
-  ])
+  )
 }
 
 fn option(value: String, label: String, selected: Bool) -> Element(Msg) {
@@ -1989,40 +2002,25 @@ fn option(value: String, label: String, selected: Bool) -> Element(Msg) {
 }
 
 fn secret_block(value: String) -> Element(Msg) {
-  html.pre([attribute.class("secret")], [text(value)])
+  ui.code_block(value)
 }
 
 fn upgrade_box(message: String) -> Element(Msg) {
   case message {
     "" -> element.none()
     message ->
-      html.div(
-        [
-          attribute.class("alert"),
-          attribute.id("upgrade"),
-          attribute.role("alert"),
-        ],
-        [
-          html.p([], [text(message)]),
-          html.a([attribute.class("button"), attribute.href("/pricing")], [
-            text("See plans"),
-          ]),
-        ],
-      )
+      ui.notice(ui.Caution, [attribute.id("upgrade")], [
+        html.p([], [text(message)]),
+        ui.link_button(ui.Secondary, "/pricing", [text("See plans")]),
+      ])
   }
 }
 
 fn note(notice: Note) -> Element(Msg) {
   case notice {
     Quiet -> element.none()
-    Good(message) ->
-      html.p([attribute.role("status"), attribute.class("info")], [
-        text(message),
-      ])
-    Bad(message) ->
-      html.p([attribute.role("alert"), attribute.class("alert")], [
-        text(message),
-      ])
+    Good(message) -> ui.notice_text(ui.Good, message)
+    Bad(message) -> ui.notice_text(ui.Bad, message)
   }
 }
 
@@ -2130,7 +2128,7 @@ pub fn preview(name: String) -> Model {
       ],
       server_name: "github",
       server_url: "https://example.com/mcp",
-      probe_note: "These names came from the server just now. A missing rule denies the call.",
+      probe_note: "These names came from the server just now. Tools without a rule are blocked.",
     )
   case name {
     "choose" ->
