@@ -292,6 +292,24 @@ impl MemoryDb {
         PhoneBudget::unreachable()
     }
 
+    pub async fn reserve_phone_approval(
+        &self,
+        _workspace_id: Uuid,
+        approval_id: Uuid,
+    ) -> crate::notify::PhoneReserve {
+        let _ = approval_id;
+        // No billing tables live in this process, so nothing is reserved and
+        // nothing is dialed.
+        crate::notify::PhoneReserve::skipped("billing_unreachable")
+    }
+
+    pub async fn apply_keypress(&self, id: Uuid, digit: &str) -> GatewayResult<bool> {
+        let Some(status) = crate::notify::decision_from_digit(digit) else {
+            return Ok(false);
+        };
+        self.decide_approval(id, status).await
+    }
+
     pub async fn record_phone_attempt(
         &self,
         _workspace_id: Uuid,
@@ -498,6 +516,9 @@ mod tests {
         let budget = db.phone_budget(workspace).await;
         assert!(!budget.reachable);
         assert!(!budget.allowed);
+        let reserve = db.reserve_phone_approval(workspace, pending).await;
+        assert!(!reserve.places_call());
+        assert!(reserve.message.contains("Approve it in the app"));
         db.record_phone_attempt(workspace, pending, "skipped")
             .await
             .unwrap();
@@ -506,6 +527,27 @@ mod tests {
                 .await
                 .is_err()
         );
+        let pressed = db
+            .open_approval(&NewApproval {
+                gateway_id: gateway,
+                workspace_id: workspace,
+                server: "sample",
+                tool: "move_funds",
+                args_hash: &"ef".repeat(32),
+                args_preview: "keys:",
+                notify_channel: "phone",
+                ttl_secs: 600,
+            })
+            .await
+            .unwrap();
+        assert!(db.apply_keypress(pressed, "1").await.unwrap());
+        assert!(matches!(
+            db.approval_hit(gateway, "sample", "move_funds", &"ef".repeat(32))
+                .await
+                .unwrap(),
+            ApprovalHit::Approved { id } if id == pressed
+        ));
+        assert!(!db.apply_keypress(pressed, "2").await.unwrap());
         assert_eq!(db.phone_statuses(), vec!["skipped".to_string()]);
     }
 }

@@ -12,7 +12,7 @@
     { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 1000, phone_calls: true },
     { id: 'enterprise', name: 'Enterprise', price: 'Contact us', devices: 'Custom', monthly_credits: 'Custom', phone_calls: true },
   ];
-  const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz. Phone-call alerts, phone approvals, and the call that pairs a number are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and approval calls. That cap is not enforced yet. Hobbyist ($0) includes dashboard and webhook alerts and does not place calls. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.';
+  const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz. Phone-call alerts, phone approvals, and the call that pairs a number are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and approval calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts and does not place calls. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.';
   const KINDS = {
     water: { label: 'Water', metric: 'flow_l_min', unit: 'L/min' },
     gas: { label: 'Gas', metric: 'concentration_ppm', unit: 'ppm' },
@@ -86,7 +86,7 @@
       annotations: { readOnlyHint: true },
       async execute() {
         const me = await session();
-        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors and Fizz are available now at /sensors. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. That cap is not enforced yet. Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden. An account today is a Sensors account.';
+        const about = 'Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta: there is no gateway to create, and policies, approvals, and a tool-call audit log are not available. Sensors and Fizz are available now at /sensors. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden. An account today is a Sensors account.';
         if (!me) {
           return text({
             about, signed_in: false, page: location.pathname,
@@ -104,7 +104,7 @@
         const next = sensors.length ? [
           'list_sensors and get_readings show live data; ask_fizz answers questions about it.',
           'add_sensor connects a real device (API key or phone link) or a sample stream; pair_device claims a code from `fizz pair` on a Linux device.',
-          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in the dashboard, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
+          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in the dashboard, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
           'create_agent_connection issues an MCP token so an agent can reach this account from outside the browser.',
           'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
         ] : [
@@ -437,7 +437,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {

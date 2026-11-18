@@ -38,9 +38,9 @@
   </header>
   <main id="main-content">
     <section class="section pricing container" id="pricing" aria-labelledby="pricing-title">
-      <div class="section-intro"><div><p class="eyebrow-label">04 / Pricing</p><h2 id="pricing-title">Start free.<br>Grow when your world does.</h2></div><p class="lede">The same four prices cover Sensors, which you can use today, and the Gateway, which is in private beta and does not enforce these limits yet. Sample sensors stay unlimited. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. It is not enforced yet. Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.</p></div>
+      <div class="section-intro"><div><p class="eyebrow-label">04 / Pricing</p><h2 id="pricing-title">Start free.<br>Grow when your world does.</h2></div><p class="lede">The same four prices cover Sensors, which you can use today, and the Gateway, which is in private beta. The shared call cap below is enforced. The other gateway limits are not. Sample sensors stay unlimited. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.</p></div>
       <h3>Gateway, planned</h3>
-      <p>These numbers are the entitlements the hosted gateway will use. Nothing in this table is metered today. Pro is planned to include one dedicated gateway. Approvals by phone, Slack, or Discord are not available yet.</p>
+      <p>These numbers are the entitlements the hosted gateway will use. The phone-call column is enforced now and is shared by sensor alerts and phone approvals. The other columns are not metered yet. Pro is planned to include one dedicated gateway. Slack and Discord approvals are not available yet. A phone approval tells you to approve in the app, because the calling provider cannot collect a keypress.</p>
       <div class="pricing-table-wrap">
         <table class="pricing-table">
           <caption class="visually-hidden">Planned Gateway limits by plan</caption>
@@ -49,8 +49,8 @@
           </thead>
           <tbody>
             <tr><th scope="row">Hobbyist</th><td>1 shared, not live</td><td>3</td><td>10,000 / month</td><td>No phone calls</td><td>7 days</td><td>1</td></tr>
-            <tr><th scope="row">Tinkerer</th><td>1 shared, not live</td><td>10</td><td>50,000 / month</td><td>20 / month, planned</td><td>30 days</td><td>1</td></tr>
-            <tr><th scope="row">Pro</th><td>1 dedicated, not live</td><td>25</td><td>200,000 / month</td><td>100 / month, planned</td><td>90 days</td><td>3</td></tr>
+            <tr><th scope="row">Tinkerer</th><td>1 shared, not live</td><td>10</td><td>50,000 / month</td><td>20 / month</td><td>30 days</td><td>1</td></tr>
+            <tr><th scope="row">Pro</th><td>1 dedicated, not live</td><td>25</td><td>200,000 / month</td><td>100 / month</td><td>90 days</td><td>3</td></tr>
             <tr><th scope="row">Enterprise</th><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td></tr>
           </tbody>
         </table>
@@ -98,7 +98,7 @@
           </tbody>
         </table>
       </div>
-      <p class="pricing-note">One Fizz credit is one message to Fizz in the workspace chat, typed or spoken. Credits reset on the first of each month. Connected devices are paired devices, phones, and API sensors; sample sensors are free. A phone call, including an alert call and the call that pairs a number, requires Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and phone approvals. The planned caps in the Gateway table are 20 a month on Tinkerer and 100 a month on Pro. That cap is not enforced yet. Enterprise phone calls are custom. Hobbyist ($0) includes dashboard and webhook alerts and does not place phone calls. Email alerts are included on every plan, including Hobbyist. The dashboard shows the email choice only when mail is configured. On fizzlayer.com that choice is hidden.</p>
+      <p class="pricing-note">One Fizz credit is one message to Fizz in the workspace chat, typed or spoken. Credits reset on the first of each month. Connected devices are paired devices, phones, and API sensors; sample sensors are free. A phone call, including an alert call and the call that pairs a number, requires Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Enterprise phone calls are custom. Hobbyist ($0) includes dashboard and webhook alerts and does not place phone calls. Email alerts are included on every plan, including Hobbyist. The dashboard shows the email choice only when mail is configured. On fizzlayer.com that choice is hidden.</p>
     </section>
   </main>
   <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/sensors/docs">Docs</a><a href="/status">Status</a><a href="/changelog">Changelog</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>

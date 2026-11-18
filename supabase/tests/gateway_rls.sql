@@ -234,5 +234,30 @@ end
 $$;
 
 reset role;
+do $$
+declare
+  other_approval uuid;
+  other_auth uuid;
+  decided jsonb;
+begin
+  select approval_id, auth_id into other_approval, other_auth from gw_ids where n = 2;
+  decided := gateway.apply_phone_keypress(other_approval, '1');
+  perform pg_temp.gw_assert(decided->>'status' = 'approved', 'keypress 1 approves');
+  perform pg_temp.gw_assert(
+    (select status from gateway.approvals where id = other_approval) = 'approved'
+      and (select decided_by from gateway.approvals where id = other_approval) = other_auth,
+    'keypress updates the approval the same way the API does'
+  );
+  perform pg_temp.gw_assert(
+    coalesce((gateway.apply_phone_keypress(other_approval, '2')->>'decided')::boolean, false) is false,
+    'a second keypress does not change a decided row'
+  );
+  perform pg_temp.gw_assert(
+    (gateway.apply_phone_keypress(other_approval, '9')->>'reason') = 'ignored',
+    'any other digit is ignored'
+  );
+end
+$$;
+
 select count(*) as passed_assertions, 'gateway RLS' as coverage from gw_results;
 rollback;

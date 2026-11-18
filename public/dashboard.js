@@ -723,8 +723,8 @@
     if (!phoneData.calls_included) {
       note.hidden = false;
       note.textContent = alertData.emailConfigured
-        ? 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Dashboard, email, and webhook alerts still work on Hobbyist, or upgrade in Settings.'
-        : 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Dashboard and webhook alerts still work on Hobbyist. Email is included on every plan and appears here when mail is configured.';
+        ? 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Dashboard, email, and webhook alerts still work on Hobbyist, or upgrade in Settings.'
+        : 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Dashboard and webhook alerts still work on Hobbyist. Email is included on every plan and appears here when mail is configured.';
       return;
     }
     if (!phoneData.phones.length) {
@@ -769,7 +769,7 @@
       upgrade.hidden = false;
       const link = node('a', '', 'Upgrade in Settings');
       link.href = '/settings.html';
-      const paid = 'Phone calls are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. ';
+      const paid = 'Phone calls are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). ';
       const rest = alertData.emailConfigured
         ? 'Dashboard, email, and webhook alerts still work on Hobbyist.'
         : 'Dashboard and webhook alerts still work on Hobbyist. Email is included on every plan and appears when mail is configured.';
@@ -876,7 +876,7 @@
       }
       if (channels.includes('phone')) {
         if (!phoneData.calls_included) {
-          $('alert-message').textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Leave the phone box unchecked to keep a dashboard or webhook alert.';
+          $('alert-message').textContent = 'Phone calls need Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Leave the phone box unchecked to keep a dashboard or webhook alert.';
           return;
         }
         if (!$('alert-phone').value) {

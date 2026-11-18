@@ -70,6 +70,7 @@ compose build
 compose up -d --wait postgres
 compose exec -T postgres \
   psql -U fizz -d fizz -v ON_ERROR_STOP=1 -f /tests/gateway_rls.sql
+. ./phone-cap-test.sh
 
 limited 180 up -d --wait fizz-guard sample-mcp
 limited 180 run --rm --no-deps fizz-config

@@ -130,7 +130,7 @@ function serverCard() {
     version: '1.0',
     protocolVersion: rustString(mcp, 'MODERN_VERSION'),
     serverInfo: { name: 'fizz', title: 'Fizz', version },
-    description: 'Read a Fizzlayer customer\'s sensors, readings, and alerts, create alerts, and claim device pairing codes. create_alert can call a US number only after the owner has paired it, and only on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. That cap is not enforced yet. Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is sent only when mail is configured. Agent tokens cannot pair a phone.',
+    description: 'Read a Fizzlayer customer\'s sensors, readings, and alerts, create alerts, and claim device pairing codes. create_alert can call a US number only after the owner has paired it, and only on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is sent only when mail is configured. Agent tokens cannot pair a phone.',
     iconUrl: `${ORIGIN}/fizz-logo-480.png`,
     documentationUrl: 'https://github.com/fizzlayer/fizzlayer/blob/main/docs/REFERENCE.md#agent-connections-mcp',
     transport: { type: 'streamable-http', endpoint: `${ORIGIN}/api/mcp` },

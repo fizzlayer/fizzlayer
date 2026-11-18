@@ -1,9 +1,9 @@
-//! Approval notifications. The phone arm is a stub: it checks the shared
-//! monthly cap and writes a log line. It does not call AgentPhone and it does
-//! not reserve a cap slot. The live dialer, when it exists, must call
-//! `gateway.reserve_phone_approval_call` before placing a call. Sensor alerts
-//! already dial through `AgentPhone` in the API crate (`src/notify.rs`); this
-//! package does not link that client.
+//! Approval notifications. A phone approval calls
+//! `gateway.reserve_phone_approval_call` and returns. That function takes the
+//! shared monthly cap before any dial. This package does not link AgentPhone.
+//! `/api/cron` places the queued call with the same client sensor alerts use
+//! (`src/notify.rs`). AgentPhone cannot collect a callee keypress, so the
+//! spoken call tells the owner to approve in the app.
 
 use std::time::Duration;
 
@@ -127,27 +127,74 @@ fn allowed_flag(value: &Value, mirrored: bool) -> bool {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PhoneAttempt {
-    /// Budget allowed a call. The stub still does not dial and does not reserve.
-    Stubbed,
-    Skipped,
+pub const APPROVAL_CAP_MESSAGE: &str = "This month's shared call cap is used. No approval call was placed. Approve it in the app. A webhook is used when one is configured. Tinkerer is 20 a month and Pro is 100, shared with sensor alerts.";
+
+pub const APPROVAL_UNPAIRED_MESSAGE: &str = "No paired phone number is on this account. Pair a number in the dashboard. No approval call was placed. Approve it in the app.";
+
+/// What `gateway.reserve_phone_approval_call` recorded. `reserved` is the only
+/// value that queued a dial and consumed the cap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhoneReserve {
+    pub recorded: String,
+    pub reason: String,
+    pub message: String,
 }
 
-impl PhoneAttempt {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Stubbed => "stubbed",
-            Self::Skipped => "skipped",
+impl PhoneReserve {
+    pub fn skipped(reason: &str) -> Self {
+        let message = match reason {
+            "cap_reached" => APPROVAL_CAP_MESSAGE.to_string(),
+            "phone_not_paired" => APPROVAL_UNPAIRED_MESSAGE.to_string(),
+            _ => "Phone billing could not be checked. No approval call was placed. Approve it in the app.".to_string(),
+        };
+        Self {
+            recorded: "skipped".to_string(),
+            reason: reason.to_string(),
+            message,
         }
+    }
+
+    pub fn from_json(value: &Value) -> Self {
+        let recorded = value
+            .get("recorded")
+            .and_then(Value::as_str)
+            .unwrap_or("skipped");
+        let reason = value
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or("billing_unreachable");
+        let message = value
+            .get("message")
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty() && text.len() <= 400 && !text.contains('\n'))
+            .map(str::to_string);
+        if recorded == "reserved" {
+            return Self {
+                recorded: "reserved".to_string(),
+                reason: reason.to_string(),
+                message: message
+                    .unwrap_or_else(|| "A call to the paired number is queued.".to_string()),
+            };
+        }
+        let mut skipped = Self::skipped(reason);
+        if let Some(message) = message {
+            skipped.message = message;
+        }
+        skipped
+    }
+
+    pub fn places_call(&self) -> bool {
+        self.recorded == "reserved"
     }
 }
 
-pub fn phone_attempt(budget: &PhoneBudget) -> PhoneAttempt {
-    if budget.reachable && budget.allowed {
-        PhoneAttempt::Stubbed
-    } else {
-        PhoneAttempt::Skipped
+/// Digit 1 approves and digit 2 denies. AgentPhone does not deliver these
+/// digits today; the SQL function applies the same mapping when one arrives.
+pub fn decision_from_digit(digit: &str) -> Option<&'static str> {
+    match digit.trim() {
+        "1" => Some("approved"),
+        "2" => Some("denied"),
+        _ => None,
     }
 }
 
@@ -238,11 +285,31 @@ impl Notifiers {
         }
     }
 
+    /// Webhook, or a log line, when a phone approval cannot be dialed.
+    pub async fn fallback(&self, notice: &ApprovalNotice, message: &str) -> &'static str {
+        let Some(url) = &self.webhook else {
+            log_notice(NotifyChannel::Log, notice, "fallback");
+            return "logged";
+        };
+        let mut body = webhook_body(notice);
+        body["fallback"] = json!(message);
+        let outcome = match self.post_value(url, &body).await {
+            Ok(()) => "sent",
+            Err(_) => "failed",
+        };
+        log_notice(NotifyChannel::Webhook, notice, outcome);
+        outcome
+    }
+
     async fn post(&self, url: &str, notice: &ApprovalNotice) -> GatewayResult<()> {
+        self.post_value(url, &webhook_body(notice)).await
+    }
+
+    async fn post_value(&self, url: &str, body: &Value) -> GatewayResult<()> {
         let response = tokio::time::timeout(NOTIFY_BUDGET, async {
             self.http
                 .post(url)
-                .json(&webhook_body(notice))
+                .json(body)
                 .send()
                 .await
                 .map_err(|_| GatewayError::message("approval webhook failed"))?
@@ -299,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn caps_match_the_plan_and_a_stub_never_reserves() {
+    fn caps_match_the_plan_and_only_a_reserve_dials() {
         assert_eq!(tier_cap("hobbyist"), Some(0));
         assert_eq!(tier_cap("tinkerer"), Some(20));
         assert_eq!(tier_cap("pro"), Some(100));
@@ -310,25 +377,35 @@ mod tests {
             "reachable": true, "allowed": false, "plan": "hobbyist", "cap": 0, "used": 0, "reason": "cap_reached"
         }));
         assert!(!hobbyist.allowed);
-        assert_eq!(phone_attempt(&hobbyist), PhoneAttempt::Skipped);
+        assert!(!PhoneReserve::skipped("cap_reached").places_call());
 
         let tinkerer = budget_from_json(&json!({
             "reachable": true, "allowed": true, "plan": "tinkerer", "cap": 20, "used": 19, "reason": "ok"
         }));
         assert!(tinkerer.allowed);
-        assert_eq!(phone_attempt(&tinkerer), PhoneAttempt::Stubbed);
-        assert_ne!(phone_attempt(&tinkerer).as_str(), "reserved");
+        let queued = PhoneReserve::from_json(&json!({
+            "recorded": "reserved", "reason": "ok", "message": "A call to the paired number is queued."
+        }));
+        assert!(queued.places_call());
+        let over = PhoneReserve::from_json(&json!({
+            "recorded": "skipped", "reason": "cap_reached", "allowed": false
+        }));
+        assert!(!over.places_call());
+        assert!(over.message.contains("Approve it in the app"));
 
         let exhausted = budget_from_json(&json!({
             "reachable": true, "allowed": false, "plan": "pro", "cap": 100, "used": 100, "reason": "cap_reached"
         }));
-        assert_eq!(phone_attempt(&exhausted), PhoneAttempt::Skipped);
+        assert!(!exhausted.allowed);
 
         let missing = budget_from_json(
             &json!({"reachable": false, "allowed": false, "reason": "billing_unreachable"}),
         );
         assert!(!missing.reachable);
-        assert_eq!(phone_attempt(&missing), PhoneAttempt::Skipped);
+        assert!(!PhoneReserve::skipped("billing_unreachable").places_call());
+        assert_eq!(decision_from_digit("1"), Some("approved"));
+        assert_eq!(decision_from_digit("2"), Some("denied"));
+        assert_eq!(decision_from_digit("9"), None);
 
         let lied = budget_from_json(&json!({
             "reachable": true, "allowed": true, "plan": "hobbyist", "cap": 0, "used": 0, "reason": "ok"
