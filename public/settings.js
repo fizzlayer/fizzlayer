@@ -60,7 +60,7 @@
     $('plan-credits').textContent = plan.monthly_credits === null ? `${count(plan.credits_used)} used this month · Unlimited`
       : `${count(plan.credits_used)} of ${count(plan.monthly_credits)} used · Resets ${reset}`;
     $('plan-calls').textContent = plan.calls_included
-      ? 'Included · Tinkerer and Pro share one monthly cap with phone approvals. That cap is not enforced yet.'
+      ? 'Included · Tinkerer and Pro share one monthly cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC).'
       : 'Not included on Hobbyist · Tinkerer and Pro include phone calls';
   }
   function render(account) {

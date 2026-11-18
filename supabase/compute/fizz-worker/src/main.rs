@@ -3,7 +3,8 @@
 //! Supabase Compute runs this process. Vercel functions stay request-shaped.
 //! Devices publish over a WebSocket or MQTT. Subscribers hear new rows that
 //! `fizz_ingest_event` stored, including rows that arrived through HTTPS.
-//! Phone calls queued by those rows are sent by `/api/cron`, not by this process.
+//! Phone calls queued by those rows, and queued gateway phone approvals, are
+//! sent by `/api/cron`, not by this process.
 
 // protocol.rs is also compiled by the API (`src/live.rs`) and the CLI
 // (`cli/src/transport.rs`). Those crates call items this binary does not.

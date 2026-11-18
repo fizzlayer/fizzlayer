@@ -110,6 +110,17 @@ impl Backend {
         }
     }
 
+    pub async fn reserve_phone_approval(
+        &self,
+        workspace_id: Uuid,
+        approval_id: Uuid,
+    ) -> crate::notify::PhoneReserve {
+        match self {
+            Self::Postgres(db) => db.reserve_phone_approval(workspace_id, approval_id).await,
+            Self::Memory(db) => db.reserve_phone_approval(workspace_id, approval_id).await,
+        }
+    }
+
     pub async fn record_phone_attempt(
         &self,
         workspace_id: Uuid,

@@ -465,6 +465,35 @@ impl Db {
         }
     }
 
+    pub async fn reserve_phone_approval(
+        &self,
+        workspace_id: Uuid,
+        approval_id: Uuid,
+    ) -> notify::PhoneReserve {
+        let client = self.client.lock().await;
+        let row = match client
+            .query_one(
+                "select gateway.reserve_phone_approval_call($1, $2)::text as reserved",
+                &[&workspace_id, &approval_id],
+            )
+            .await
+        {
+            Ok(row) => row,
+            Err(err) => {
+                eprintln!(
+                    "fizz-guard: phone approval was not reserved: {}",
+                    GatewayError::database(err)
+                );
+                return notify::PhoneReserve::skipped("billing_unreachable");
+            }
+        };
+        let text: String = row.get("reserved");
+        match serde_json::from_str(&text) {
+            Ok(value) => notify::PhoneReserve::from_json(&value),
+            Err(_) => notify::PhoneReserve::skipped("billing_unreachable"),
+        }
+    }
+
     pub async fn record_phone_attempt(
         &self,
         workspace_id: Uuid,

@@ -9,7 +9,9 @@ on:
       - supabase/migrations/20261114000000_gateway.sql
       - supabase/migrations/20261114000300_gateway_policies.sql
       - supabase/migrations/20261114000400_gateway_control_plane.sql
+      - supabase/migrations/20261118000000_phone_approval_calls.sql
       - supabase/tests/gateway_rls.sql
+      - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml
       - NOTICE
   push:
@@ -19,7 +21,9 @@ on:
       - supabase/migrations/20261114000000_gateway.sql
       - supabase/migrations/20261114000300_gateway_policies.sql
       - supabase/migrations/20261114000400_gateway_control_plane.sql
+      - supabase/migrations/20261118000000_phone_approval_calls.sql
       - supabase/tests/gateway_rls.sql
+      - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml
       - NOTICE
   workflow_dispatch:

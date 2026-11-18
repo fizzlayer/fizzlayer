@@ -23,7 +23,7 @@ use fizz_gateway::ext_mcp::{
     AuthorizationError, McpRequest, McpRequestResult, McpResponse, McpResponseResult, Pass,
     authorization_error, mcp_request_result, mcp_response_result,
 };
-use fizz_gateway::notify::{self, ApprovalNotice, Notifiers, phone_attempt};
+use fizz_gateway::notify::{self, ApprovalNotice, Notifiers};
 use fizz_gateway::policy::{self, ApprovalHit, NotifyChannel, Step};
 use fizz_gateway::store::Backend;
 use fizz_gateway::toolpin;
@@ -307,17 +307,29 @@ impl Guard {
 
     async fn notify(&self, channel: NotifyChannel, workspace_id: Uuid, notice: &ApprovalNotice) {
         if channel == NotifyChannel::Phone {
-            // Stub only. Do not call AgentPhone and do not reserve monthly quota.
-            let budget = self.backend.phone_budget(workspace_id).await;
-            let attempt = phone_attempt(&budget);
-            if let Err(err) = self
-                .backend
-                .record_phone_attempt(workspace_id, notice.id, attempt.as_str())
-                .await
+            // Reserve under the account lock, then return. The dial is the
+            // AgentPhone queue /api/cron already drains. This stays inside
+            // NOTIFY_BUDGET so the 10-second guardrail timeout is not spent
+            // waiting on a phone call.
+            let reserve = match tokio::time::timeout(
+                notify::NOTIFY_BUDGET,
+                self.backend.reserve_phone_approval(workspace_id, notice.id),
+            )
+            .await
             {
-                eprintln!("fizz-guard: phone attempt was not recorded: {err}");
+                Ok(reserve) => reserve,
+                Err(_) => notify::PhoneReserve::skipped("billing_unreachable"),
+            };
+            if reserve.places_call() {
+                notify::log_notice(channel, notice, "queued");
+                return;
             }
-            notify::log_notice(channel, notice, attempt.as_str());
+            notify::log_notice(channel, notice, "fallback");
+            let _ = tokio::time::timeout(
+                notify::NOTIFY_BUDGET,
+                self.notifiers.fallback(notice, &reserve.message),
+            )
+            .await;
             return;
         }
         let _ = tokio::time::timeout(
