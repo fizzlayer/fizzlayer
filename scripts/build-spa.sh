@@ -22,10 +22,10 @@ cp -a dist/. "$root/public/app/"
 
 test -f "$root/public/app/index.html"
 test -f "$root/public/app/fizz_spa.js"
-test -f "$root/public/app/spa.css"
+test -f "$root/public/app/fizz.css"
 test -f "$root/public/app/config.json"
 grep -q 'src="/app/fizz_spa.js"' "$root/public/app/index.html"
-grep -q 'href="/app/spa.css"' "$root/public/app/index.html"
+grep -q 'href="/app/fizz.css"' "$root/public/app/index.html"
 # The existing site script stays at /app.js. The bundle lives under /app/.
 test -f "$root/public/app.js"
 test -f "$root/public/install.sh"

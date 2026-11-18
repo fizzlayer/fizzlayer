@@ -347,3 +347,13 @@ fn jwt(payload: String) -> String {
   <> bit_array.base64_url_encode(<<payload:utf8>>, False)
   <> ".sig"
 }
+
+pub fn rules_use_plain_names_test() {
+  gateway.rule_label("allow") |> should.equal("Allow")
+  gateway.rule_label("deny") |> should.equal("Block")
+  gateway.rule_label("approve") |> should.equal("Ask first")
+  let html = element.to_string(gateway.view(gateway.preview("tools")))
+  string.contains(html, ">Block<") |> should.be_true
+  string.contains(html, ">Ask first<") |> should.be_true
+  string.contains(html, ">Deny<") |> should.be_false
+}

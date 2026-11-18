@@ -76,7 +76,7 @@ Only these were added, plus `Cache-Control: no-store` on `/app/config.json`:
 - `/app/` → `/app/index.html`
 - `/app/:path*` → `/app/index.html`
 
-On Vercel, a file that exists is served before rewrites, so `/app/fizz_spa.js`, `/app/spa.css`, and `/app/config.json` are files. The fallback does not match `/api/*`, `/install.sh`, `/.well-known/*`, `/ha.html`, `/app.html`, `/app.js`, or the other pages in `public/`. Redirects in `vercel.json` were not changed.
+On Vercel, a file that exists is served before rewrites, so `/app/fizz_spa.js`, `/app/fizz.css`, and `/app/config.json` are files. The fallback does not match `/api/*`, `/install.sh`, `/.well-known/*`, `/ha.html`, `/app.html`, `/app.js`, or the other pages in `public/`. Redirects in `vercel.json` were not changed.
 
 ## Checks
 
