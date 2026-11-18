@@ -98,7 +98,7 @@ That stack adds a server through the mock, checks the new tool shows up without 
 
 ## Hosted shared fleet
 
-Available once deployed. Nothing in this repository points DNS at `gw.fizzlayer.com` or starts the Compute service.
+Available once deployed. This repository does not create the DNS record or start the Compute service.
 
 Hobbyist and Tinkerer create a shared gateway and get `https://gw.fizzlayer.com/w/<gateway-id>/mcp`, the URL `POST /api/gateway/gateways` already stores. One agentgateway process serves every active shared gateway. Each route matches that path, requires `iss=fizzlayer` and `aud` equal to that URL, and attaches only that gateway's HTTP or SSE targets. stdio is not rendered. A dedicated gateway stays off this fleet.
 
@@ -110,7 +110,17 @@ The shared process also applies a local request budget per route: Hobbyist 30/mi
 gateway/compose/test-hosted.sh
 ```
 
-The image CI publishes is `fizzlayer/fizzlayer-hosted-gateway`. Supabase Compute service `fizz-hosted-gateway` pulls it. The steps to turn it on are in the pull request, not run from this tree.
+The image CI publishes is `fizzlayer/fizzlayer-hosted-gateway`. Supabase Compute service `fizz-hosted-gateway` pulls it. `supabase/compute/fizz-hosted-gateway/Dockerfile` publishes port 3000 and sets `ENTRYPOINT ["/usr/local/bin/hosted-entrypoint"]`, which is the start command Compute accepts. The process runs as uid 65532. Create the service with `supabase compute push` from a checkout. This tree does not run that.
+
+`DATABASE_URL` on the service is the Supavisor session pooler: host `aws-0-us-east-1.pooler.supabase.com`, port 5432, user `gateway_runtime.<project-ref>` (the Fizz project ref is `bbmdkpzzzalkvthwgsek`). It has to include `sslmode=require`. Add that parameter when the pooler URL does not already have it:
+
+```
+postgres://gateway_runtime.<project-ref>:<password>@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+`require` encrypts the session and does not verify the server certificate. The pooler certificate is signed by Supabase's own CA. `verify-ca` and `verify-full` do verify. Set `DATABASE_CA_CERT` to the PEM text or to a path to that file, or set `PGSSLROOTCERT` to a CA file. `PGSSLROOTCERT=system` uses the bundled public roots, and so does either verify mode when no CA variable is set. A URL with no `sslmode` prefers TLS and falls back to plaintext when the server does not offer TLS. Local compose relies on that fallback. `sslmode=disable` stays on plaintext.
+
+`https://gw.fizzlayer.com/w/<gateway-id>/mcp` is reached through Vercel, not the Compute hostname. DNS is at Cloudflare: a CNAME named `gw` pointing at Vercel, proxy off (DNS only). The Vercel project routing rule matches host `gw.fizzlayer.com` and path `^/w/<uuid>/mcp(/.*)?$`, and forwards to the Compute URL (`https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-hosted-gateway`). The platform strips that prefix before the process sees `/w/<gateway-id>/mcp`. An SSE stream that travels through the Vercel rewrite may be closed when the platform's time limit is reached, so a long-lived server stream can end while the gateway process is still running.
 
 ## Database
 

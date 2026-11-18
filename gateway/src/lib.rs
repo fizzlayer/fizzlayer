@@ -21,6 +21,9 @@ pub mod notify;
 pub mod store;
 
 #[cfg(feature = "guard")]
+mod pg_tls;
+
+#[cfg(feature = "guard")]
 pub mod db;
 
 #[cfg(feature = "guard")]
