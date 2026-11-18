@@ -536,3 +536,209 @@ pub fn cta(
     ]),
   ])
 }
+
+// Inner pages ------------------------------------------------------------------
+
+/// The top of a page that has no product picture: kicker, title, one line.
+pub fn page_hero(
+  kicker: String,
+  title: String,
+  sub: String,
+  actions: List(Element(msg)),
+) -> Element(msg) {
+  html.section([attribute.class("page-hero")], [
+    html.div([attribute.class("container")], [
+      html.p([attribute.class("section-kicker")], [text(kicker)]),
+      html.h1([attribute.class("page-title")], [text(title)]),
+      html.p([attribute.class("hero-sub")], [text(sub)]),
+      case actions {
+        [] -> element.none()
+        _ -> html.div([attribute.class("hero-actions")], actions)
+      },
+    ]),
+  ])
+}
+
+/// Three cards in a row.
+pub fn feature_row(children: List(Element(msg))) -> Element(msg) {
+  html.div([attribute.class("feature-grid feature-grid-3")], children)
+}
+
+/// A card with a title and a sentence, and no picture.
+pub fn feature_text(title: String, body: String) -> Element(msg) {
+  html.article([attribute.class("feature")], [
+    html.h3([], [text(title)]),
+    html.p([], [text(body)]),
+  ])
+}
+
+/// A card with a title and a ticked list.
+pub fn list_card(title: String, items: List(String)) -> Element(msg) {
+  html.div([attribute.class("split-card")], [
+    html.h3([], [text(title)]),
+    checklist(items),
+  ])
+}
+
+pub fn checklist(items: List(String)) -> Element(msg) {
+  html.ul(
+    [attribute.class("checklist")],
+    list.map(items, fn(item) { html.li([], [text(item)]) }),
+  )
+}
+
+/// Questions that open in place. Each item is `#(question, answer)`.
+pub fn faq(items: List(#(String, String))) -> Element(msg) {
+  html.div(
+    [attribute.class("faq")],
+    list.map(items, fn(item) {
+      html.details([attribute.class("faq-item")], [
+        html.summary([], [text(item.0)]),
+        html.p([], [text(item.1)]),
+      ])
+    }),
+  )
+}
+
+// Pricing ----------------------------------------------------------------------
+
+pub type Plan {
+  Plan(
+    name: String,
+    tagline: String,
+    price: String,
+    period: String,
+    featured: Bool,
+    points: List(String),
+    href: String,
+    cta: String,
+  )
+}
+
+pub fn plans(cards: List(Plan)) -> Element(msg) {
+  html.div(
+    [attribute.class("plans")],
+    list.map(cards, fn(plan) {
+      html.article(
+        [
+          attribute.class(case plan.featured {
+            True -> "plan-card plan-card-featured"
+            False -> "plan-card"
+          }),
+        ],
+        [
+          html.h2([attribute.class("plan-name")], [text(plan.name)]),
+          html.p([attribute.class("plan-tagline")], [text(plan.tagline)]),
+          html.p([attribute.class("plan-price")], [
+            text(plan.price),
+            case plan.period {
+              "" -> element.none()
+              period -> html.small([], [text(" " <> period)])
+            },
+          ]),
+          checklist(plan.points),
+          html.a(
+            [
+              attribute.class(case plan.featured {
+                True -> "button button-primary button-lg button-block"
+                False -> "button button-secondary button-lg button-block"
+              }),
+              attribute.href(plan.href),
+            ],
+            [text(plan.cta)],
+          ),
+        ],
+      )
+    }),
+  )
+}
+
+/// A table with a header row. The first cell of each row is its label.
+pub fn compare(
+  caption: String,
+  head: List(String),
+  rows: List(List(String)),
+) -> Element(msg) {
+  html.div([attribute.class("compare-wrap")], [
+    html.table([attribute.class("compare")], [
+      html.caption([attribute.class("visually-hidden")], [text(caption)]),
+      html.thead([], [
+        html.tr(
+          [],
+          list.map(head, fn(cell) {
+            html.th([attribute.attribute("scope", "col")], [text(cell)])
+          }),
+        ),
+      ]),
+      html.tbody(
+        [],
+        list.map(rows, fn(row) {
+          case row {
+            [] -> element.none()
+            [label, ..cells] ->
+              html.tr([], [
+                html.th([attribute.attribute("scope", "row")], [text(label)]),
+                ..list.map(cells, fn(cell) { html.td([], [text(cell)]) })
+              ])
+          }
+        }),
+      ),
+    ]),
+  ])
+}
+
+/// Small print under a section.
+pub fn notes(children: List(Element(msg))) -> Element(msg) {
+  html.div([attribute.class("notes")], children)
+}
+
+// Docs -------------------------------------------------------------------------
+
+/// A docs page: title and lede, a sticky contents list, and the article.
+/// `lede`, `toc` and `body` are trusted HTML from `app/content/docs`.
+/// `public/docs.js` adds Copy buttons to `.legal-body pre` and marks the
+/// current entry in `.docs-toc`.
+pub fn docs(
+  kicker: String,
+  title: String,
+  lede: String,
+  toc: String,
+  body: String,
+) -> List(Element(msg)) {
+  [
+    html.section([attribute.class("page-hero page-hero-docs")], [
+      html.div([attribute.class("container")], [
+        html.p([attribute.class("section-kicker")], [text(kicker)]),
+        html.h1([attribute.class("page-title"), attribute.id("title")], [
+          text(title),
+        ]),
+        element.unsafe_raw_html("", "p", [attribute.class("hero-sub")], lede),
+      ]),
+    ]),
+    html.div([attribute.class("container docs-layout")], [
+      element.unsafe_raw_html(
+        "",
+        "nav",
+        [
+          attribute.class("docs-toc"),
+          attribute.aria_label("On this page"),
+        ],
+        toc,
+      ),
+      element.unsafe_raw_html(
+        "",
+        "article",
+        [
+          attribute.class("legal-body prose"),
+          attribute.attribute("aria-labelledby", "title"),
+        ],
+        body,
+      ),
+    ]),
+  ]
+}
+
+/// Page-width content with no section spacing of its own.
+pub fn container(children: List(Element(msg))) -> Element(msg) {
+  html.section([attribute.class("container")], children)
+}

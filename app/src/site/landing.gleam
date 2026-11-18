@@ -136,7 +136,8 @@ fn how_it_works() -> Element(msg) {
   ])
 }
 
-fn run_it() -> Element(msg) {
+/// Self-host or hosted. Also on the Gateway page.
+pub fn run_it() -> Element(msg) {
   site.section("run", "Deploy", "Run it your way.", "", [
     site.split([
       site.split_card(

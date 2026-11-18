@@ -3,8 +3,8 @@
 //// Run from `app/` with `gleam run -m prerender`, after the SPA bundle is in
 //// `public/app`; `scripts/build-spa.sh` does both.
 ////
-//// Site pages (`public/index.html`, `public/fizz.css`) are committed, and CI
-//// fails if they are out of date. App pages under `public/app` are build
+//// Site pages (the landing, Gateway, Pricing, Self-host and docs pages, and
+//// `public/fizz.css`) are committed, and CI fails if they are out of date. App pages under `public/app` are build
 //// output. Each is the app's first render for that URL, so the bundle takes
 //// over the same markup instead of replacing a blank page.
 
@@ -14,7 +14,11 @@ import gleam/uri
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
+import site/docs
+import site/gateway_page
 import site/landing
+import site/pricing
+import site/self_host
 
 @external(javascript, "./prerender_ffi.mjs", "write_file")
 fn write_file(path: String, contents: String) -> Nil
@@ -32,6 +36,22 @@ pub const previews = [
 pub fn main() -> Nil {
   write_file("../public/fizz.css", read_file("assets/fizz.css"))
   write_file("../public/index.html", render(landing.page()))
+  // Flat files, as src/serve.rs maps them. The folders Vercel serves
+  // (public/gateway/index.html and the like) are symlinks to these.
+  write_file("../public/gateway.html", render(gateway_page.page()))
+  write_file("../public/pricing.html", render(pricing.page()))
+  write_file("../public/self-host-chooser.html", render(self_host.page()))
+  list.each(docs.all, fn(doc) {
+    let dir = "content/docs/" <> doc.slug <> "/"
+    let html =
+      render(docs.page(
+        doc,
+        read_file(dir <> "lede.html"),
+        read_file(dir <> "toc.html"),
+        read_file(dir <> "body.html"),
+      ))
+    write_file(doc_file(doc.slug), html)
+  })
 
   write_file(
     "../public/app/index.html",
@@ -49,6 +69,14 @@ pub fn main() -> Nil {
       app_page("/app/preview/" <> name, "Example"),
     )
   })
+}
+
+fn doc_file(slug: String) -> String {
+  case slug {
+    "gateway" -> "../public/gateway-docs.html"
+    "sensors" -> "../public/docs.html"
+    _ -> "../public/self-host.html"
+  }
 }
 
 fn render(page: Element(msg)) -> String {
