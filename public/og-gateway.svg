@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Fizzlayer Gateway</title>
+  <desc id="desc">A managed and self-hostable MCP gateway. Per-tool policies, tool pinning, and single-use approvals. Hosted access is a waitlist.</desc>
+  <rect width="1200" height="630" fill="#0b1722"/>
+  <circle cx="1040" cy="520" r="260" fill="#102838"/>
+  <text x="80" y="140" fill="#8ec9d6" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" letter-spacing="3">FIZZLAYER GATEWAY</text>
+  <text x="80" y="240" fill="#f4fbfd" font-family="ui-sans-serif, system-ui, sans-serif" font-size="60">One MCP endpoint.</text>
+  <text x="80" y="316" fill="#f4fbfd" font-family="ui-sans-serif, system-ui, sans-serif" font-size="60">Your rules on every tool.</text>
+  <text x="80" y="400" fill="#b7c9d2" font-family="ui-sans-serif, system-ui, sans-serif" font-size="28">Run it with Docker. Hosted access is still a waitlist.</text>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" fill="#a9eaf7">
+    <rect x="80" y="460" width="200" height="52" rx="8" fill="#112a39" stroke="#406273"/>
+    <text x="180" y="493" text-anchor="middle">Tool pinning</text>
+    <rect x="300" y="460" width="230" height="52" rx="8" fill="#112a39" stroke="#406273"/>
+    <text x="415" y="493" text-anchor="middle">Approve, then retry</text>
+    <rect x="550" y="460" width="210" height="52" rx="8" fill="#112a39" stroke="#406273"/>
+    <text x="655" y="493" text-anchor="middle">ES256 client JWTs</text>
+  </g>
+  <text x="80" y="580" fill="#7f97a3" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20">fizzlayer.com/gateway</text>
+</svg>

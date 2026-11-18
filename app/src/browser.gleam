@@ -11,6 +11,36 @@ pub fn send(
   done(#(0, "HTTP is only available in the browser"))
 }
 
+@external(javascript, "./http_ffi.mjs", "probe_tools")
+pub fn probe_tools(
+  _url: String,
+  _auth_kind: String,
+  _api_key: String,
+  done: fn(#(Bool, String)) -> Nil,
+) -> Nil {
+  done(#(False, "Tool listing is only available in the browser"))
+}
+
+@external(javascript, "./http_ffi.mjs", "hosted_probe")
+pub fn hosted_probe(done: fn(#(Int, String)) -> Nil) -> Nil {
+  done(#(404, ""))
+}
+
+@external(javascript, "./http_ffi.mjs", "copy_text")
+pub fn copy_text(_value: String, done: fn(#(Bool, String)) -> Nil) -> Nil {
+  done(#(False, ""))
+}
+
+@external(javascript, "./http_ffi.mjs", "assign")
+pub fn assign(_path: String) -> Nil {
+  Nil
+}
+
+@external(javascript, "./http_ffi.mjs", "continue_checkout")
+pub fn continue_checkout(_plan: String) -> Nil {
+  Nil
+}
+
 @external(javascript, "./supabase_ffi.mjs", "load_config_text")
 pub fn load_config_text(done: fn(#(Bool, String)) -> Nil) -> Nil {
   done(#(False, "Config is only available in the browser"))

@@ -286,3 +286,58 @@ body { overflow-x: clip; }
   .footer-brand > span { max-width: 180px; line-height: 1.7; }
   .business input, .business textarea { font-size: 18px; }
 }
+
+.flow { margin: 0; padding: 22px 22px 18px; border: 1px solid #395365; border-radius: 18px; background: radial-gradient(ellipse at 50% 0%, #1a4151, #0b1722 68%); color: #e7f4f8; box-shadow: 0 30px 65px -28px #22495a66; }
+.flow-top { display: flex; justify-content: space-between; margin-bottom: 16px; color: #8eb0bf; font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.flow-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.25fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.flow-card { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 14px 12px; border: 1px solid #406273; border-radius: 12px; background: #112a39f2; text-align: center; }
+.flow-card strong { font-family: var(--display); font-size: 18px; font-weight: 500; letter-spacing: -.3px; }
+.flow-card span { display: block; margin-top: 6px; color: #9db6c2; font-size: 13px; line-height: 1.45; }
+.flow-gate { background: linear-gradient(180deg, #164156, #102838); border-color: #4fb3c8; }
+.flow-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.flow-chips li { padding: 2px 8px; border-radius: 999px; background: #0b1722; color: #a9eaf7; font: 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.flow-arrow { align-self: center; color: #7eb4c2; font-size: 22px; line-height: 1; }
+.flow-note { margin: 14px 0 0; color: #b7c9d2; font-size: 14px; line-height: 1.5; }
+.quick-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start; }
+.quick-grid h3 { margin: 0 0 10px; font-family: var(--display); font-size: 26px; font-weight: 500; letter-spacing: -.6px; }
+.quick-grid p { color: var(--muted); }
+.quick-grid pre { margin: 0 0 14px; padding: 16px 18px; overflow-x: auto; border-radius: 10px; background: var(--navy); color: #dbe9f0; font-size: 13.5px; line-height: 1.6; }
+.quick-grid pre code { font-size: inherit; }
+.faq details { border-top: 1px solid var(--line); }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { padding: 16px 0; font-weight: 600; cursor: pointer; }
+.faq details p { margin: 0 0 16px; color: var(--muted); }
+.compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.compare article { padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.compare h3 { margin: 0 0 8px; font-family: var(--display); font-size: 22px; font-weight: 500; }
+.compare p, .compare li { color: var(--muted); font-size: 15px; }
+.compare ul { margin: 0; padding-left: 18px; }
+.problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.problem-grid article { padding: 22px; border-top: 3px solid var(--accent); background: var(--paper); border-radius: 0 0 12px 12px; box-shadow: inset 0 0 0 1px var(--line); }
+.problem-grid h3 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+.problem-grid p { margin: 0; color: var(--muted); }
+@media (max-width: 900px) {
+  .flow-row, .quick-grid, .compare, .problem-grid { grid-template-columns: 1fr; }
+  .flow-arrow { transform: rotate(90deg); justify-self: center; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+  body { background: #0c1620; color: #e7f1f6; }
+  .hero-wrap { background: radial-gradient(ellipse at 90% 0%, #14384a 0, transparent 46%), linear-gradient(#0c1620, #101c27); border-bottom-color: #243848; }
+  .hero-description, .invite, .section .lede, .pricing-note, .quick-grid p, .faq details p, .compare p, .compare li, .problem-grid p, .status-list p, .connect-steps p { color: #b7c9d4; }
+  .hero h1, .section h1, .section h2, .quick-grid h3, .compare h3, .problem-grid h3, .plan-name, .status-list strong { color: #f2f8fb; }
+  .product-section { background: #101c27; border-color: #243848; }
+  .use-card, .pricing-table-wrap, .compare article, .beta-form input, .pricing-table tr { background: #12202c; color: #e7f1f6; border-color: #2a4150; }
+  .use-card > p, .use-card .ask { color: #b7c9d4; }
+  .use-card .ask { border-top-color: #2a4150; }
+  .pricing-table thead th { background: #0e1a24; color: #9db0bc; }
+  .pricing-table th, .pricing-table td, .status-list li, .faq details, .connect-steps li { border-color: #2a4150; }
+  .plan-featured th, .plan-featured td { background: #143040; }
+  .button-light { background: #12202c; color: #e7f1f6; border-color: #3a5566; }
+  .button-light:hover { background: #1a3140; }
+  .site-footer { border-top-color: #243848; }
+  .footer-brand > span, .site-footer nav a, .invite a { color: #9db0bc; }
+  .connection-band, .closing { background: #101c27; }
+  .beta-form label { color: #d5e4ec; }
+  .step-number { background: #143040; border-color: #245066; }
+}

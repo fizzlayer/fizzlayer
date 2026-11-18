@@ -3,19 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#fcfdfd">
+  <meta name="theme-color" content="#fcfdfd" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c1620" media="(prefers-color-scheme: dark)">
   <title>Fizzlayer | The secure connection layer for AI agents</title>
-  <meta name="description" content="Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta. Sensors are available now. Phone-call alerts are on Tinkerer and Pro. Hobbyist includes dashboard and webhook alerts.">
+  <meta name="description" content="Fizzlayer Gateway is an MCP gateway you can run with Docker. Per-tool allow, deny, and approve, tool pinning, and signed client tokens. The hosted gateway is a waitlist. Sensors are live.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Fizzlayer">
   <meta property="og:url" content="https://fizzlayer.com/">
   <meta property="og:title" content="Fizzlayer | The secure connection layer for AI agents">
-  <meta property="og:description" content="The hosted gateway is in private beta. Policies, approvals, and audit are not available yet. Sensors are available now. Phone-call alerts are on Tinkerer and Pro. Hobbyist includes dashboard and webhook alerts.">
-  <meta property="og:image" content="https://fizzlayer.com/og.png?v=3fa47dec3301">
+  <meta property="og:description" content="One MCP endpoint in front of your servers, with per-tool rules and approvals. Self-host with Docker. The hosted gateway is a waitlist.">
+  <meta property="og:image" content="https://fizzlayer.com/og.svg">
+  <meta property="og:image:type" content="image/svg+xml">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Fizzlayer, the secure connection layer for AI agents.">
+  <meta property="og:image:alt" content="Fizzlayer Gateway between an agent and MCP servers, with allow, deny, and approve.">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@fizzlayer">
+  <meta name="twitter:title" content="Fizzlayer | The secure connection layer for AI agents">
+  <meta name="twitter:description" content="One MCP endpoint in front of your servers, with per-tool rules and approvals. Self-host with Docker. The hosted gateway is a waitlist.">
+  <meta name="twitter:image" content="https://fizzlayer.com/og.svg">
+  <meta name="twitter:image:alt" content="Fizzlayer Gateway between an agent and MCP servers, with allow, deny, and approve.">
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="canonical" href="https://fizzlayer.com/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,52 +41,230 @@
       <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
       <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
       <ul class="nav-links" id="nav-links">
+        <li><a href="/gateway">Gateway</a></li>
+        <li><a href="/docs">Docs</a></li>
         <li><a href="/pricing">Pricing</a></li>
-        <li><a href="/docs">Gateway docs</a></li>
         <li><a href="/sensors">Sensors</a></li>
         <li><a href="/self-host">Self-host</a></li>
         <li class="nav-github"><a class="github-link" href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer" aria-label="Fizzlayer on GitHub"><svg class="github-mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.7 7.7 0 0 1 8 4.84c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
-        <li><a class="nav-sign-in" href="/app.html#sign-in">Sign in</a></li>
-        <li><a class="button button-dark nav-cta" href="#beta">Join the list</a></li>
+        <li><a class="nav-sign-in" href="/app?mode=sign-in">Sign in</a></li>
+        <li><a class="button button-dark nav-cta" href="/app">Create account</a></li>
       </ul>
     </nav>
   </header>
   <main id="main-content">
     <section class="hero-wrap">
-      <div class="container hero hero-simple">
+      <div class="container hero">
         <div class="hero-copy">
-          <p class="eyebrow-label">Gateway · private beta</p>
+          <p class="eyebrow-label"><span class="status-dot" aria-hidden="true"></span> Fizzlayer Gateway</p>
           <h1>The secure connection layer for AI agents.</h1>
-          <p class="hero-description">The hosted gateway is in private beta. The plan is one MCP endpoint, with policies, approvals, and audit. None of that is available yet, and you cannot connect a server through it.</p>
+          <p class="hero-description">Fizzlayer Gateway is one MCP endpoint in front of the servers your agents can call. You allow a tool, deny it, or hold it for approval. If the tool's description changes, the call stops until you pin the new text.</p>
           <div class="hero-actions">
-            <a class="button button-dark" href="#beta">Join the list</a>
-            <a class="button button-light" href="/sensors">Open Sensors</a>
+            <a class="button button-dark" href="/app">Create account</a>
+            <a class="button button-light" href="/docs">Read the docs</a>
           </div>
-          <p class="invite">Sensors and Fizz are available now. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden. Built in Rust. The gateway will run on the open-source agentgateway project. That data plane is not shipped here yet.</p>
+          <p class="invite">You can run this from the repository today. Docker is the only extra install. fizzlayer.com does not host a shared gateway yet. <a href="#beta">Join that list</a> if you want a hosted URL. <a href="/app">Create an account</a> opens gateway setup. Sensors stay at <a href="/sensors">/sensors</a>. Apache-2.0, Fizzlayer LLC. The data plane is unmodified <a href="https://github.com/agentgateway/agentgateway" rel="noopener noreferrer">agentgateway</a> v1.7.</p>
         </div>
+        <figure class="flow" aria-labelledby="flow-title">
+          <figcaption id="flow-title" class="visually-hidden">An agent calls Fizzlayer Gateway. The gateway checks the policy, the tool pin, and any approval, then forwards the call.</figcaption>
+          <div class="flow-top"><span>MCP</span><span>Streamable HTTP</span></div>
+          <div class="flow-row">
+            <div class="flow-card">
+              <strong>Agent</strong>
+              <span>Claude Code, Cursor, or any client that can send a bearer token</span>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-card flow-gate">
+              <strong>Fizzlayer Gateway</strong>
+              <span>fizz-guard on agentgateway</span>
+              <ul class="flow-chips">
+                <li>Allow</li>
+                <li>Deny</li>
+                <li>Approve</li>
+                <li>Pin</li>
+              </ul>
+            </div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="flow-card">
+              <strong>MCP servers</strong>
+              <span>HTTP or SSE. stdio only on a dedicated or self-hosted gateway.</span>
+            </div>
+          </div>
+          <p class="flow-note">A phone, webhook, or log line can tell you an approval is waiting. The agent retries the same call after you approve it once.</p>
+        </figure>
       </div>
     </section>
-    <section class="section container" aria-labelledby="not-yet-title">
+
+    <section class="section container" aria-labelledby="shipped-title">
       <div class="section-intro">
         <div>
-          <p class="eyebrow-label">What exists today</p>
-          <h2 id="not-yet-title">The gateway is not live.</h2>
+          <p class="eyebrow-label">What you can use</p>
+          <h2 id="shipped-title">The proxy runs on your machine. The hosted one does not.</h2>
         </div>
-        <p class="lede">Joining the list does not create a gateway, mint a token, or turn on approvals. Those parts are still being built. An account today is a Sensors account.</p>
+        <p class="lede">Creating an account opens gateway setup. Sensors stay at /sensors. fizzlayer.com does not host a shared gateway yet.</p>
       </div>
       <ul class="status-list">
-        <li><div><strong>Not available yet</strong><p>A hosted MCP gateway, per-tool rules, phone or chat approvals, and an audit log of tool calls.</p></div></li>
-        <li><div><strong>Available now</strong><p><a href="/sensors">Sensors</a>, the dashboard at <a href="/app.html">the app</a>, and <a href="/sensors/docs">sensors docs</a>.</p></div></li>
-        <li><div><strong>Self-host</strong><p><a href="/self-host">Choose Gateway or Sensors</a>. Only the Sensors stack can be installed today.</p></div></li>
+        <li><div><strong>In the repository</strong><p>Policies, tool pinning, single-use approvals, ES256 client tokens, encrypted upstream keys, and the <a href="/docs#api">/api/gateway</a> control plane. The local stack is Docker Compose.</p></div></li>
+        <li><div><strong>Live on fizzlayer.com</strong><p><a href="/app">Gateway setup</a>, <a href="/sensors">Sensors</a>, the <a href="/app.html">sensors dashboard</a>, email and webhook alerts on every plan, and phone calls on paid plans.</p></div></li>
+        <li><div><strong>Not shipped</strong><p>A hosted shared gateway, a provisioned Pro machine, Slack approvals, a connect command, Stripe metering of tool calls, and OAuth for ChatGPT or Claude connectors.</p></div></li>
       </ul>
     </section>
+
+    <section class="section container connect" aria-labelledby="how-title">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow-label">How a call moves</p>
+          <h2 id="how-title">The risky call waits. The agent tries again.</h2>
+        </div>
+      </div>
+      <ol class="connect-steps">
+        <li><span class="step-number">1</span><h3>The client presents a Fizzlayer JWT</h3><p>ES256, issuer <code>fizzlayer</code>, audience set to that gateway's URL. The public key is at <a href="/api/gateway/jwks"><code>/api/gateway/jwks</code></a>.</p></li>
+        <li><span class="step-number">2</span><h3>fizz-guard reads the rule</h3><p>Each tool is allow, deny, or approve. No matching rule denies the call. A tool you have not pinned is hidden from the list by default, and a call to it is denied.</p></li>
+        <li><span class="step-number">3</span><h3>Approval is one retry</h3><p>The gateway rejects the call, stores the argument hash, and returns. You approve that row. The same call is allowed once, then a second retry is rejected.</p></li>
+      </ol>
+    </section>
+
+    <section class="section product-section" aria-labelledby="features-title">
+      <div class="container">
+        <div class="section-intro">
+          <div>
+            <p class="eyebrow-label">In the data plane</p>
+            <h2 id="features-title">Rules, pins, and tokens.</h2>
+          </div>
+          <p class="lede">These are the pieces in <a href="https://github.com/fizzlayer/fizzlayer/tree/main/gateway">gateway/</a>. Longer notes are in the <a href="/docs">docs</a>.</p>
+        </div>
+        <div class="use-grid">
+          <article class="use-card">
+            <h3>Per-tool policy</h3>
+            <p>Allow, deny, or approve. A rule can name one server or every server, and one tool or <code>*</code>. Notifications are a log line, a webhook, or a phone call.</p>
+          </article>
+          <article class="use-card">
+            <h3>Tool pinning</h3>
+            <p>The pin is a hash of the tool name, description, and input schema. A changed description drops the tool from <code>tools/list</code> and blocks <code>tools/call</code> until you approve the new hash.</p>
+          </article>
+          <article class="use-card">
+            <h3>Single-use approval</h3>
+            <p>The rejection names an id and tells the agent to retry the same call. The default window is 10 minutes. Approving it does not approve the next different argument list.</p>
+          </article>
+          <article class="use-card">
+            <h3>Client JWTs</h3>
+            <p>Mint a token for "Cursor on this laptop", revoke it later. fizz-guard reads <code>revoked_at</code>. The default life is 1 hour. You can ask for up to 30 days.</p>
+          </article>
+          <article class="use-card">
+            <h3>Encrypted upstream keys</h3>
+            <p>An MCP API key is stored as AES-256-GCM ciphertext. List responses do not include it. The signed-in config preview leaves credentials out.</p>
+          </article>
+          <article class="use-card">
+            <h3>Hot reload from a file</h3>
+            <p>Standalone mode writes agentgateway YAML and replaces the file in one rename, which the proxy watches. Linked mode runs <code>fizz-agent</code>, which polls the control plane and writes that same file. Do not run both writers on one file.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section container" id="quickstart" aria-labelledby="quickstart-title">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow-label">Quickstart</p>
+          <h2 id="quickstart-title">Docker from the repo, or a place on the hosted list.</h2>
+        </div>
+      </div>
+      <div class="quick-grid">
+        <article>
+          <h3>Self-host</h3>
+          <p>Docker Engine with Compose. The script builds the local image, checks the database policies, and runs an MCP client through the gateway. It removes the containers when it finishes. Passwords stay in <code>gateway/compose/.env</code> and are not printed.</p>
+          <div class="docs-code"><pre><code>git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
+gateway/compose/test.sh</code></pre></div>
+          <p>To leave the sample gateway listening on <code>127.0.0.1:3000</code>, use the compose command in the <a href="/docs#quickstart">docs</a>. Linked mode is <code>gateway/compose/test-linked.sh</code>, or <code>fizz-agent pull</code> against your own control plane. Docker Hub does not have a <code>fizzlayer/fizzlayer-gateway</code> tag yet, so Compose builds the image.</p>
+        </article>
+        <article>
+          <h3>Hosted</h3>
+          <p>There is no shared URL to paste into a client. A Pro plan is priced to include one dedicated gateway, and the API will store that mode, but no machine is provisioned.</p>
+          <p><a class="button button-dark" href="#beta">Join the hosted list</a></p>
+          <p class="invite">An account at <a href="/app.html">/app.html</a> is the Sensors workspace. It does not open a gateway dashboard. If you already have an account, the control-plane routes are under <code>/api/gateway</code> once that database migration is applied. A row in that API is not a running proxy.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section container" id="pricing" aria-labelledby="home-pricing-title">
+      <div class="section-intro">
+        <div>
+          <p class="eyebrow-label">Pricing</p>
+          <h2 id="home-pricing-title">Same four prices. Sensors now, gateway limits in the API.</h2>
+        </div>
+        <p class="lede"><a href="/pricing">Full comparison</a>. Phone calls are the column that is dialed today. Gateway and server counts are enforced when you call the control plane. Monthly tool-call totals are stored and not metered yet.</p>
+      </div>
+      <div class="pricing-table-wrap">
+        <table class="pricing-table">
+          <caption class="visually-hidden">Fizzlayer plans: price, sensors, gateway counts, and the shared phone-call cap</caption>
+          <thead>
+            <tr>
+              <th scope="col">Plan</th>
+              <th scope="col">Price</th>
+              <th scope="col">Sensors</th>
+              <th scope="col">Gateway</th>
+              <th scope="col">Phone calls</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Hobbyist</th>
+              <td data-label="Price">$0</td>
+              <td data-label="Sensors">3 devices, 10 Fizz credits</td>
+              <td data-label="Gateway">1 shared, 3 servers</td>
+              <td data-label="Phone calls">None. Dashboard and webhook alerts.</td>
+            </tr>
+            <tr class="plan-featured">
+              <th scope="row">Tinkerer</th>
+              <td data-label="Price">$10 / month</td>
+              <td data-label="Sensors">10 devices, 100 credits</td>
+              <td data-label="Gateway">1 shared, 10 servers</td>
+              <td data-label="Phone calls">20 / month</td>
+            </tr>
+            <tr>
+              <th scope="row">Pro</th>
+              <td data-label="Price">$25 / month</td>
+              <td data-label="Sensors">50 devices, 1,000 credits</td>
+              <td data-label="Gateway">1 dedicated, 25 servers, stdio allowed in the API</td>
+              <td data-label="Phone calls">100 / month</td>
+            </tr>
+            <tr>
+              <th scope="row">Enterprise</th>
+              <td data-label="Price">Custom</td>
+              <td data-label="Sensors">Custom</td>
+              <td data-label="Gateway">Custom</td>
+              <td data-label="Phone calls">Unlimited unless a contract sets a cap</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="pricing-note">Alert calls and approval calls share one cap. It resets on the first of the month (UTC). Email alerts are on every plan, including Hobbyist, and the dashboard shows that choice only when mail is configured. On fizzlayer.com that choice is hidden. Hobbyist gets dashboard and webhook alerts. The hosted shared gateway and the Pro machine are not running. <a href="/gateway#plans">How the plans differ for the gateway</a>.</p>
+    </section>
+
+    <section class="section product-section" aria-labelledby="sensors-title">
+      <div class="container demo-layout">
+        <div>
+          <p class="eyebrow-label">Sensors</p>
+          <h2 id="sensors-title">Sensors stay on this account, at /sensors.</h2>
+          <p class="lede">Pair a Linux device, a phone, or Home Assistant. Ask Fizz about the readings. Set an alert. Phone-call alerts use the same monthly cap as gateway approvals.</p>
+          <p><a class="button button-dark" href="/sensors">Open Sensors</a></p>
+        </div>
+        <ul class="demo-features">
+          <li>Hosted at fizzlayer.com/sensors, and self-hosted with the sensors images.</li>
+          <li>MCP for sensor data is a separate server at <code>/api/mcp</code>, with <code>fizz_agent_</code> tokens.</li>
+          <li>The gateway does not replace that server. You can add it later as one upstream.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="section container" id="beta" aria-labelledby="beta-title">
       <div class="section-intro">
         <div>
-          <p class="eyebrow-label">Private beta</p>
+          <p class="eyebrow-label">Hosted gateway</p>
           <h2 id="beta-title">Join the list.</h2>
         </div>
-        <p class="lede">Tell us where to write when there is a place in the beta. This uses the same contact form as Enterprise. It does not reserve a plan.</p>
+        <p class="lede">This is the same contact form as Enterprise. It stores an email. It does not create a gateway, mint a token, or reserve a plan.</p>
       </div>
       <form id="beta-form" class="beta-form">
         <label>Email<input id="beta-email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
@@ -89,6 +274,6 @@
       <p class="invite" id="beta-status" role="status"></p>
     </section>
   </main>
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/docs">Gateway docs</a><a href="/sensors/docs">Sensors docs</a><a href="/self-host">Self-host</a><a href="/pricing">Pricing</a><a href="/status">Status</a><a href="/changelog">Changelog</a><a href="/enterprise">Enterprise</a><a href="/app.html#sign-in">Sign in</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
+  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/gateway">Gateway</a><a href="/docs">Gateway docs</a><a href="/sensors">Sensors</a><a href="/sensors/docs">Sensors docs</a><a href="/self-host">Self-host</a><a href="/pricing">Pricing</a><a href="/status">Status</a><a href="/changelog">Changelog</a><a href="/enterprise">Enterprise</a><a href="/app?mode=sign-in">Sign in</a><a href="https://x.com/fizzlayer" rel="noopener noreferrer">@fizzlayer</a><a href="https://github.com/fizzlayer/fizzlayer" rel="noopener noreferrer">GitHub</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
 </body>
 </html>

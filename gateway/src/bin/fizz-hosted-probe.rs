@@ -192,14 +192,25 @@ async fn run() -> GatewayResult<()> {
         ));
     }
 
+    // agentgateway v1.7 reports a local rate limit as HTTP 200 with
+    // "rate limit exceeded" in the body, or as HTTP 429. Either counts.
     let mut saw_limit = false;
     let mut saw_ok = false;
     for _ in 0..6 {
-        let status = post_status(&client, &url_limit, &token_limit).await?;
-        if status == 429 {
-            saw_limit = true;
+        let (status, text) = post(
+            &client,
+            &url_limit,
+            &token_limit,
+            json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "fizz-hosted-probe", "version": "0.1.0"}}}),
+        )
+        .await?;
+        if text.contains(SECRET_MARK) || text.contains("eyJ") {
+            return Err(GatewayError::message("gateway response was redacted"));
         }
-        if (200..300).contains(&status) {
+        let limited = status == 429 || text.to_ascii_lowercase().contains("rate limit");
+        if limited {
+            saw_limit = true;
+        } else if (200..300).contains(&status) {
             saw_ok = true;
         }
     }

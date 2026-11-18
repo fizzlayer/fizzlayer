@@ -4,9 +4,42 @@
 
 **The secure connection layer for AI agents.**
 
-Connect sensors, phones, and Linux devices to your AI agents. Fizzlayer brings their readings into one dashboard so you can ask questions, watch changes, and set alerts. Fizz, the built-in assistant, helps you understand what your devices are reporting.
+Fizzlayer Gateway is an MCP gateway in front of the servers your agents can call. You allow a tool, deny it, or hold it for a one-time approval. If the tool's description or input schema changes, the gateway hides it until you pin the new hash. Clients use ES256 JWTs. Upstream API keys are stored encrypted.
 
-[Website](https://fizzlayer.com) · [Documentation](https://fizzlayer.com/sensors/docs) · [Interactive demo](https://fizzlayer.com/demo.html) · [Self-hosting](docs/SELF_HOSTING.md) · [CLI guide](docs/CLI.md)
+The data plane is unmodified [agentgateway](https://github.com/agentgateway/agentgateway) v1.7. The policy sidecar is `fizz-guard`, in [`gateway/`](gateway/README.md). You can run that stack with Docker from this repository. fizzlayer.com does not host a shared gateway yet, and a Pro plan does not provision a dedicated machine. Sensors, the dashboard, and phone-call alerts are live at [fizzlayer.com/sensors](https://fizzlayer.com/sensors).
+
+[Website](https://fizzlayer.com) · [Gateway](https://fizzlayer.com/gateway) · [Gateway docs](https://fizzlayer.com/docs) · [Sensors docs](https://fizzlayer.com/sensors/docs) · [Self-hosting sensors](docs/SELF_HOSTING.md) · [CLI guide](docs/CLI.md)
+
+Apache License 2.0. Copyright 2026 Fizzlayer LLC. One X account: [@fizzlayer](https://x.com/fizzlayer).
+
+## Gateway
+
+Standalone mode builds a local image and runs agentgateway, `fizz-guard`, and a sample MCP server. Docker is the only extra install. The script writes `gateway/compose/.env` and does not print the passwords.
+
+```sh
+git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
+cd fizzlayer
+gateway/compose/test.sh
+```
+
+That command removes the containers when it finishes. To leave the sample listener on `127.0.0.1:3000`:
+
+```sh
+cd gateway/compose
+docker compose --env-file .env up -d postgres fizz-config fizz-config-watch fizz-guard sample-mcp agentgateway
+```
+
+There is no published `fizzlayer/gateway` image to `docker pull`. Tokens for this compose file use audience `http://agentgateway:3000/mcp`.
+
+The control plane is `/api/gateway/*` on the Rust API: gateways, servers, policies, pins, approvals, client JWTs, and `GET /api/gateway/jwks`. Linked mode is `fizz-agent pull`. It polls `GET /api/gateway/agent/config` with a `fizz_reg_…` token, writes the YAML, and lets agentgateway hot-reload it. It reports with `POST /api/gateway/agent/status`. Do not run `fizz-agent` and `fizz-config watch` on the same file. The linked compose check is `gateway/compose/test-linked.sh`. See [gateway/README.md](gateway/README.md) and the [gateway docs](https://fizzlayer.com/docs).
+
+Phone-call approvals use the same AgentPhone path as sensor alerts. Hobbyist is 0 calls a month, Tinkerer 20, Pro 100, shared across alerts and approvals. Enterprise is unlimited unless a contract sets a cap. The guard reserves the call and returns. `/api/cron` dials it. The provider cannot collect a keypress, so the greeting tells you to approve in the app.
+
+Plan counts live on `fizz_plans`: Hobbyist 1 shared gateway and 3 servers, Tinkerer 1 and 10, Pro 1 dedicated and 25 with stdio allowed in the API, Enterprise custom. Phone-call alerts and phone approvals share one monthly cap: Hobbyist 0, Tinkerer 20, Pro 100, Enterprise unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Monthly tool-call totals are stored and not metered. Creating a gateway row does not start a proxy.
+
+## Sensors
+
+Connect sensors, phones, and Linux devices. Readings land in one dashboard. Fizz answers questions about them, and you can set alerts.
 
 ## What you can do
 
@@ -23,7 +56,7 @@ Fizzlayer includes a static web app, a Rust API deployed as Vercel Functions, a 
 
 Try the [interactive demo](https://fizzlayer.com/demo.html) without an account. It uses simulated sensors and local example replies to show the dashboard, alerts, and call previews.
 
-[Create a free account](https://fizzlayer.com/app.html), start with sample data, then connect a device from the **Sensors** or **Agents** page. You can also [deploy your own instance](docs/SELF_HOSTING.md).
+[Create a free account](https://fizzlayer.com/app) to set up a gateway: add an MCP server, set a rule per tool, and copy a client config. Sensors stay at [/sensors](https://fizzlayer.com/sensors). You can also [deploy your own instance](docs/SELF_HOSTING.md).
 
 ## Fizzlayer CLI
 
@@ -200,9 +233,10 @@ Formatting, Clippy, `cargo deny`, and shellcheck are described in [Code quality]
 
 | Path | Contents |
 | --- | --- |
-| `public/` | Landing page, dashboard, phone pairing, and CLI installer |
+| `public/` | Landing page, gateway docs, dashboard, phone pairing, and CLI installer |
+| `gateway/` | fizz-guard, config render, and the local Docker compose file |
 | `api/` | Rust Vercel Function entry points |
-| `src/` | Authentication, sensor ingestion, MCP, chat, and integrations |
+| `src/` | Authentication, sensor ingestion, MCP, the gateway control plane, chat, and integrations |
 | `cli/` | The `fizz` device CLI |
 | `supabase/migrations/` | Database schema, access policies, and server functions |
 | `supabase/tests/` | SQL checks for ownership and security protections |
@@ -214,7 +248,9 @@ Fizzlayer is released under the [Apache License 2.0](LICENSE). Copyright 2026 Fi
 
 ## Documentation
 
-- [User documentation](https://fizzlayer.com/sensors/docs) (`public/docs.html`; its WebMCP tool table is generated by `node scripts/agent-cards.mjs`)
+- [Gateway documentation](https://fizzlayer.com/docs) (`public/gateway-docs.html`)
+- [Gateway data plane](gateway/README.md)
+- [Sensors documentation](https://fizzlayer.com/sensors/docs) (`public/docs.html`; its WebMCP tool table is generated by `node scripts/agent-cards.mjs`)
 - [Self-hosting and operations](docs/SELF_HOSTING.md)
 - [CLI installation and usage](docs/CLI.md)
 - [Accounts, APIs, and integrations](docs/REFERENCE.md)

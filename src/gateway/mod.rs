@@ -1047,7 +1047,7 @@ fn render(
 /// the page uses when this route is not deployed.
 pub fn hosted_flag(value: Option<&str>) -> bool {
     matches!(
-        value.map(str::trim).map(|text| text.to_ascii_lowercase()),
+        value.map(str::trim).map(str::to_ascii_lowercase),
         Some(ref text) if text == "1" || text == "true" || text == "yes"
     )
 }

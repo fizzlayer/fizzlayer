@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Self-host | Fizzlayer</title>
-  <meta name="description" content="Choose Sensors self-hosting, which you can install today, or the Gateway, which is not available yet.">
+  <meta name="description" content="Self-host Fizzlayer Sensors from published images, or the Gateway from the repository with Docker.">
   <link rel="canonical" href="https://fizzlayer.com/self-host">
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/design.css">
@@ -19,7 +19,7 @@
       <ul class="nav-links">
         <li><a href="/self-host" aria-current="page">Self-host</a></li>
         <li><a href="/sensors/self-host">Sensors</a></li>
-        <li><a class="button nav-cta" href="/#beta">Join the list</a></li>
+        <li><a class="button nav-cta" href="/docs#quickstart">Gateway quickstart</a></li>
       </ul>
     </nav>
   </header>
@@ -31,8 +31,8 @@
     <div class="container legal-body">
       <h2>Sensors, available now</h2>
       <p>Docker Compose for the website, API, worker, readings, WebSocket, and MQTT. <a href="/sensors/self-host">Install the sensors stack</a>.</p>
-      <h2>Gateway, not available yet</h2>
-      <p>There is no Fizzlayer Gateway image or compose file to run. The hosted gateway is in private beta. <a href="/#beta">Join the list</a> if you want to hear when a build exists.</p>
+      <h2>Gateway, from the repository</h2>
+      <p>Docker builds the local image. Docker Hub does not have a <code>fizzlayer/fizzlayer-gateway</code> tag yet, and fizzlayer.com does not host a gateway. Clone the repo and run <code>gateway/compose/test.sh</code> for standalone mode, or <code>gateway/compose/test-linked.sh</code> for <code>fizz-agent</code>. Steps are in the <a href="/docs#quickstart">gateway docs</a>. <a href="/#beta">Join the hosted list</a> if you want a URL later.</p>
     </div>
   </main>
 </body>

@@ -5,6 +5,7 @@ body { overflow-x: clip; }
 
 /* Same navigation bar and footer as the landing page. */
 .site-nav { position: sticky; top: 0; z-index: 20; background: var(--navy); color: white; border-bottom: 1px solid #284455; }
+.nav-toggle { display: none; background: transparent; border: 1px solid #406273; border-radius: 6px; padding: 9px 14px; color: white; font-size: 16px; }
 .site-nav .wordmark { color: white; }
 .site-nav .wordmark .brand-dot { color: var(--cyan); }
 .site-nav nav { min-height: 79px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
@@ -93,5 +94,28 @@ body { overflow-x: clip; }
 }
 @media (max-width: 380px) {
   .site-nav nav { flex-wrap: wrap; row-gap: 0; padding-block: 10px; }
+}
+@media (max-width: 900px) {
+  .nav-toggle { display: block; }
+  .nav-links { display: none; position: absolute; top: 100%; inset-inline: 0; padding: 8px 28px 18px; background: var(--navy); border-bottom: 1px solid #284455; }
+  .nav-links.open { display: grid; }
+  .nav-links a { display: block; padding-block: 12px; }
+  .nav-links .nav-cta { width: fit-content; margin-top: 6px; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+  body { background: #0c1620; color: #e7f1f6; }
+  .legal-hero { background: radial-gradient(ellipse at 95% 25%, #14384a 0, transparent 48%), linear-gradient(#0c1620, #101c27); border-bottom-color: #243848; }
+  .legal-hero h1, .legal-body > h2, .legal-body h3, .legal-body strong, .docs-defs dt, .docs-faq dt { color: #f2f8fb; }
+  .legal-body p, .legal-body li, .docs-lede, .docs-defs dd, .docs-faq dd, .updated { color: #b7c9d4; }
+  .legal-body code { background: #1a3140; color: #d7f4fb; }
+  .legal-body > h2, .toc ol { border-color: #2a4150; }
+  .toc a { color: #b7c9d4; }
+  .toc { background: transparent; }
+  .site-footer { border-top-color: #243848; }
+  .footer-brand > span, .site-footer nav a { color: #9db0bc; }
+  .summary { background: #122833; border-color: #245066; }
+  .docs-quick a, .docs-compare section, .docs-table-wrap, .docs-table-wrap td { background: #12202c; color: #d5e4ec; border-color: #2a4150; }
+  .docs-table-wrap th { background: #0e1a24; color: #f2f8fb; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

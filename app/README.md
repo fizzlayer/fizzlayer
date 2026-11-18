@@ -6,11 +6,12 @@ Versions locked for this skeleton: **Gleam 1.19.2**, **Lustre 5.7.1**, **modem 2
 
 ## What it does
 
-- **Email magic link** and **GitHub** sign-in go through a thin `supabase-js` wrapper (`src/supabase_ffi.mjs`). Magic links only sign in an existing account (`shouldCreateUser: false`), so they do not skip the API's sign-up limits. GitHub uses the same Supabase provider as the current site.
-- After Supabase returns an access token, the app `POST`s it to `/api/auth` with `{"action":"link"}`. The Rust API verifies that token and sets the HttpOnly `fizz_session` cookie. The browser never had a Supabase key before this app; the current pages still sign in only through `/api/auth`.
-- **Workspace** (`/app/workspace`) calls `GET /api/me` with `credentials: "same-origin"` and renders the JSON. That route only reads the signed-in customer. `GET /api/sensors` is not used here because it also ticks simulated sensors.
-- **Sign out** clears the supabase-js session in this browser (`scope: "local"`) and then `DELETE /api/session`. That cookie is shared with `/app.html`, so signing out here signs out of the current app too.
-- An existing `fizz_session` cookie (from `/app.html`) is enough to open the workspace. You do not have to sign in again.
+- **Create account** and **sign in** with email and password go through `POST /api/auth`, the same limits as `/app.html`. Magic links and GitHub still use the `supabase-js` wrapper, then `POST /api/auth` `{"action":"link"}`. Magic links do not create accounts.
+- After sign-in, `/app/start` asks for a gateway (the default) or Sensors. Sensors is the existing app at `/sensors`.
+- Gateway setup creates a gateway, adds an MCP server, sets allow / deny / approve, pins tools the gateway has seen, and mints a client token. Copy-paste configs cover Claude Code, Claude Desktop, Cursor, and a generic HTTP client.
+- The registration token and the client JWT are shown once on the connect step. The upstream API key is not shown after submit. A 402 from the API is an upgrade prompt with a link to `/pricing`.
+- `/gateway-hosted.json` is `{"available": false}` until the shared host is serving. `GET /api/gateway/hosted` wins if that route exists. Until then the connect step is self-host plus the registration token.
+- **Sign out** clears the supabase-js session in this browser (`scope: "local"`) and then `DELETE /api/session`. That cookie is shared with `/app.html`.
 
 Passkeys and Google are still only on `/app.html`. A verified passkey factor can make the link exchange return `mfa_required`; use the current app in that case.
 
@@ -18,9 +19,15 @@ Passkeys and Google are still only on `/app.html`. A verified passkey factor can
 
 | URL | Page |
 | --- | --- |
-| `/app` | Sign in |
-| `/app/workspace` | `GET /api/me` |
-| anything else under `/app` | Not found, inside the SPA |
+| `/app` | Create account or sign in |
+| `/app/start` | Gateway or Sensors |
+| `/app/onboarding` | Create a gateway, then server, tools, pin, client |
+| `/app/gateways` | Gateway list, plan limits |
+| `/app/gateways/{id}/approvals` | Pending approvals |
+| `/app/gateways/{id}/alerts` | Changed tool pins |
+| `/app/gateways/{id}/tokens` | Client tokens |
+| `/app/workspace` | Same as `/app/gateways` |
+| `/sensors` | Existing sensors app (full page load) |
 
 Links to the existing site (`/index.html`, `/app.html`, `/docs.html`, …) are full page loads. modem intercepts same-origin links, and those paths are handed back to the browser.
 
