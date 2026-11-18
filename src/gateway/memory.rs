@@ -25,6 +25,9 @@ struct GatewayRow {
     status: String,
     unreviewed_tools: String,
     revision: i64,
+    agent_revision: Option<i64>,
+    agent_status: Option<String>,
+    agent_detail: Option<String>,
     order: u64,
 }
 
@@ -286,6 +289,7 @@ impl State {
             "decide_approval" => self.decide_approval(user, payload),
             "render_source" => self.render_source(user, payload, false),
             "agent_config" => self.agent_config(payload),
+            "agent_status" => self.agent_status(payload),
             "insert_token" => self.insert_token(user, payload),
             "list_tokens" => self.list_tokens(user, payload),
             "revoke_token" => self.revoke_token(user, payload),
@@ -407,6 +411,9 @@ impl State {
                 status: "active".to_string(),
                 unreviewed_tools: "hide".to_string(),
                 revision: 1,
+                agent_revision: None,
+                agent_status: None,
+                agent_detail: None,
                 order,
             },
         );
@@ -651,6 +658,37 @@ impl State {
             return json!({"error": "disabled", "config_revision": gateway.revision});
         }
         self.source(gateway_id, true)
+    }
+
+    fn agent_status(&mut self, payload: &Value) -> Value {
+        let hash = payload["token_hash"].as_str().unwrap_or("");
+        let Some(gateway_id) = self
+            .registrations
+            .iter()
+            .find(|(_, stored, revoked)| stored == hash && !revoked)
+            .map(|(gateway, _, _)| *gateway)
+        else {
+            return json!({"error": "not_found"});
+        };
+        let status = payload["status"].as_str().unwrap_or("");
+        let Some(revision) = payload["revision"].as_i64().filter(|value| *value >= 0) else {
+            return json!({"error": "invalid_request"});
+        };
+        if !matches!(status, "applied" | "rejected") {
+            return json!({"error": "invalid_request"});
+        }
+        let detail = match payload.get("detail") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(text)) if agent_detail_ok(text) => Some(text.clone()),
+            _ => return json!({"error": "invalid_request"}),
+        };
+        let Some(gateway) = self.gateways.get_mut(&gateway_id) else {
+            return json!({"error": "not_found"});
+        };
+        gateway.agent_revision = Some(revision);
+        gateway.agent_status = Some(status.to_string());
+        gateway.agent_detail = detail;
+        json!({"ok": true})
     }
 
     fn source(&self, gateway_id: Uuid, with_secret: bool) -> Value {
@@ -1007,6 +1045,15 @@ impl State {
     }
 }
 
+fn agent_detail_ok(text: &str) -> bool {
+    let count = text.chars().count();
+    (1..=300).contains(&count)
+        && !text.chars().any(char::is_control)
+        && !text.to_ascii_lowercase().contains("fizz_reg_")
+        && !text.contains("eyJ")
+        && !text.contains("Bearer ")
+}
+
 fn plan_json(id: &str) -> Value {
     let plan = plan(id);
     json!({
@@ -1035,6 +1082,9 @@ fn gateway_json(id: &Uuid, gateway: &GatewayRow, role: &str) -> Value {
         "status": gateway.status,
         "unreviewed_tools": gateway.unreviewed_tools,
         "config_revision": gateway.revision,
+        "agent_revision": gateway.agent_revision,
+        "agent_status": gateway.agent_status,
+        "agent_detail": gateway.agent_detail,
         "role": role,
     })
 }

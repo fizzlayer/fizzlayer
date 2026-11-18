@@ -16,7 +16,7 @@ That digest is the multi-arch OCI index (linux/amd64 and linux/arm64). Do not pi
 
 ## What we add
 
-agentgateway terminates MCP, checks the Fizzlayer JWT (`jwtAuth`), and calls fizz-guard through `mcpGuardrails` / ExtMcp. The generated config asks for `tools/call` on the request phase and `tools/list` on the response phase, with `failureMode: failClosed`. fizz-config writes the YAML file atomically. agentgateway's file watch reloads it. Session IDs are left unencrypted in local compose (`config.session.key: disabled` and `SESSION_KEY=disabled`) so the process does not write a generated key into the config file. Set a real session key outside the file before a shared or hosted deploy.
+agentgateway terminates MCP, checks the Fizzlayer JWT (`jwtAuth`), and calls fizz-guard through `mcpGuardrails` / ExtMcp. The generated config asks for `tools/call` on the request phase and `tools/list` on the response phase, with `failureMode: failClosed`. fizz-config and fizz-agent write the YAML file atomically. agentgateway v1.7.0 watches that file (`LocalClient::watch_config_file` at the pinned commit) and hot-reloads it. A rejected reload keeps the previous in-memory config and records the failure on `GET /api/runtime` as `configReload.synchronized: false`. `POST /api/config/raw` validates and writes the same file; it is not a separate reload switch. fizz-agent therefore uses the file watch, and reads `/api/runtime` only when `FIZZ_ADMIN_URL` can reach the admin listener. Session IDs are left unencrypted in local compose (`config.session.key: disabled` and `SESSION_KEY=disabled`) so the process does not write a generated key into the config file. Set a real session key outside the file before a shared or hosted deploy.
 
 ## What `ext_mcp.proto` allows (v1.7.0)
 

@@ -63,3 +63,18 @@ required-features = ["guard"]
 name = "fizz-mcp-probe"
 path = "src/bin/fizz-mcp-probe.rs"
 required-features = ["guard"]
+
+[[bin]]
+name = "fizz-agent"
+path = "src/bin/fizz-agent.rs"
+required-features = ["guard"]
+
+[[bin]]
+name = "fizz-control-mock"
+path = "src/bin/fizz-control-mock.rs"
+required-features = ["guard"]
+
+[[bin]]
+name = "fizz-linked-probe"
+path = "src/bin/fizz-linked-probe.rs"
+required-features = ["guard"]

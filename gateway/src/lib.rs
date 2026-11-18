@@ -12,6 +12,8 @@ pub mod toolpin;
 #[cfg(feature = "guard")]
 pub mod admin;
 #[cfg(feature = "guard")]
+pub mod agent;
+#[cfg(feature = "guard")]
 pub mod memory;
 #[cfg(feature = "guard")]
 pub mod notify;

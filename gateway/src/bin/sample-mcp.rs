@@ -123,17 +123,25 @@ async fn mcp(State(app): State<Arc<App>>, headers: HeaderMap, Json(body): Json<V
         }
         "tools/list" => {
             let note = app.note_description.lock().await.clone();
-            let tools = catalog()
-                .into_iter()
-                .map(|tool| {
-                    let description = if tool.name == "note" {
-                        note.clone()
-                    } else {
-                        tool.description.to_string()
-                    };
-                    sample_defs::tool_json(tool.name, &description, &tool.input_schema)
-                })
-                .collect::<Vec<_>>();
+            let tools = if let Some(name) = extra_tool() {
+                vec![sample_defs::tool_json(
+                    &name,
+                    "Extra tool served by the second sample server.",
+                    &json!({"type": "object", "properties": {}, "additionalProperties": false}),
+                )]
+            } else {
+                catalog()
+                    .into_iter()
+                    .map(|tool| {
+                        let description = if tool.name == "note" {
+                            note.clone()
+                        } else {
+                            tool.description.to_string()
+                        };
+                        sample_defs::tool_json(tool.name, &description, &tool.input_schema)
+                    })
+                    .collect::<Vec<_>>()
+            };
             json!({"tools": tools})
         }
         "tools/call" => {
@@ -141,6 +149,20 @@ async fn mcp(State(app): State<Arc<App>>, headers: HeaderMap, Json(body): Json<V
                 .pointer("/params/name")
                 .and_then(Value::as_str)
                 .unwrap_or("");
+            if let Some(extra) = extra_tool() {
+                if name == extra {
+                    return Json(json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{"type": "text", "text": "echoed"}],
+                            "isError": false
+                        }
+                    }))
+                    .into_response();
+                }
+                return rpc_error(id, -32602, "unknown tool");
+            }
             match name {
                 "ping" => app.counts.ping.fetch_add(1, Ordering::Relaxed),
                 "admin_reset" => app.counts.admin_reset.fetch_add(1, Ordering::Relaxed),
@@ -176,6 +198,20 @@ async fn mcp(State(app): State<Arc<App>>, headers: HeaderMap, Json(body): Json<V
         );
     }
     response
+}
+
+fn extra_tool() -> Option<String> {
+    let name = env::var("SAMPLE_TOOL_NAME").ok()?;
+    if !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        Some(name)
+    } else {
+        None
+    }
 }
 
 fn rpc_error(id: Value, code: i32, message: &str) -> Response {

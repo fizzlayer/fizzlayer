@@ -6,7 +6,8 @@ This directory is the part Fizzlayer owns:
 
 | Piece | Role |
 |---|---|
-| `fizz-config` | Reads `gateway.servers` and writes agentgateway YAML. A rewrite is atomic, so the proxy's file watch can hot-reload it. |
+| `fizz-config` | Reads `gateway.servers` and writes agentgateway YAML. A rewrite is atomic, so the proxy's file watch can hot-reload it. This is the local standalone path. |
+| `fizz-agent` | Linked mode. Polls `GET /api/gateway/agent/config` with a registration token and writes that same file. It does not print the token or the YAML. |
 | Client JWTs | ES256 tokens, `iss=fizzlayer`, `aud` = the gateway URL, `sub`, `ws`, `jti`. agentgateway checks them with `jwtAuth`. |
 | `fizz-guard` | ExtMcp service. `tools/call` is allow, deny, or approve. `tools/list` pins each tool's name, description, and input schema. A changed description is removed from the list. A call is denied unless that pin is approved. |
 | `sample-mcp` | Three tools for the local test: `ping`, `admin_reset`, `move_funds`. |
@@ -53,11 +54,53 @@ docker compose --env-file .env up -d postgres fizz-config fizz-config-watch fizz
 
 The published port is `localhost:3000`. Tokens minted for this compose file use audience `http://agentgateway:3000/mcp`, which resolves inside the compose network.
 
+## Self-host
+
+Two ways to run the data plane. Do not run both writers against the same `config.yaml`. `fizz-config watch` and `fizz-agent` would overwrite each other.
+
+**Standalone.** Hand-edit `config.yaml`, or let `fizz-config` render it from a Postgres you operate. The compose file above is this mode. `fizz-guard` reads policies, pins, approvals, and client-token revocation from that database on each call. `DATABASE_URL=memory://` keeps those rows in the process and drops them on exit. Nothing in standalone calls the Fizzlayer API.
+
+**Linked.** `fizz-agent` sits next to agentgateway and `fizz-guard`. It needs the control-plane origin and a registration token (`fizz_reg_…`, shown once when the gateway is created or rotated):
+
+| Variable | Purpose |
+|---|---|
+| `FIZZ_API_URL` | Origin only, such as `https://fizzlayer.com`. No path, user, or password. |
+| `FIZZ_REGISTRATION_TOKEN_FILE` | File containing the token. Preferred. Mode `0600`. |
+| `FIZZ_REGISTRATION_TOKEN` | The token itself, if you are not using the file. |
+| `FIZZ_CONFIG_OUT` | File agentgateway was started with (`-f`). Default `/config/config.yaml`. |
+| `FIZZ_POLL_SECS` | Delay between pulls. Default 5. Range 1–300. |
+| `FIZZ_ADMIN_URL` | Optional origin of the proxy admin listener, such as `http://127.0.0.1:15000`. |
+| `FIZZ_AGENT_STATE` | Optional file for the last ETag. Default is `.fizz-agent-state` beside the config. |
+
+```sh
+export FIZZ_API_URL=https://fizzlayer.com
+export FIZZ_REGISTRATION_TOKEN_FILE=/run/secrets/fizz-registration
+fizz-agent pull
+```
+
+The agent sends `Authorization: Bearer`, `If-None-Match`, and `?rev=`. `304` leaves the file alone. A `200` is checked before the atomic rename: it has to be YAML with an `mcp` listener and one target kind per server. A document that fails that check is not written. The last good file keeps being served, and the agent `POST`s `/api/gateway/agent/status` with `rejected` and a short reason. That reason does not include the token or the YAML. Network errors, `401`, and `5xx` also leave the file in place and back off up to 60 seconds. A bad document does not back off as a network failure, so a corrected revision is picked up on the next poll.
+
+agentgateway v1.7.0 watches that file (`LocalClient::watch_config_file` at the pinned commit) and hot-reloads targets and policies. A reload it rejects stays on the previous in-memory config; `GET /api/runtime` on the admin listener reports `configReload.synchronized: false`. There is no separate reload RPC. When `FIZZ_ADMIN_URL` answers, `fizz-agent` reads that flag and, if the reload was rejected, puts the previous file back so a restart does not boot the bad document. The rendered config binds admin to `127.0.0.1:15000` inside the proxy container and does not publish it. Leave `FIZZ_ADMIN_URL` unset unless that listener is reachable from the agent without exposing it on the host.
+
+`fizz-guard` does not take policies from `fizz-agent`. The YAML only points `mcpGuardrails` at the guard. Allow, deny, approve, tool pins, approval rows, and client-token revocation are read from Postgres on each call (`gateway.policies` and the tables next to it). A policy change is visible on the next `tools/call` without a config reload, as long as `fizz-guard` uses the same database the control plane writes. Linked mode does not sync those rows over the registration token. Point `DATABASE_URL` at that database, or keep using a local database and edit policies there. `DATABASE_URL=memory://` does not follow the cloud rows.
+
+Upstream API keys are embedded only in the registration-token YAML, as `backendAuth.key.value`. They land in `config.yaml` because agentgateway needs them. Do not log that file. The agent does not.
+
+`20261118000100_gateway_agent.sql` stores the agent's last report on `gateway.gateways` (`agent_status`, `agent_revision`, `agent_detail`). Apply it with the other gateway migrations (`supabase db push`). Until then the status `POST` fails and the agent still keeps the last good file. Pulling config itself is the earlier `20261114000400` migration.
+
+The linked compose test uses a mock control plane on the Docker network. It does not print the token.
+
+```sh
+gateway/compose/test-linked.sh
+```
+
+That stack adds a server through the mock, checks the new tool shows up without restarting agentgateway, then serves a bad document and checks the previous `ping` call still succeeds.
+
 ## Database
 
 `supabase/migrations/20261114000000_gateway.sql` adds the `gateway` schema: workspaces (one per customer account), gateways, servers, secrets, policies, tool pins, client tokens, approvals, audit, and daily usage. `supabase/migrations/20261114000300_gateway_policies.sql` adds pin status, pin alerts, the approval preview, and the shared phone-call budget function. Row level security ties rows to `fizz_customers.auth_user_id`. `gateway.secrets` has no authenticated policy. Table privileges for `authenticated` stay revoked, same as the other server tables; the SQL test grants them inside a transaction that rolls back.
 
-`20261114000400` is reserved for the control-plane API and is not used here. Applying `20261114000300_gateway_policies.sql` to the hosted project is a separate step (`supabase db push` against the linked project). This directory does not do that.
+`20261114000400` is the control-plane API. `20261118000000` places phone approvals and is loaded by local compose. `20261118000100` stores the fizz-agent report. Local compose does not apply `004` or `00100`. Applying the gateway migrations to the hosted project is `supabase db push`. This directory does not do that.
 
 `gateway_runtime` is the login used by the local guard and config generator. The migration creates it `NOLOGIN`. Compose sets a password only in the local database.
 
@@ -122,6 +165,7 @@ The Rust API on Vercel exposes the control plane under `/api/gateway/*`. It does
 | GET, POST | `/api/gateway/gateways/{id}/tokens` | List client tokens, or mint one. The JWT is returned once. Default life is 1 hour; `ttl_seconds` can be up to 30 days. |
 | DELETE | `/api/gateway/gateways/{id}/tokens/{token_id}` | Revoke a client token. `fizz-guard` reads `revoked_at`; this does not by itself reload the YAML. |
 | POST | `/api/gateway/gateways/{id}/registration-token` | Rotate the agent token. The new value is returned once. |
+| POST | `/api/gateway/agent/status` | `fizz-agent` report. `Authorization: Bearer fizz_reg_…`. Body is `revision`, `status` (`applied` or `rejected`), and an optional `detail` of at most 300 characters. The detail is rejected if it contains the token, a JWT, or `Bearer`. |
 
 Creating a gateway without `mode` uses `shared` on Hobbyist and Tinkerer, and `dedicated` on Pro and Enterprise. `dedicated` is only a row: nothing is provisioned. The default URL is `https://gw.fizzlayer.com/w/{id}/mcp` or `https://{name}.gw.fizzlayer.com/mcp`. Self-host requires `public_url`.
 
@@ -154,7 +198,7 @@ Set these on the Vercel project `fizz`. Do not commit the values.
 | `GATEWAY_JWKS_URL` | Recommended in production | Absolute URL of `GET /api/gateway/jwks`, written into the YAML as `jwtAuth.jwks.url`. If unset, the request origin plus `/api/gateway/jwks` is used. |
 | `GATEWAY_GUARD_HOST` | Optional | `host:port` of `fizz-guard` in the YAML. Default `fizz-guard:9001`. |
 
-`20261114000400_gateway_control_plane.sql` has to be applied (`supabase db push`) before these routes can succeed. Until then they answer `503`.
+`20261114000400_gateway_control_plane.sql` has to be applied (`supabase db push`) before these routes can succeed. Until then they answer `503`. `20261118000100_gateway_agent.sql` adds the columns for `POST /api/gateway/agent/status`. Apply that too. It does not change phone approvals.
 
 ```sh
 cargo test --locked --lib gateway::

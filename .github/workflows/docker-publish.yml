@@ -12,6 +12,7 @@ on:
       - src/**
       - api/**
       - public/**
+      - gateway/**
   push:
     branches: [main]
     tags: ["v*"]
@@ -30,9 +31,15 @@ jobs:
           - name: fizzlayer-api
             file: deploy/Dockerfile.api
             context: .
+            target: ""
           - name: fizzlayer-worker
             file: supabase/compute/fizz-worker/Dockerfile
             context: supabase/compute/fizz-worker
+            target: ""
+          - name: fizzlayer-gateway
+            file: gateway/docker/Dockerfile
+            context: gateway
+            target: runtime
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-qemu-action@v3
@@ -100,11 +107,15 @@ jobs:
           IMAGE_CONTEXT: ${{ matrix.context }}
           IMAGE_FILE: ${{ matrix.file }}
           IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
+          IMAGE_TARGET: ${{ matrix.target }}
           PUBLISH: ${{ github.event_name != 'pull_request' }}
         run: |
           set -euo pipefail
           platforms="linux/amd64,linux/arm64"
           cmd=(docker buildx build --pull --file "$IMAGE_FILE")
+          if [ -n "${IMAGE_TARGET:-}" ]; then
+            cmd+=(--target "$IMAGE_TARGET")
+          fi
           if [ "$PUBLISH" = "true" ]; then
             if [ -z "${IMAGE_TAGS}" ]; then
               echo "No tags to publish."
