@@ -484,8 +484,9 @@ fn save_policy(
               "",
             )
             _ ->
-              post_json(
+              send_json(
                 model,
+                "PUT",
                 policies_url(model.id),
                 api.policy_body(server_id, tool, effect_name, channel),
                 "policy",
@@ -790,11 +791,21 @@ fn post_json(
   body: String,
   kind: String,
 ) -> #(Model, Effect(Msg), String) {
+  send_json(model, "POST", path, body, kind)
+}
+
+fn send_json(
+  model: Model,
+  method: String,
+  path: String,
+  body: String,
+  kind: String,
+) -> #(Model, Effect(Msg), String) {
   case writable(model) {
     Error(message) -> #(bad(model, message), effect.none(), "")
     Ok(_) -> #(
       Model(..model, busy: True, notice: Quiet, upgrade: ""),
-      post(path, body, kind),
+      method_send(method, path, body, kind),
       "",
     )
   }
