@@ -16,6 +16,7 @@ use crate::customer::ApiError;
 pub const KEY_ID: &str = "v1";
 
 const REGISTRATION_PREFIX: &str = "fizz_reg_";
+const FLEET_PREFIX: &str = "fizz_fleet_";
 
 pub fn registration_token() -> Result<String, ApiError> {
     let mut bytes = [0u8; 32];
@@ -26,10 +27,32 @@ pub fn registration_token() -> Result<String, ApiError> {
 }
 
 pub fn registration_token_ok(token: &str) -> bool {
-    let Some(rest) = token.strip_prefix(REGISTRATION_PREFIX) else {
+    token_body_ok(token, REGISTRATION_PREFIX)
+}
+
+pub fn fleet_token_ok(token: &str) -> bool {
+    token_body_ok(token, FLEET_PREFIX)
+}
+
+fn token_body_ok(token: &str, prefix: &str) -> bool {
+    let Some(rest) = token.strip_prefix(prefix) else {
         return false;
     };
     rest.len() == 64 && rest.bytes().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Compare two tokens without leaking which byte differed.
+pub fn tokens_equal(expected: &str, presented: &str) -> bool {
+    if expected.is_empty() || presented.is_empty() {
+        return false;
+    }
+    let left = digest::digest(&digest::SHA256, expected.as_bytes());
+    let right = digest::digest(&digest::SHA256, presented.as_bytes());
+    let mut diff = 0u8;
+    for (a, b) in left.as_ref().iter().zip(right.as_ref()) {
+        diff |= a ^ b;
+    }
+    diff == 0
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {

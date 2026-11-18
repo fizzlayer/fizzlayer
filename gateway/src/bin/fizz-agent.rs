@@ -9,7 +9,9 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use fizz_gateway::agent::{self, SyncKind, SyncRequest, control_origin, registration_token_ok};
+use fizz_gateway::agent::{
+    self, SyncKind, SyncRequest, control_origin, fleet_token_ok, registration_token_ok,
+};
 use fizz_gateway::error::{GatewayError, GatewayResult};
 
 #[tokio::main]
@@ -41,10 +43,7 @@ async fn run() -> GatewayResult<()> {
 
 async fn pull() -> GatewayResult<()> {
     let origin = control_origin(&required("FIZZ_API_URL")?)?;
-    let token = load_token()?;
-    if !registration_token_ok(&token) {
-        return Err(GatewayError::message("registration token was rejected"));
-    }
+    let (token, fleet) = load_token()?;
     let config_path = PathBuf::from(
         env::var("FIZZ_CONFIG_OUT").unwrap_or_else(|_| "/config/config.yaml".to_string()),
     );
@@ -57,6 +56,24 @@ async fn pull() -> GatewayResult<()> {
     if let Some(admin) = &admin {
         control_origin(admin)?;
     }
+    let listen_port = match env::var("FIZZ_LISTEN_PORT") {
+        Ok(value) if fleet => {
+            let port = value
+                .trim()
+                .parse::<u16>()
+                .map_err(|_| GatewayError::message("FIZZ_LISTEN_PORT is not usable"))?;
+            if port == 0 {
+                return Err(GatewayError::message("FIZZ_LISTEN_PORT is not usable"));
+            }
+            Some(port)
+        }
+        Ok(_) => {
+            return Err(GatewayError::message(
+                "FIZZ_LISTEN_PORT is only used for the shared fleet",
+            ));
+        }
+        Err(_) => None,
+    };
     let base = Duration::from_secs(poll_secs()?);
     let client = agent::http_client()?;
     let (mut etag, mut revision) = agent::load_cursor(&cursor_path);
@@ -71,6 +88,8 @@ async fn pull() -> GatewayResult<()> {
             admin_url: admin.as_deref(),
             etag: etag.as_deref(),
             revision,
+            fleet,
+            listen_port,
         })
         .await;
         let failed = matches!(outcome.kind, SyncKind::Hold { .. });
@@ -101,7 +120,7 @@ async fn pull() -> GatewayResult<()> {
         if let Some(report) = outcome.report {
             let key = (report.revision, report.status);
             if reported != Some(key) {
-                match agent::report_status(&client, &origin, &token, report).await {
+                match agent::report_status(&client, &origin, &token, report, fleet).await {
                     Ok(()) => reported = Some(key),
                     Err(detail) => eprintln!("fizz-agent: {detail}"),
                 }
@@ -124,13 +143,43 @@ fn sibling_cursor(config: &std::path::Path) -> PathBuf {
     path
 }
 
-fn load_token() -> GatewayResult<String> {
-    if let Ok(path) = env::var("FIZZ_REGISTRATION_TOKEN_FILE") {
-        let text = std::fs::read_to_string(&path)
-            .map_err(|_| GatewayError::message("registration token file could not be read"))?;
-        return Ok(text.trim().to_string());
+fn load_token() -> GatewayResult<(String, bool)> {
+    let fleet_file = env::var("FIZZ_FLEET_TOKEN_FILE").ok();
+    let fleet_env = env::var("FIZZ_FLEET_TOKEN").ok();
+    let reg_file = env::var("FIZZ_REGISTRATION_TOKEN_FILE").ok();
+    let reg_env = env::var("FIZZ_REGISTRATION_TOKEN").ok();
+    let fleet_set =
+        fleet_file.is_some() || fleet_env.as_ref().is_some_and(|value| !value.is_empty());
+    let reg_set = reg_file.is_some() || reg_env.as_ref().is_some_and(|value| !value.is_empty());
+    if fleet_set && reg_set {
+        return Err(GatewayError::message(
+            "set either the fleet token or the registration token",
+        ));
     }
-    required("FIZZ_REGISTRATION_TOKEN")
+    if fleet_set {
+        let token = if let Some(path) = fleet_file {
+            std::fs::read_to_string(&path)
+                .map_err(|_| GatewayError::message("fleet token file could not be read"))?
+        } else {
+            fleet_env.unwrap_or_default()
+        };
+        let token = token.trim().to_string();
+        if !fleet_token_ok(&token) {
+            return Err(GatewayError::message("fleet token was rejected"));
+        }
+        return Ok((token, true));
+    }
+    let token = if let Some(path) = reg_file {
+        std::fs::read_to_string(&path)
+            .map_err(|_| GatewayError::message("registration token file could not be read"))?
+    } else {
+        required("FIZZ_REGISTRATION_TOKEN")?
+    };
+    let token = token.trim().to_string();
+    if !registration_token_ok(&token) {
+        return Err(GatewayError::message("registration token was rejected"));
+    }
+    Ok((token, false))
 }
 
 fn poll_secs() -> GatewayResult<u64> {

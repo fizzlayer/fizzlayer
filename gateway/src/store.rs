@@ -3,7 +3,7 @@
 
 use uuid::Uuid;
 
-use crate::db::{AuditWrite, Db, NewApproval, PendingApproval, PinAlert, ToolSight};
+use crate::db::{AuditWrite, Db, NewApproval, PendingApproval, PinAlert, ToolQuota, ToolSight};
 use crate::error::GatewayResult;
 use crate::memory::MemoryDb;
 use crate::notify::PhoneBudget;
@@ -28,6 +28,20 @@ impl Backend {
         match self {
             Self::Postgres(db) => db.gateway_workspace(gateway_id).await,
             Self::Memory(db) => db.gateway_workspace(gateway_id).await,
+        }
+    }
+
+    pub async fn gateway_audience(&self, gateway_id: Uuid) -> GatewayResult<Option<String>> {
+        match self {
+            Self::Postgres(db) => db.gateway_audience(gateway_id).await,
+            Self::Memory(db) => db.gateway_audience(gateway_id).await,
+        }
+    }
+
+    pub async fn tool_quota(&self, gateway_id: Uuid) -> GatewayResult<ToolQuota> {
+        match self {
+            Self::Postgres(db) => db.tool_quota(gateway_id).await,
+            Self::Memory(db) => db.tool_quota(gateway_id).await,
         }
     }
 

@@ -96,6 +96,22 @@ gateway/compose/test-linked.sh
 
 That stack adds a server through the mock, checks the new tool shows up without restarting agentgateway, then serves a bad document and checks the previous `ping` call still succeeds.
 
+## Hosted shared fleet
+
+Available once deployed. Nothing in this repository points DNS at `gw.fizzlayer.com` or starts the Compute service.
+
+Hobbyist and Tinkerer create a shared gateway and get `https://gw.fizzlayer.com/w/<gateway-id>/mcp`, the URL `POST /api/gateway/gateways` already stores. One agentgateway process serves every active shared gateway. Each route matches that path, requires `iss=fizzlayer` and `aud` equal to that URL, and attaches only that gateway's HTTP or SSE targets. stdio is not rendered. A dedicated gateway stays off this fleet.
+
+`fizz-agent` pulls `GET /api/gateway/agent/fleet` with `FIZZ_FLEET_TOKEN` (`fizz_fleet_` plus 64 hex characters). The same value is `GATEWAY_FLEET_TOKEN` on the API. The API decrypts upstream keys while it renders and does not write them to the signed-in preview. `fizz-guard` checks the token's `aud` against `gateway.gateways.public_url` and loads policies, pins, and approvals for that gateway id only. A changed row bumps `gateway.hosted_fleet.revision`; the agent writes the file and agentgateway hot-reloads it.
+
+The shared process also applies a local request budget per route: Hobbyist 30/minute, Tinkerer 120, Pro 240, Enterprise 600. That budget is per process, not a change to the published prices. The monthly tool-call cap already on `fizz_plans` is enforced by `fizz-guard` (`gateway.tool_quota`). Over the cap, the call is rejected and stored as audit decision `quota`. `usage_daily` still counts the call, for later Stripe metering. `/api/cron` calls `fizz_purge_gateway_audit`, which deletes audit rows older than the plan retention (7, 30, or 90 days). Enterprise retention is null, so those rows stay. `usage_daily` is not purged.
+
+```sh
+gateway/compose/test-hosted.sh
+```
+
+The image CI publishes is `fizzlayer/fizzlayer-hosted-gateway`. Supabase Compute service `fizz-hosted-gateway` pulls it. The steps to turn it on are in the pull request, not run from this tree.
+
 ## Database
 
 `supabase/migrations/20261114000000_gateway.sql` adds the `gateway` schema: workspaces (one per customer account), gateways, servers, secrets, policies, tool pins, client tokens, approvals, audit, and daily usage. `supabase/migrations/20261114000300_gateway_policies.sql` adds pin status, pin alerts, the approval preview, and the shared phone-call budget function. Row level security ties rows to `fizz_customers.auth_user_id`. `gateway.secrets` has no authenticated policy. Table privileges for `authenticated` stay revoked, same as the other server tables; the SQL test grants them inside a transaction that rolls back.
@@ -147,6 +163,7 @@ The Rust API on Vercel exposes the control plane under `/api/gateway/*`. It does
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/api/gateway/jwks` | Public JWKS for `jwtAuth`. No session. |
+| GET | `/api/gateway/hosted` | `{"available": true}` only when `GATEWAY_HOSTED` is `1`, `true`, or `yes`. Otherwise `{"available": false}`. No session. The Gleam app checks this before `public/gateway-hosted.json`. |
 | GET | `/api/gateway/agent/config` | YAML for the gateway agent. `Authorization: Bearer fizz_reg_…`. `ETag` is the config revision. `If-None-Match` or `?rev=` returns `304`. |
 | GET, POST | `/api/gateway/gateways` | List, or create. The create response includes `registration_token` once. |
 | DELETE | `/api/gateway/gateways/{id}` | Delete the gateway and its servers, secrets, and tokens. |
@@ -166,6 +183,8 @@ The Rust API on Vercel exposes the control plane under `/api/gateway/*`. It does
 | DELETE | `/api/gateway/gateways/{id}/tokens/{token_id}` | Revoke a client token. `fizz-guard` reads `revoked_at`; this does not by itself reload the YAML. |
 | POST | `/api/gateway/gateways/{id}/registration-token` | Rotate the agent token. The new value is returned once. |
 | POST | `/api/gateway/agent/status` | `fizz-agent` report. `Authorization: Bearer fizz_reg_…`. Body is `revision`, `status` (`applied` or `rejected`), and an optional `detail` of at most 300 characters. The detail is rejected if it contains the token, a JWT, or `Bearer`. |
+| GET | `/api/gateway/agent/fleet` | YAML for every active shared gateway. `Authorization: Bearer fizz_fleet_…` (`GATEWAY_FLEET_TOKEN`). `ETag` is `gateway.hosted_fleet.revision`. |
+| POST | `/api/gateway/agent/fleet/status` | Fleet agent report. Same body as the per-gateway status. Stored on `gateway.hosted_fleet`. |
 
 Creating a gateway without `mode` uses `shared` on Hobbyist and Tinkerer, and `dedicated` on Pro and Enterprise. `dedicated` is only a row: nothing is provisioned. The default URL is `https://gw.fizzlayer.com/w/{id}/mcp` or `https://{name}.gw.fizzlayer.com/mcp`. Self-host requires `public_url`.
 
@@ -196,9 +215,11 @@ Set these on the Vercel project `fizz`. Do not commit the values.
 | `GATEWAY_SIGNING_KEY` | To mint tokens and serve JWKS | PKCS#8 PEM for the ES256 key. A single-line value may use `\n` for line breaks. The server does not generate one. |
 | `GATEWAY_SECRET_KEY` | To store an MCP API key or PAT | Base64 of 32 bytes. Ciphertext is AES-256-GCM, `key_id` `v1`. |
 | `GATEWAY_JWKS_URL` | Recommended in production | Absolute URL of `GET /api/gateway/jwks`, written into the YAML as `jwtAuth.jwks.url`. If unset, the request origin plus `/api/gateway/jwks` is used. |
-| `GATEWAY_GUARD_HOST` | Optional | `host:port` of `fizz-guard` in the YAML. Default `fizz-guard:9001`. |
+| `GATEWAY_GUARD_HOST` | Optional | `host:port` of `fizz-guard` in the YAML. Default `fizz-guard:9001`. On the single hosted container set `127.0.0.1:9001`. |
+| `GATEWAY_FLEET_TOKEN` | For the hosted fleet | `fizz_fleet_` plus 64 hex characters. Same value as `FIZZ_FLEET_TOKEN` on the Compute service. If unset, `GET /api/gateway/agent/fleet` answers `503`. |
+| `GATEWAY_HOSTED` | Optional | Set to `1` after the shared fleet is deployed. Unset stays off, and `GET /api/gateway/hosted` returns `{"available": false}`. |
 
-`20261114000400_gateway_control_plane.sql` has to be applied (`supabase db push`) before these routes can succeed. Until then they answer `503`. `20261118000100_gateway_agent.sql` adds the columns for `POST /api/gateway/agent/status`. Apply that too. It does not change phone approvals.
+`20261114000400_gateway_control_plane.sql` has to be applied (`supabase db push`) before these routes can succeed. Until then they answer `503`. `20261118000100_gateway_agent.sql` adds the columns for `POST /api/gateway/agent/status`. `20261118000200_hosted_gateway.sql` adds the fleet revision, the monthly tool-call check, and audit retention. Apply those too. They do not change phone approvals.
 
 ```sh
 cargo test --locked --lib gateway::

@@ -110,6 +110,9 @@ struct State {
     order: u64,
     pem: Vec<u8>,
     secret: [u8; 32],
+    fleet_revision: i64,
+    fleet_status: Option<String>,
+    fleet_detail: Option<String>,
 }
 
 pub struct Memory {
@@ -148,6 +151,9 @@ impl Memory {
                 order: 0,
                 pem,
                 secret,
+                fleet_revision: 1,
+                fleet_status: None,
+                fleet_detail: None,
             }),
         }
     }
@@ -237,6 +243,10 @@ impl Backend for Memory {
     fn jwks_url(&self, _origin: &str) -> String {
         "https://fizzlayer.com/api/gateway/jwks".to_string()
     }
+
+    fn fleet_token(&self) -> Option<String> {
+        Some(format!("fizz_fleet_{}", "ab".repeat(32)))
+    }
 }
 
 impl State {
@@ -290,6 +300,8 @@ impl State {
             "render_source" => self.render_source(user, payload, false),
             "agent_config" => self.agent_config(payload),
             "agent_status" => self.agent_status(payload),
+            "fleet_config" => self.fleet_config(),
+            "fleet_status" => self.fleet_status(payload),
             "insert_token" => self.insert_token(user, payload),
             "list_tokens" => self.list_tokens(user, payload),
             "revoke_token" => self.revoke_token(user, payload),
@@ -1042,6 +1054,53 @@ impl State {
         if let Some(row) = self.gateways.get_mut(&gateway) {
             row.revision += 1;
         }
+        self.fleet_revision = self.fleet_revision.saturating_add(1);
+    }
+
+    fn fleet_config(&self) -> Value {
+        let mut ids: Vec<Uuid> = self
+            .gateways
+            .iter()
+            .filter(|(_, gateway)| gateway.mode == "shared" && gateway.status == "active")
+            .map(|(id, _)| *id)
+            .collect();
+        ids.sort();
+        let gateways: Vec<_> = ids
+            .into_iter()
+            .map(|id| {
+                let workspace = self.gateways[&id].workspace;
+                let plan = self
+                    .workspaces
+                    .get(&workspace)
+                    .map_or("hobbyist", |workspace| workspace.plan.as_str());
+                let mut source = self.source(id, true);
+                source["requests_per_minute"] = json!(limits::shared_rpm(plan));
+                source
+            })
+            .collect();
+        json!({
+            "revision": self.fleet_revision,
+            "gateways": gateways,
+        })
+    }
+
+    fn fleet_status(&mut self, payload: &Value) -> Value {
+        let status = payload["status"].as_str().unwrap_or("");
+        let Some(revision) = payload["revision"].as_i64().filter(|value| *value >= 0) else {
+            return json!({"error": "invalid_request"});
+        };
+        if !matches!(status, "applied" | "rejected") {
+            return json!({"error": "invalid_request"});
+        }
+        let detail = match payload.get("detail") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(text)) if agent_detail_ok(text) => Some(text.clone()),
+            _ => return json!({"error": "invalid_request"}),
+        };
+        self.fleet_revision = self.fleet_revision.max(revision);
+        self.fleet_status = Some(status.to_string());
+        self.fleet_detail = detail;
+        json!({"ok": true})
     }
 }
 
@@ -1050,6 +1109,7 @@ fn agent_detail_ok(text: &str) -> bool {
     (1..=300).contains(&count)
         && !text.chars().any(char::is_control)
         && !text.to_ascii_lowercase().contains("fizz_reg_")
+        && !text.to_ascii_lowercase().contains("fizz_fleet_")
         && !text.contains("eyJ")
         && !text.contains("Bearer ")
 }

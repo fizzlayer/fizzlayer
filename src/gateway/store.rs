@@ -27,13 +27,16 @@ pub trait Backend: Send + Sync {
     fn guard_host(&self) -> Result<String, ApiError>;
 
     fn jwks_url(&self, origin: &str) -> String;
+
+    fn fleet_token(&self) -> Option<String>;
 }
 
 pub struct Live;
 
 impl Backend for Live {
     async fn authenticate(&self, token: &str) -> Result<Uuid, ApiError> {
-        if token.starts_with("fizz_reg_") || token.len() > 8192 {
+        if token.starts_with("fizz_reg_") || token.starts_with("fizz_fleet_") || token.len() > 8192
+        {
             return Err(ApiError::new(401, "unauthorized", "Sign in to continue."));
         }
         let store = Supabase::from_env().map_err(|_| unavailable())?;
@@ -120,6 +123,13 @@ impl Backend for Live {
             .map(|value| value.trim().trim_end_matches('/').to_string())
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| format!("{}/api/gateway/jwks", origin.trim_end_matches('/')))
+    }
+
+    fn fleet_token(&self) -> Option<String> {
+        env::var("GATEWAY_FLEET_TOKEN")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| crypto::fleet_token_ok(value))
     }
 }
 

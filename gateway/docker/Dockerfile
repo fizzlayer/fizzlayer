@@ -31,6 +31,8 @@ COPY --from=build /src/target/release/sample-mcp /usr/local/bin/sample-mcp
 COPY --from=build /src/target/release/fizz-mcp-probe /usr/local/bin/fizz-mcp-probe
 COPY --from=build /src/target/release/fizz-control-mock /usr/local/bin/fizz-control-mock
 COPY --from=build /src/target/release/fizz-linked-probe /usr/local/bin/fizz-linked-probe
+COPY --from=build /src/target/release/fizz-hosted-probe /usr/local/bin/fizz-hosted-probe
 RUN chmod 755 /usr/local/bin/sample-mcp /usr/local/bin/fizz-mcp-probe \
-  /usr/local/bin/fizz-control-mock /usr/local/bin/fizz-linked-probe
+  /usr/local/bin/fizz-control-mock /usr/local/bin/fizz-linked-probe \
+  /usr/local/bin/fizz-hosted-probe
 CMD ["fizz-guard", "serve"]

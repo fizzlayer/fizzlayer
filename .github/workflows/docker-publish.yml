@@ -40,6 +40,10 @@ jobs:
             file: gateway/docker/Dockerfile
             context: gateway
             target: runtime
+          - name: fizzlayer-hosted-gateway
+            file: gateway/docker/Dockerfile.hosted
+            context: gateway
+            target: ""
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-qemu-action@v3

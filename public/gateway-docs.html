@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gateway docs | Fizzlayer</title>
-  <meta name="description" content="Gateway documentation is not published yet. Fizzlayer Gateway is in private beta.">
+  <meta name="description" content="Hosted Fizzlayer gateway URLs are available once the shared fleet is deployed.">
   <link rel="canonical" href="https://fizzlayer.com/docs">
   <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/design.css">
@@ -25,12 +25,14 @@
   </header>
   <main class="legal" id="main-content">
     <header class="legal-hero"><div class="container">
-      <p class="eyebrow-label">Gateway · private beta</p>
-      <h1>Gateway docs are not written yet.</h1>
-      <p>The hosted gateway is not available. There is no connect command, policy editor, or audit log to document.</p>
+      <p class="eyebrow-label">Gateway · available once deployed</p>
+      <h1>Point an MCP client at your hosted gateway.</h1>
+      <p>Creating a shared gateway stores <code>https://gw.fizzlayer.com/w/&lt;gateway-id&gt;/mcp</code>. That URL answers after the shared fleet is deployed. It is not live yet.</p>
     </div></header>
     <div class="container legal-body">
-      <p>Sensors, devices, alerts, and the current MCP server are documented at <a href="/sensors/docs">Sensors docs</a>. Self-hosting the sensors stack is at <a href="/sensors/self-host">Sensors self-host</a>. Join the gateway list from the <a href="/#beta">homepage</a>.</p>
+      <p>Hobbyist and Tinkerer each include one shared gateway. The client sends <code>Authorization: Bearer</code> with a token minted for that gateway. The token's audience is the gateway URL, so a token for one gateway is rejected on another. Remote HTTP and SSE servers only; stdio stays on a Pro dedicated gateway.</p>
+      <p>Upstream API keys stay on the server. The signed-in config preview does not include them. Tool calls are counted per gateway for later metering. Audit rows are kept 7 days on Hobbyist, 30 on Tinkerer, and 90 on Pro.</p>
+      <p>Self-hosting the data plane is described in the repository under <code>gateway/README.md</code>. Sensors stay at <a href="/sensors/docs">Sensors docs</a>.</p>
     </div>
   </main>
 </body>
