@@ -189,6 +189,11 @@ function takeSignupPlan() {
 }
 
 async function showBillingReturn(username) {
+  if (sessionStorage.getItem('fizz.afterCheckout') === 'gateway') {
+    sessionStorage.removeItem('fizz.afterCheckout');
+    location.assign('/app/start');
+    return;
+  }
   await billingKnown;
   const note = $('upgrade-prompt');
   note.replaceChildren();
@@ -214,21 +219,24 @@ async function continueAfterSignup(username, signup) {
   await billingKnown;
   const plan = takeSignupPlan();
   sessionStorage.removeItem(SIGNUP_FLAG);
-  // No Stripe keys: no plan picker, no checkout, and no upgrade prompt. Sensor selection is unchanged.
-  if (!billingAvailable) {
-    $('upgrade-prompt').hidden = true;
-    showSetup(username);
-    return;
-  }
-  if (plan) {
+  if (plan && billingAvailable) {
     try {
       const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
       location.assign(result.url);
       return;
     } catch { /* Checkout did not start. The account stays on Hobbyist. */ }
   }
-  if (signup) showPlanScreen(username);
-  else showSetup(username);
+  // A new account, including one that confirmed its email, picks Gateway or Sensors.
+  if (signup) {
+    location.assign('/app/start');
+    return;
+  }
+  if (!billingAvailable) {
+    $('upgrade-prompt').hidden = true;
+    showSetup(username);
+    return;
+  }
+  showSetup(username);
 }
 
 function setMode(next, intro) {

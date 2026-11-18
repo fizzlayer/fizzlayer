@@ -56,7 +56,7 @@ Fizzlayer includes a static web app, a Rust API deployed as Vercel Functions, a 
 
 Try the [interactive demo](https://fizzlayer.com/demo.html) without an account. It uses simulated sensors and local example replies to show the dashboard, alerts, and call previews.
 
-[Create a free account](https://fizzlayer.com/app.html), start with sample data, then connect a device from the **Sensors** or **Agents** page. You can also [deploy your own instance](docs/SELF_HOSTING.md).
+[Create a free account](https://fizzlayer.com/app) to set up a gateway: add an MCP server, set a rule per tool, and copy a client config. Sensors stay at [/sensors](https://fizzlayer.com/sensors). You can also [deploy your own instance](docs/SELF_HOSTING.md).
 
 ## Fizzlayer CLI
 

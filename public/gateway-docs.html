@@ -39,7 +39,7 @@
     <header class="legal-hero"><div class="container">
       <p class="eyebrow-label">Gateway docs</p>
       <h1>Fizzlayer Gateway</h1>
-      <p class="docs-lede">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. fizzlayer.com does not host a gateway you can paste into a client yet.</p>
+      <p class="docs-lede">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. fizzlayer.com does not host a gateway you can paste into a client yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.</p>
     </div></header>
     <div class="container legal-layout">
       <nav class="toc docs-toc" aria-label="On this page">
@@ -68,7 +68,7 @@
           <li>The Rust API exposes <code>/api/gateway/*</code> for signed-in users and for a registration token. It does not change <code>/api/mcp</code>, <code>/install.sh</code>, Home Assistant, or <code>/.well-known/*</code>.</li>
         </ul>
         <p>Sensors stay at <a href="/sensors/docs">/sensors/docs</a>. That MCP server uses <code>fizz_agent_</code> tokens. Gateway clients use a JWT. They are different credentials.</p>
-        <p><code>public/openapi.json</code> describes the sensors API (ingest, <code>/api/mcp</code>, status, contact). The gateway routes below are not in that file. Treat this page as the reference for <code>/api/gateway</code>.</p>
+        <p><code>public/openapi.json</code> lists the sensors API and the <code>/api/gateway</code> routes. This page is the longer explanation of those routes.</p>
 
         <h2 id="concepts">Concepts</h2>
         <dl class="docs-defs">
@@ -82,7 +82,7 @@
 
         <h2 id="quickstart">Quickstart</h2>
         <h3>Hosted</h3>
-        <p>There is no hosted MCP URL. Hobbyist and Tinkerer are recorded as one shared gateway, and Pro as one dedicated gateway, but nothing is provisioned. <a href="/#beta">Join the list</a> on the homepage. <a href="/app.html">Create an account</a> if you want Sensors. That screen is not a gateway wizard. The Gleam app has no gateway pages.</p>
+        <p>There is no hosted MCP URL. Hobbyist and Tinkerer are recorded as one shared gateway, and Pro as one dedicated gateway, but nothing is provisioned. <a href="/#beta">Join the list</a> on the homepage. <a href="/app">Create an account</a> to save a gateway, add a server, set rules, and copy a client config. If the shared host is down, that page shows linked-mode self-host and a registration token. Sensors stay at <a href="/sensors">/sensors</a>.</p>
         <h3>Self-hosted, standalone</h3>
         <p>Docker is the only dependency besides the repository. Compose builds the local image. Docker Hub does not have a <code>fizzlayer/fizzlayer-gateway</code> tag yet, so do not <code>docker pull</code> it. The publish workflow on main is what will push that name.</p>
         <pre><code>git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
