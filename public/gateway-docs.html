@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gateway docs | Fizzlayer</title>
-  <meta name="description" content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane. The hosted gateway is a waitlist.">
+  <meta name="description" content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane. The hosted URL is available once the shared fleet is deployed.">
   <link rel="canonical" href="https://fizzlayer.com/docs">
   <meta property="og:title" content="Fizzlayer Gateway docs">
   <meta property="og:description" content="Standalone Docker quickstart, client config, policies, tool pins, JWTs, and the control-plane API.">
@@ -39,7 +39,7 @@
     <header class="legal-hero"><div class="container">
       <p class="eyebrow-label">Gateway docs</p>
       <h1>Fizzlayer Gateway</h1>
-      <p class="docs-lede">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. fizzlayer.com does not host a gateway you can paste into a client yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.</p>
+      <p class="docs-lede">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. The hosted URL is available once the shared fleet is deployed and <code>GATEWAY_HOSTED</code> is turned on. It is not on yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.</p>
     </div></header>
     <div class="container legal-layout">
       <nav class="toc docs-toc" aria-label="On this page">
@@ -82,7 +82,8 @@
 
         <h2 id="quickstart">Quickstart</h2>
         <h3>Hosted</h3>
-        <p>There is no hosted MCP URL. Hobbyist and Tinkerer are recorded as one shared gateway, and Pro as one dedicated gateway, but nothing is provisioned. <a href="/#beta">Join the list</a> on the homepage. <a href="/app">Create an account</a> to save a gateway, add a server, set rules, and copy a client config. If the shared host is down, that page shows linked-mode self-host and a registration token. Sensors stay at <a href="/sensors">/sensors</a>.</p>
+        <p>Available once deployed. Creating a shared gateway stores <code>https://gw.fizzlayer.com/w/&lt;gateway-id&gt;/mcp</code>. One process serves every active shared gateway at that path. A client token's audience is that URL, so a token for one gateway is rejected on another. HTTP and SSE only. stdio stays on a Pro dedicated gateway, which this fleet does not run. Nothing in this repository points DNS at that host or starts the process.</p>
+        <p>The app checks <code>GET /api/gateway/hosted</code>, then <code>/gateway-hosted.json</code>. Both stay <code>{"available": false}</code> until you set <code>GATEWAY_HOSTED</code> to <code>1</code> on the API after the Compute service is up. This site does not turn that on. Until then, <a href="/app">/app</a> shows how to run the gateway yourself. Upstream API keys are decrypted only while the API renders the fleet YAML. The signed-in preview omits them. Tool calls are counted per gateway. Audit rows are kept 7 days on Hobbyist, 30 on Tinkerer, and 90 on Pro once the purge migration is applied. Sensors stay at <a href="/sensors">/sensors</a>.</p>
         <h3>Self-hosted, standalone</h3>
         <p>Docker is the only dependency besides the repository. Compose builds the local image. Docker Hub does not have a <code>fizzlayer/fizzlayer-gateway</code> tag yet, so do not <code>docker pull</code> it. The publish workflow on main is what will push that name.</p>
         <pre><code>git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
@@ -203,6 +204,9 @@ fizz-agent pull</code></pre>
             <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Body and result</th></tr></thead>
             <tbody>
               <tr><td>GET</td><td><code>/api/gateway/jwks</code></td><td>Public JWKS. No session.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/hosted</code></td><td><code>{"available":true}</code> only when <code>GATEWAY_HOSTED</code> is <code>1</code>, <code>true</code>, or <code>yes</code>. Otherwise <code>{"available":false}</code>. No session.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/agent/fleet</code></td><td>YAML for every active shared gateway. <code>Authorization: Bearer fizz_fleet_…</code>.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/agent/fleet/status</code></td><td>Fleet agent report. Same body as the per-gateway status.</td></tr>
               <tr><td>GET</td><td><code>/api/gateway/agent/config</code></td><td>YAML for <code>Authorization: Bearer fizz_reg_…</code>. 304 when the revision matches.</td></tr>
               <tr><td>GET, POST</td><td><code>/api/gateway/gateways</code></td><td>List, or create. Create body: <code>name</code> (lowercase, letter first, digits and hyphens, at most 41 characters, not ending in a hyphen), optional <code>mode</code> (<code>shared</code>, <code>dedicated</code>, <code>selfhost</code>), <code>region</code>, <code>public_url</code>, <code>listen_port</code>. The response includes <code>registration_token</code> once. <code>GET</code> includes <code>plan</code>.</td></tr>
               <tr><td>PATCH</td><td><code>/api/gateway/gateways/{id}</code></td><td><code>{"unreviewed_tools":"hide"|"show"}</code>.</td></tr>
@@ -226,13 +230,15 @@ fizz-agent pull</code></pre>
           </table>
         </div>
         <p>Over a cap, the API answers 402 with <code>gateway_limit</code>, <code>server_limit</code>, <code>stdio_not_included</code>, or <code>dedicated_not_included</code>. Stdio on a shared gateway is <code>stdio_shared</code>. A downgrade disables the newest extra gateways and servers. It does not delete them. A name that fails validation is 400 <code>invalid_request</code>.</p>
-        <p>Omit <code>mode</code> on create and the API uses <code>shared</code> on Hobbyist and Tinkerer, and <code>dedicated</code> on Pro and Enterprise. The default URL stored on the row is <code>https://gw.fizzlayer.com/w/{id}/mcp</code> or <code>https://{name}.gw.fizzlayer.com/mcp</code>. Those hosts are not serving traffic.</p>
+        <p>Omit <code>mode</code> on create and the API uses <code>shared</code> on Hobbyist and Tinkerer, and <code>dedicated</code> on Pro and Enterprise. The default URL stored on the row is <code>https://gw.fizzlayer.com/w/{id}/mcp</code> or <code>https://{name}.gw.fizzlayer.com/mcp</code>. The shared host answers only after the fleet is deployed. The dedicated host is not provisioned.</p>
         <p>Environment on the API, not committed:</p>
         <ul>
           <li><code>GATEWAY_SIGNING_KEY</code> to mint tokens and serve JWKS.</li>
           <li><code>GATEWAY_SECRET_KEY</code> to store an MCP API key.</li>
           <li><code>GATEWAY_JWKS_URL</code> absolute URL written into YAML as <code>jwtAuth.jwks.url</code>.</li>
-          <li><code>GATEWAY_GUARD_HOST</code> optional, default <code>fizz-guard:9001</code>.</li>
+          <li><code>GATEWAY_GUARD_HOST</code> optional, default <code>fizz-guard:9001</code>. On the single hosted container set <code>127.0.0.1:9001</code>.</li>
+          <li><code>GATEWAY_FLEET_TOKEN</code> for the shared fleet pull. Same value as <code>FIZZ_FLEET_TOKEN</code> on the Compute service.</li>
+          <li><code>GATEWAY_HOSTED</code> optional. Set to <code>1</code> after deploy. Unset keeps <code>GET /api/gateway/hosted</code> at <code>{"available":false}</code>.</li>
         </ul>
         <p>Rendered YAML sets <code>adminAddr</code> to <code>127.0.0.1:15000</code>, session key <code>disabled</code>, <code>statefulMode: stateless</code>, <code>prefixMode: never</code>, and <code>mcpGuardrails</code> with <code>failureMode: failClosed</code> on <code>tools/call</code> request and <code>tools/list</code> response.</p>
 
@@ -250,7 +256,7 @@ fizz-agent pull</code></pre>
             </tbody>
           </table>
         </div>
-        <p>Enforced today when you call the API: gateway count, server count, the dedicated flag, the stdio flag, and the phone-call cap. Not enforced: the monthly tool-call number, audit deletion after N days, and seat count as a login limit. Stripe does not receive gateway usage records. Sensor device and credit limits are unchanged: Hobbyist 3 devices and 10 credits, Tinkerer 10 and 100, Pro 50 and 1,000. Email and webhook alerts are on every plan, including Hobbyist. The dashboard hides email until mail is configured.</p>
+        <p>Enforced when you call the API: gateway count, server count, the dedicated flag, the stdio flag, and the phone-call cap. On the shared fleet, <code>fizz-guard</code> also rejects a tool call past the monthly tool-call number and records decision <code>quota</code>. <code>/api/cron</code> deletes audit rows older than the plan's audit days after <code>20261118000200_hosted_gateway.sql</code> is applied. <code>usage_daily</code> is kept for later metering. Seat count is not a login limit. Stripe does not receive gateway usage records yet. Sensor device and credit limits are unchanged: Hobbyist 3 devices and 10 credits, Tinkerer 10 and 100, Pro 50 and 1,000. Email and webhook alerts are on every plan, including Hobbyist. The dashboard hides email until mail is configured.</p>
 
         <h2 id="troubleshooting">Troubleshooting</h2>
         <dl class="docs-faq">

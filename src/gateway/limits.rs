@@ -74,6 +74,19 @@ pub fn plan(id: &str) -> Plan {
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
+/// Shared-fleet HTTP budget, per gateway, per minute, on one proxy process.
+/// These are operational limits, not a change to the published plan prices.
+/// Keep them aligned with `gateway.shared_rpm` in the hosted migration.
+pub fn shared_rpm(plan_id: &str) -> u32 {
+    match plan_id {
+        "tinkerer" => 120,
+        "pro" => 240,
+        "enterprise" => 600,
+        _ => 30,
+    }
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn default_mode(dedicated: bool) -> &'static str {
     if dedicated { "dedicated" } else { "shared" }
 }
@@ -227,5 +240,9 @@ mod tests {
         assert!(enterprise.dedicated && enterprise.stdio);
         assert_eq!(default_mode(true), "dedicated");
         assert_eq!(default_mode(false), "shared");
+        assert_eq!(shared_rpm("hobbyist"), 30);
+        assert_eq!(shared_rpm("tinkerer"), 120);
+        assert_eq!(shared_rpm("pro"), 240);
+        assert_eq!(shared_rpm("enterprise"), 600);
     }
 }

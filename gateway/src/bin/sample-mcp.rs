@@ -145,6 +145,24 @@ async fn mcp(State(app): State<Arc<App>>, headers: HeaderMap, Json(body): Json<V
             json!({"tools": tools})
         }
         "tools/call" => {
+            if let Ok(expected) = env::var("SAMPLE_UPSTREAM_KEY") {
+                let presented = headers
+                    .get("authorization")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or("");
+                let bearer = format!("Bearer {expected}");
+                if presented != bearer && presented != expected {
+                    return Json(json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{"type": "text", "text": "missing"}],
+                            "isError": false
+                        }
+                    }))
+                    .into_response();
+                }
+            }
             let name = body
                 .pointer("/params/name")
                 .and_then(Value::as_str)

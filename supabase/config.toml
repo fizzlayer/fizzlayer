@@ -438,3 +438,11 @@ size = "2gb"
 # The public service can suspend while nobody is connected; clients reconnect.
 exposure = "public"
 exclude = [".env", ".env.*", ".git", "target"]
+
+# Shared MCP fleet. Public so MCP clients can open it. The image CI publishes is
+# pulled by this Dockerfile; this file does not rebuild agentgateway.
+[compute.fizz-hosted-gateway]
+runtime = "dockerfile"
+size = "2gb"
+exposure = "public"
+exclude = [".env", ".env.*", ".git"]

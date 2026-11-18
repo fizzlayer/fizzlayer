@@ -94,6 +94,14 @@ impl Guard {
         {
             return Ok(reject("tool call was rejected"));
         }
+        let quota = self.backend.tool_quota(identity.gateway_id).await?;
+        if !quota.allowed {
+            let reason = "Monthly tool-call limit is reached.";
+            self.audit(&identity, server_label, &tool, &arguments, "quota", reason)
+                .await?;
+            eprintln!("fizz-guard: decision=quota tool={tool} server={server_label}");
+            return Ok(reject(reason));
+        }
         let record = if server.is_empty() {
             None
         } else {
@@ -231,6 +239,7 @@ impl Guard {
             return Ok(reject_response("guardrail check failed"));
         };
         if workspace != identity.workspace_id
+            || !self.audience_ok(&identity).await?
             || !self
                 .backend
                 .token_active(identity.gateway_id, &identity.jti)
@@ -285,6 +294,19 @@ impl Guard {
             eprintln!("fizz-guard: decision=deny tool={tool} server={server}");
             return Ok(false);
         }
+        if !self.audience_ok(identity).await? {
+            self.audit(
+                identity,
+                server,
+                tool,
+                arguments,
+                "deny",
+                "audience did not match",
+            )
+            .await?;
+            eprintln!("fizz-guard: decision=deny tool={tool} server={server}");
+            return Ok(false);
+        }
         if !self
             .backend
             .token_active(identity.gateway_id, &identity.jti)
@@ -303,6 +325,16 @@ impl Guard {
             return Ok(false);
         }
         Ok(true)
+    }
+
+    async fn audience_ok(&self, identity: &Identity) -> GatewayResult<bool> {
+        let Some(aud) = &identity.aud else {
+            return Ok(true);
+        };
+        let Some(expected) = self.backend.gateway_audience(identity.gateway_id).await? else {
+            return Ok(false);
+        };
+        Ok(aud == &expected)
     }
 
     async fn notify(&self, channel: NotifyChannel, workspace_id: Uuid, notice: &ApprovalNotice) {
@@ -378,6 +410,8 @@ struct Identity {
     workspace_id: Uuid,
     subject: String,
     jti: String,
+    /// Present on the shared fleet, where each route sends `jwt.aud`.
+    aud: Option<String>,
 }
 
 fn identity(meta: Option<&prost_types::Struct>) -> Option<Identity> {
@@ -391,11 +425,18 @@ fn identity(meta: Option<&prost_types::Struct>) -> Option<Identity> {
     if subject.len() > 80 || jti.len() > 80 {
         return None;
     }
+    let aud = meta_str(meta, "aud");
+    if let Some(aud) = &aud {
+        if aud.len() > 300 || aud.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return None;
+        }
+    }
     Some(Identity {
         gateway_id,
         workspace_id,
         subject,
         jti,
+        aud,
     })
 }
 

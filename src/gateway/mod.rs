@@ -14,7 +14,9 @@ mod store;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
-use fizz_gateway::config::{CredentialMode, GatewaySpec, Mode, ServerSpec, Transport, render_yaml};
+use fizz_gateway::config::{
+    CredentialMode, GatewaySpec, Mode, ServerSpec, Transport, render_fleet_yaml, render_yaml,
+};
 use fizz_gateway::jwt;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -52,6 +54,12 @@ where
     if method.as_str() == "GET" && matches!(route, Route::Jwks) {
         return jwks(backend);
     }
+    if matches!(route, Route::Hosted) {
+        if method.as_str() != "GET" {
+            return ApiError::new(405, "method_not_allowed", "Use GET.").into_response();
+        }
+        return hosted_status();
+    }
     if matches!(route, Route::AgentConfig) {
         if method.as_str() != "GET" {
             return ApiError::new(405, "method_not_allowed", "Use GET.").into_response();
@@ -61,6 +69,18 @@ where
                 .into_response();
         };
         return agent_config(backend, &token, &query, if_none.as_deref(), &origin).await;
+    }
+    if matches!(route, Route::AgentFleet | Route::AgentFleetStatus) {
+        return fleet_dispatch(
+            backend,
+            method.as_str(),
+            route,
+            request,
+            &query,
+            if_none.as_deref(),
+            &origin,
+        )
+        .await;
     }
     if matches!(route, Route::AgentStatus) {
         if method.as_str() != "POST" {
@@ -679,11 +699,255 @@ async fn agent_status(backend: &impl Backend, token: &str, body: &Value) -> Resp
     }
 }
 
+async fn fleet_dispatch<B>(
+    backend: &impl Backend,
+    method: &str,
+    route: Route,
+    request: http::Request<B>,
+    query: &str,
+    if_none: Option<&str>,
+    origin: &str,
+) -> Response<ResponseBody>
+where
+    B: http_body::Body<Data = Bytes> + Send,
+    B::Error: std::fmt::Display + Send,
+{
+    let Some(presented) = bearer_token(&request) else {
+        return ApiError::new(401, "unauthorized", "Fleet token was rejected.").into_response();
+    };
+    let Some(expected) = backend.fleet_token() else {
+        return ApiError::new(
+            503,
+            "fleet_unconfigured",
+            "The hosted fleet pull is not configured.",
+        )
+        .into_response();
+    };
+    if !crypto::fleet_token_ok(&presented) || !crypto::tokens_equal(&expected, &presented) {
+        return ApiError::new(401, "unauthorized", "Fleet token was rejected.").into_response();
+    }
+    match route {
+        Route::AgentFleet if method == "GET" => fleet_config(backend, query, if_none, origin).await,
+        Route::AgentFleetStatus if method == "POST" => {
+            let body = match read_json(request, 4 * 1024).await {
+                Ok(body) => body,
+                Err(error) => return error.into_response(),
+            };
+            fleet_status(backend, &body).await
+        }
+        _ => {
+            ApiError::new(405, "method_not_allowed", "That method is not allowed.").into_response()
+        }
+    }
+}
+
+async fn fleet_config(
+    backend: &impl Backend,
+    query: &str,
+    if_none: Option<&str>,
+    origin: &str,
+) -> Response<ResponseBody> {
+    let source = match backend.call(None, "fleet_config", json!({})).await {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    let source = match map_db(source, true) {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    let revision = source["revision"].as_i64().unwrap_or(0);
+    let etag = format!("\"{revision}\"");
+    if fresh(
+        if_none,
+        query_value(query, "rev").as_deref(),
+        &etag,
+        revision,
+    ) {
+        return not_modified(&etag, revision);
+    }
+    let Some(rows) = source["gateways"].as_array() else {
+        return ApiError::new(
+            503,
+            "database_unavailable",
+            "Gateway data is temporarily unavailable.",
+        )
+        .into_response();
+    };
+    let mut specs = Vec::new();
+    for row in rows {
+        match spec_from_source(backend, row, origin) {
+            Ok(spec) => specs.push(spec),
+            Err(_) => {
+                // One tenant that cannot be rendered is left off this document.
+                // The last good file still serves everyone until a valid render.
+                continue;
+            }
+        }
+    }
+    if !rows.is_empty() && specs.is_empty() {
+        return ApiError::new(
+            503,
+            "unavailable",
+            "The hosted fleet config could not be rendered.",
+        )
+        .into_response();
+    }
+    match render_fleet_yaml(&specs, 3000) {
+        Ok(yaml) => yaml_response(yaml, &etag, revision),
+        Err(_) => ApiError::new(
+            503,
+            "unavailable",
+            "The hosted fleet config could not be rendered.",
+        )
+        .into_response(),
+    }
+}
+
+fn spec_from_source(
+    backend: &impl Backend,
+    source: &Value,
+    origin: &str,
+) -> Result<GatewaySpec, ApiError> {
+    let key = if source["servers"].as_array().is_some_and(|servers| {
+        servers
+            .iter()
+            .any(|server| server["ciphertext"].is_string())
+    }) {
+        Some(backend.secret_key()?)
+    } else {
+        None
+    };
+    let gateway_id = uuid_value(&source["gateway_id"])?;
+    let workspace_id = uuid_value(&source["workspace_id"])?;
+    let gateway_mode = Mode::parse(source["mode"].as_str().unwrap_or(""))
+        .ok_or_else(|| ApiError::new(400, "invalid_request", "Gateway mode is not usable."))?;
+    let listen_port = u16::try_from(source["listen_port"].as_u64().unwrap_or(0))
+        .map_err(|_| ApiError::new(400, "invalid_request", "Gateway listen port is not usable."))?;
+    let mut servers = Vec::new();
+    for server in source["servers"].as_array().ok_or_else(unavailable)? {
+        let transport =
+            Transport::parse(server["transport"].as_str().unwrap_or("")).ok_or_else(|| {
+                ApiError::new(400, "invalid_request", "Server transport is not usable.")
+            })?;
+        let auth_kind = server["auth_kind"].as_str().unwrap_or("none").to_string();
+        let credential = if auth_kind == "key" {
+            let encoded = server["ciphertext"].as_str().ok_or_else(|| {
+                ApiError::new(
+                    503,
+                    "missing_secret",
+                    "A stored MCP credential could not be read.",
+                )
+            })?;
+            let key = key.as_ref().ok_or_else(|| {
+                ApiError::new(
+                    503,
+                    "encryption_unavailable",
+                    "Storing an MCP credential needs GATEWAY_SECRET_KEY on the server.",
+                )
+            })?;
+            let plain = crypto::open(key, encoded)?;
+            Some(String::from_utf8(plain).map_err(|_| {
+                ApiError::new(
+                    503,
+                    "missing_secret",
+                    "A stored MCP credential could not be read.",
+                )
+            })?)
+        } else {
+            None
+        };
+        let args = server["args"]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if transport == Transport::Stdio {
+            return Err(ApiError::new(
+                400,
+                "stdio_shared",
+                "A shared gateway does not run stdio servers.",
+            ));
+        }
+        servers.push(ServerSpec {
+            name: server["name"].as_str().unwrap_or("").to_string(),
+            transport,
+            url_or_cmd: server["url"].as_str().unwrap_or("").to_string(),
+            command_args: args,
+            auth_kind,
+            credential,
+        });
+    }
+    if gateway_mode != Mode::Shared {
+        return Err(ApiError::new(
+            400,
+            "invalid_request",
+            "The gateway config could not be rendered.",
+        ));
+    }
+    Ok(GatewaySpec {
+        gateway_id,
+        workspace_id,
+        mode: gateway_mode,
+        public_url: source["public_url"].as_str().unwrap_or("").to_string(),
+        listen_port,
+        config_revision: source["config_revision"].as_i64().unwrap_or(1),
+        ag_version: source["ag_version"].as_str().map(str::to_string),
+        guard_host: backend.guard_host()?,
+        jwks_file: String::new(),
+        jwks_url: Some(backend.jwks_url(origin)),
+        credential_mode: CredentialMode::Embed,
+        servers,
+        requests_per_minute: u32::try_from(source["requests_per_minute"].as_u64().unwrap_or(30))
+            .unwrap_or(30),
+    })
+}
+
+async fn fleet_status(backend: &impl Backend, body: &Value) -> Response<ResponseBody> {
+    let Some(revision) = body["revision"].as_i64().filter(|value| *value >= 0) else {
+        return ApiError::new(400, "invalid_request", "Check the gateway request.").into_response();
+    };
+    let Some(status) = body["status"]
+        .as_str()
+        .filter(|status| matches!(*status, "applied" | "rejected"))
+    else {
+        return ApiError::new(400, "invalid_request", "Check the gateway request.").into_response();
+    };
+    let detail = match body.get("detail") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(text)) if agent_detail_ok(text) => Some(text.as_str()),
+        _ => {
+            return ApiError::new(400, "invalid_request", "Check the gateway request.")
+                .into_response();
+        }
+    };
+    let mut payload = json!({
+        "revision": revision,
+        "status": status,
+    });
+    if let Some(detail) = detail {
+        payload["detail"] = json!(detail);
+    }
+    let stored = match backend.call(None, "fleet_status", payload).await {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    match map_db(stored, true) {
+        Ok(_) => json_ok(json!({"ok": true})),
+        Err(error) => error.into_response(),
+    }
+}
+
 fn agent_detail_ok(text: &str) -> bool {
     let count = text.chars().count();
     (1..=300).contains(&count)
         && !text.chars().any(char::is_control)
         && !text.to_ascii_lowercase().contains("fizz_reg_")
+        && !text.to_ascii_lowercase().contains("fizz_fleet_")
         && !text.contains("eyJ")
         && !text.contains("Bearer ")
 }
@@ -766,6 +1030,7 @@ fn render(
         jwks_url: Some(backend.jwks_url(origin)),
         credential_mode: mode,
         servers,
+        requests_per_minute: source["requests_per_minute"].as_u64().unwrap_or(0) as u32,
     };
     render_yaml(&spec).map_err(|_| {
         ApiError::new(
@@ -774,6 +1039,30 @@ fn render(
             "The gateway config could not be rendered.",
         )
     })
+}
+
+/// `GATEWAY_HOSTED` turns on the SPA's hosted URL. Unset, empty, and any
+/// value other than `1`, `true`, or `yes` stay off. The static file
+/// `public/gateway-hosted.json` stays `{"available": false}` as the fallback
+/// the page uses when this route is not deployed.
+pub fn hosted_flag(value: Option<&str>) -> bool {
+    matches!(
+        value.map(str::trim).map(str::to_ascii_lowercase),
+        Some(ref text) if text == "1" || text == "true" || text == "yes"
+    )
+}
+
+fn hosted_status() -> Response<ResponseBody> {
+    let available = hosted_flag(std::env::var("GATEWAY_HOSTED").ok().as_deref());
+    Response::builder()
+        .status(200)
+        .header("content-type", "application/json")
+        .header("cache-control", "no-store")
+        .header("x-content-type-options", "nosniff")
+        .body(ResponseBody::from(
+            json!({"available": available}).to_string(),
+        ))
+        .expect("hosted response")
 }
 
 fn jwks(backend: &impl Backend) -> Response<ResponseBody> {
@@ -979,8 +1268,11 @@ fn percent_decode(value: &str) -> String {
 
 enum Route {
     Jwks,
+    Hosted,
     AgentConfig,
     AgentStatus,
+    AgentFleet,
+    AgentFleetStatus,
     Gateways,
     Gateway(String),
     Servers(String),
@@ -1007,8 +1299,11 @@ fn parse_route(path: &str) -> Option<Route> {
     let parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     match parts.as_slice() {
         ["jwks"] => Some(Route::Jwks),
+        ["hosted"] => Some(Route::Hosted),
         ["agent", "config"] => Some(Route::AgentConfig),
         ["agent", "status"] => Some(Route::AgentStatus),
+        ["agent", "fleet"] => Some(Route::AgentFleet),
+        ["agent", "fleet", "status"] => Some(Route::AgentFleetStatus),
         ["gateways"] => Some(Route::Gateways),
         ["gateways", id] if valid_uuid(id) => Some(Route::Gateway((*id).to_string())),
         ["gateways", id, "servers"] if valid_uuid(id) => Some(Route::Servers((*id).to_string())),
@@ -1120,8 +1415,18 @@ mod tests {
     #[test]
     fn routes_cover_the_control_plane() {
         assert!(parse_route("jwks").is_some());
+        assert!(parse_route("hosted").is_some());
+        assert!(!hosted_flag(None));
+        assert!(!hosted_flag(Some("")));
+        assert!(!hosted_flag(Some("false")));
+        assert!(!hosted_flag(Some("0")));
+        assert!(hosted_flag(Some("1")));
+        assert!(hosted_flag(Some("true")));
+        assert!(hosted_flag(Some(" yes ")));
         assert!(parse_route("agent/config").is_some());
         assert!(parse_route("agent/status").is_some());
+        assert!(parse_route("agent/fleet").is_some());
+        assert!(parse_route("agent/fleet/status").is_some());
         assert!(parse_route("gateways").is_some());
         let id = "11111111-1111-4111-8111-111111111111";
         assert!(parse_route(&format!("gateways/{id}/servers")).is_some());
@@ -1137,6 +1442,33 @@ mod tests {
             resource_path("/api/gateway", "__path=gateways%2Fabc"),
             "gateways/abc"
         );
+    }
+
+    #[tokio::test]
+    async fn hosted_status_is_public_and_follows_the_flag() {
+        let (backend, _) = harness();
+        let (status, headers, body) =
+            call(&backend, "GET", "/api/gateway/hosted", None, None).await;
+        assert_eq!(status, 200, "{body}");
+        assert_eq!(
+            body["available"],
+            json!(hosted_flag(std::env::var("GATEWAY_HOSTED").ok().as_deref()))
+        );
+        assert_eq!(
+            headers
+                .get("cache-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
+        );
+        let (status, _, _) = call(
+            &backend,
+            "POST",
+            "/api/gateway/hosted",
+            None,
+            Some(json!({})),
+        )
+        .await;
+        assert_eq!(status, 405);
     }
 
     #[tokio::test]
@@ -1506,5 +1838,93 @@ mod tests {
         .await;
         assert_eq!(status, 200, "{local}");
         assert_eq!(local["server"]["transport"], "stdio");
+    }
+
+    #[tokio::test]
+    async fn fleet_yaml_embeds_one_tenants_credential_and_not_the_other() {
+        let (backend, _) = harness();
+        let fleet = backend.fleet_token().unwrap();
+        let (status, _, _) = call(
+            &backend,
+            "GET",
+            "/api/gateway/agent/fleet",
+            Some("fizz_fleet_nope"),
+            None,
+        )
+        .await;
+        assert_eq!(status, 401);
+        let (status, _, created) = call(
+            &backend,
+            "POST",
+            "/api/gateway/gateways",
+            Some("user-a"),
+            Some(json!({"name": "home"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{created}");
+        let gateway_a = created["gateway"]["id"].as_str().unwrap().to_string();
+        let url_a = created["gateway"]["public_url"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let secret = "upstream-token-sample";
+        let (status, _, added) = call(
+            &backend,
+            "POST",
+            &format!("/api/gateway/gateways/{gateway_a}/servers"),
+            Some("user-a"),
+            Some(json!({"name": "github", "url": "https://example.com/mcp", "api_key": secret})),
+        )
+        .await;
+        assert_eq!(status, 200, "{added}");
+        let (status, _, other) = call(
+            &backend,
+            "POST",
+            "/api/gateway/gateways",
+            Some("user-b"),
+            Some(json!({"name": "shop"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{other}");
+        let gateway_b = other["gateway"]["id"].as_str().unwrap();
+        let url_b = other["gateway"]["public_url"].as_str().unwrap().to_string();
+        let (status, _, added_b) = call(
+            &backend,
+            "POST",
+            &format!("/api/gateway/gateways/{gateway_b}/servers"),
+            Some("user-b"),
+            Some(json!({"name": "linear", "url": "https://linear.example/mcp"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{added_b}");
+        let (status, _, preview) = call(
+            &backend,
+            "GET",
+            &format!("/api/gateway/gateways/{gateway_a}/config"),
+            Some("user-a"),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{preview}");
+        let preview_yaml = text_of(&preview);
+        assert!(!preview_yaml.contains(secret));
+        let (status, _, fleet_body) = call(
+            &backend,
+            "GET",
+            "/api/gateway/agent/fleet",
+            Some(&fleet),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{fleet_body}");
+        let yaml = text_of(&fleet_body);
+        assert_eq!(yaml.matches(secret).count(), 1);
+        assert!(yaml.contains(&url_a));
+        assert!(yaml.contains(&url_b));
+        assert!(yaml.contains("maxTokens: 30"));
+        assert!(yaml.contains("name: github"));
+        assert!(yaml.contains("name: linear"));
+        assert!(!yaml.contains("stdio"));
+        assert!(!yaml.contains("uvx"));
     }
 }

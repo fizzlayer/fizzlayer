@@ -16,9 +16,18 @@ use crate::error::{GatewayError, GatewayResult};
 
 const MAX_BYTES: usize = 1_048_576;
 const TOKEN_PREFIX: &str = "fizz_reg_";
+const FLEET_PREFIX: &str = "fizz_fleet_";
 
 pub fn registration_token_ok(token: &str) -> bool {
-    let Some(rest) = token.strip_prefix(TOKEN_PREFIX) else {
+    token_body_ok(token, TOKEN_PREFIX)
+}
+
+pub fn fleet_token_ok(token: &str) -> bool {
+    token_body_ok(token, FLEET_PREFIX)
+}
+
+fn token_body_ok(token: &str, prefix: &str) -> bool {
+    let Some(rest) = token.strip_prefix(prefix) else {
         return false;
     };
     rest.len() == 64 && rest.bytes().all(|byte| byte.is_ascii_hexdigit())
@@ -122,6 +131,78 @@ pub fn validate_gateway_yaml(text: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Fleet documents use `binds` and one exact path per gateway. A stdio target
+/// or a repeated path is rejected. The error does not quote the document.
+pub fn validate_fleet_yaml(text: &str) -> Result<(), &'static str> {
+    if text.is_empty() || text.len() > MAX_BYTES || text.contains('\0') {
+        return Err("config was rejected");
+    }
+    if text.contains("BEGIN PRIVATE KEY") || text.contains("BEGIN OPENSSH") {
+        return Err("config was rejected");
+    }
+    let value: Value =
+        serde_saphyr::from_str(text).map_err(|_| "config YAML could not be parsed")?;
+    let Some(binds) = value.get("binds").and_then(Value::as_array) else {
+        return Err("config is missing the fleet bind");
+    };
+    if binds.len() != 1 {
+        return Err("config is missing the fleet bind");
+    }
+    let Some(port) = binds[0].get("port").and_then(Value::as_u64) else {
+        return Err("config is missing the fleet bind");
+    };
+    if !(1..=65535).contains(&port) {
+        return Err("config is missing the fleet bind");
+    }
+    let Some(routes) = binds[0]
+        .pointer("/listeners/0/routes")
+        .and_then(Value::as_array)
+    else {
+        return Err("config is missing the fleet bind");
+    };
+    let mut paths = Vec::new();
+    for route in routes {
+        let Some(path) = route
+            .pointer("/matches/0/path/exact")
+            .and_then(Value::as_str)
+        else {
+            return Err("config has an unusable route");
+        };
+        if path.is_empty() || paths.contains(&path) {
+            return Err("config has an unusable route");
+        }
+        paths.push(path);
+        if path == "/health" {
+            continue;
+        }
+        let empty = Vec::new();
+        let targets = route
+            .pointer("/backends/0/mcp/targets")
+            .and_then(Value::as_array)
+            .unwrap_or(&empty);
+        let audience = route
+            .pointer("/policies/jwtAuth/audiences/0")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if audience.is_empty() || !audience.ends_with(path) {
+            return Err("config has an unusable route");
+        }
+        for target in targets {
+            if target.get("stdio").is_some() {
+                return Err("config has an unusable target");
+            }
+            let kinds = ["mcp", "sse"]
+                .into_iter()
+                .filter(|key| target.get(key).is_some())
+                .count();
+            if kinds != 1 {
+                return Err("config has an unusable target");
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct StatusReport {
     pub revision: i64,
@@ -160,10 +241,19 @@ pub struct SyncRequest<'a> {
     pub admin_url: Option<&'a str>,
     pub etag: Option<&'a str>,
     pub revision: Option<i64>,
+    /// Shared fleet pull. The per-gateway registration pull stays the default.
+    pub fleet: bool,
+    /// When set, the bind port is rewritten to this value before the file is replaced.
+    pub listen_port: Option<u16>,
 }
 
 pub async fn sync_once(request: SyncRequest<'_>) -> SyncOutcome {
-    let mut url = format!("{}/api/gateway/agent/config", request.origin);
+    let path = if request.fleet {
+        "/api/gateway/agent/fleet"
+    } else {
+        "/api/gateway/agent/config"
+    };
+    let mut url = format!("{}{path}", request.origin);
     if let Some(revision) = request.revision {
         url.push_str(&format!("?rev={revision}"));
     }
@@ -217,7 +307,19 @@ pub async fn sync_once(request: SyncRequest<'_>) -> SyncOutcome {
             return rejected(revision.unwrap_or(0), detail, etag, revision);
         }
     };
-    if let Err(detail) = validate_gateway_yaml(&body) {
+    let body = if let Some(port) = request.listen_port {
+        match crate::config::set_bind_port(&body, port) {
+            Ok(rewritten) => rewritten,
+            Err(detail) => return rejected(revision.unwrap_or(0), detail, etag, revision),
+        }
+    } else {
+        body
+    };
+    if let Err(detail) = if request.fleet {
+        validate_fleet_yaml(&body)
+    } else {
+        validate_gateway_yaml(&body)
+    } {
         return rejected(revision.unwrap_or(0), detail, etag, revision);
     }
     let previous = fs::read_to_string(request.config_path).ok();
@@ -251,6 +353,7 @@ pub async fn report_status(
     origin: &str,
     token: &str,
     report: StatusReport,
+    fleet: bool,
 ) -> Result<(), &'static str> {
     let mut body = serde_json::json!({
         "revision": report.revision,
@@ -260,7 +363,10 @@ pub async fn report_status(
         body["detail"] = serde_json::json!(detail);
     }
     let response = client
-        .post(format!("{origin}/api/gateway/agent/status"))
+        .post(format!(
+            "{origin}/api/gateway/agent/{}",
+            if fleet { "fleet/status" } else { "status" }
+        ))
         .header(
             AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {token}"))
@@ -339,7 +445,7 @@ fn hold(detail: &'static str, etag: Option<&str>, revision: Option<i64>) -> Sync
 
 fn hold_detail(status: u16) -> &'static str {
     match status {
-        401 | 403 => "registration token was rejected",
+        401 | 403 => "pull token was rejected",
         404 => "config endpoint was not found",
         429 => "control plane rate limited the pull",
         _ => "control plane did not return a config",
@@ -444,6 +550,7 @@ mod tests {
             jwks_file: String::new(),
             jwks_url: Some("https://fizzlayer.com/api/gateway/jwks".to_string()),
             credential_mode: CredentialMode::Embed,
+            requests_per_minute: 0,
             servers: vec![ServerSpec {
                 name: "sample".to_string(),
                 transport: Transport::Http,
@@ -461,6 +568,11 @@ mod tests {
         let token = format!("{TOKEN_PREFIX}{}", "ab".repeat(32));
         assert!(registration_token_ok(&token));
         assert!(!registration_token_ok("fizz_reg_short"));
+        assert!(fleet_token_ok(&format!(
+            "{FLEET_PREFIX}{}",
+            "ab".repeat(32)
+        )));
+        assert!(!fleet_token_ok(&token));
         assert_eq!(
             control_origin("https://fizzlayer.com/").unwrap(),
             "https://fizzlayer.com"
@@ -612,6 +724,8 @@ mod tests {
             admin_url: None,
             etag: None,
             revision: None,
+            fleet: false,
+            listen_port: None,
         })
         .await;
         assert!(matches!(first.kind, SyncKind::Applied { revision: 1 }));
@@ -626,6 +740,8 @@ mod tests {
             admin_url: None,
             etag: Some(&etag),
             revision: Some(1),
+            fleet: false,
+            listen_port: None,
         })
         .await;
         assert!(matches!(second.kind, SyncKind::NotModified));
@@ -638,6 +754,8 @@ mod tests {
             admin_url: None,
             etag: second.etag.as_deref(),
             revision: Some(1),
+            fleet: false,
+            listen_port: None,
         })
         .await;
         match third.kind {
@@ -649,7 +767,7 @@ mod tests {
         }
         assert_eq!(fs::read_to_string(&path).unwrap(), good);
         let report = third.report.unwrap();
-        report_status(&client, &origin, &token, report)
+        report_status(&client, &origin, &token, report, false)
             .await
             .unwrap();
         let reports = state.reports.lock().unwrap();

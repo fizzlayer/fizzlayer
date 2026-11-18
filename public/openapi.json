@@ -612,6 +612,37 @@
         }
       }
     },
+    "/api/gateway/hosted": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "getGatewayHosted",
+        "summary": "Whether the shared hosted fleet is on",
+        "description": "No session. Returns available true only when GATEWAY_HOSTED is 1, true, or yes. Unset stays false. The Gleam app checks this before /gateway-hosted.json. Cache-Control is no-store. This does not start the fleet.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The hosted flag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "available"
+                  ],
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/gateway/jwks": {
       "get": {
         "tags": [
@@ -778,6 +809,87 @@
           },
           "503": {
             "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/agent/fleet": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "getGatewayFleetConfig",
+        "summary": "Multi-tenant YAML for the shared fleet",
+        "description": "One agentgateway document for every active shared gateway. Authorization is Bearer fizz_fleet_, the GATEWAY_FLEET_TOKEN value. Upstream credentials are embedded. Do not log the body. ETag is the fleet revision. Dedicated and stdio gateways are omitted. 503 when the token is unset or the document cannot be rendered.",
+        "security": [
+          {
+            "registrationToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "YAML config for the shared fleet.",
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The caller's revision matches. Body is empty."
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewayAgentUnauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/agent/fleet/status": {
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "postGatewayFleetStatus",
+        "summary": "Shared fleet apply or reject report",
+        "description": "Same body as POST /api/gateway/agent/status. Stored on gateway.hosted_fleet. Authorization is Bearer fizz_fleet_.",
+        "security": [
+          {
+            "registrationToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayAgentStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewayAgentUnauthorized"
           }
         }
       }

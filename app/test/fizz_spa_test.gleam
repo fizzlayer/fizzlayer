@@ -281,7 +281,7 @@ pub fn every_gateway_route_is_in_openapi_test() {
   let assert Ok(rust) = simplifile.read("../src/gateway/mod.rs")
   let assert Ok(spec) = simplifile.read("../public/openapi.json")
   let paths = openapi_routes.paths_from_rust(rust)
-  list.length(paths) |> should.equal(19)
+  list.length(paths) |> should.equal(22)
   list.each(paths, fn(path) {
     string.contains(spec, "\"" <> path <> "\"") |> should.be_true
   })

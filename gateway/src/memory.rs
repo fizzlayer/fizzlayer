@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use uuid::Uuid;
 
-use crate::db::{AuditWrite, NewApproval, PendingApproval, PinAlert, ToolSight};
+use crate::db::{AuditWrite, NewApproval, PendingApproval, PinAlert, ToolQuota, ToolSight};
 use crate::error::{GatewayError, GatewayResult};
 use crate::notify::PhoneBudget;
 use crate::policy::{ApprovalHit, PolicyRule};
@@ -18,6 +18,9 @@ struct GatewayRow {
     workspace_id: Uuid,
     active: bool,
     show_unreviewed: bool,
+    public_url: String,
+    quota_used: i64,
+    quota_cap: Option<i64>,
 }
 
 struct ApprovalRow {
@@ -97,6 +100,9 @@ impl MemoryDb {
                     workspace_id,
                     active: true,
                     show_unreviewed,
+                    public_url: String::new(),
+                    quota_used: 0,
+                    quota_cap: None,
                 },
             );
         }
@@ -123,6 +129,53 @@ impl MemoryDb {
         if let Ok(mut state) = self.lock() {
             state.policies.entry(gateway_id).or_default().push(rule);
         }
+    }
+
+    pub fn set_audience(&self, id: Uuid, public_url: &str) {
+        if let Ok(mut state) = self.lock() {
+            if let Some(row) = state.gateways.get_mut(&id) {
+                row.public_url = public_url.to_string();
+            }
+        }
+    }
+
+    pub fn set_quota(&self, id: Uuid, used: i64, cap: Option<i64>) {
+        if let Ok(mut state) = self.lock() {
+            if let Some(row) = state.gateways.get_mut(&id) {
+                row.quota_used = used;
+                row.quota_cap = cap;
+            }
+        }
+    }
+
+    pub async fn gateway_audience(&self, gateway_id: Uuid) -> GatewayResult<Option<String>> {
+        let state = self.lock()?;
+        Ok(state
+            .gateways
+            .get(&gateway_id)
+            .filter(|row| row.active)
+            .map(|row| row.public_url.clone())
+            .filter(|url| !url.is_empty()))
+    }
+
+    pub async fn tool_quota(&self, gateway_id: Uuid) -> GatewayResult<ToolQuota> {
+        let state = self.lock()?;
+        let Some(row) = state.gateways.get(&gateway_id).filter(|row| row.active) else {
+            return Ok(ToolQuota {
+                allowed: false,
+                used: 0,
+                cap: Some(0),
+            });
+        };
+        let allowed = match row.quota_cap {
+            Some(cap) => row.quota_used < cap,
+            None => true,
+        };
+        Ok(ToolQuota {
+            allowed,
+            used: row.quota_used,
+            cap: row.quota_cap,
+        })
     }
 
     pub async fn gateway_workspace(&self, gateway_id: Uuid) -> GatewayResult<Option<Uuid>> {

@@ -1,0 +1,31 @@
+# Hosted shared fleet. The proxy binary is upstream's release image, copied
+# in, not rebuilt. fizz-guard and fizz-agent are the only code this build compiles.
+FROM rust:1.100.0-bookworm AS build
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY Cargo.toml Cargo.lock build.rs ./
+COPY proto ./proto
+COPY pins ./pins
+COPY src ./src
+RUN cargo build --release --locked --bin fizz-guard --bin fizz-agent
+
+FROM cr.agentgateway.dev/agentgateway@sha256:60216aafb03d37f94e952ff3d51d2f630a65b10ecaebdc0a864882f92610c45b AS upstream
+
+# trixie matches the glibc the pinned proxy binary was built against.
+FROM debian:trixie-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates adduser \
+  && rm -rf /var/lib/apt/lists/* \
+  && adduser --uid 65532 --disabled-password --gecos "" --no-create-home fizz
+COPY --from=upstream /app/agentgateway /usr/local/bin/agentgateway
+COPY --from=build /src/target/release/fizz-guard /usr/local/bin/fizz-guard
+COPY --from=build /src/target/release/fizz-agent /usr/local/bin/fizz-agent
+COPY docker/hosted-entrypoint.sh /usr/local/bin/hosted-entrypoint
+RUN chmod 755 /usr/local/bin/hosted-entrypoint /usr/local/bin/agentgateway \
+  /usr/local/bin/fizz-guard /usr/local/bin/fizz-agent \
+  && agentgateway --version
+USER 65532:65532
+EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/hosted-entrypoint"]

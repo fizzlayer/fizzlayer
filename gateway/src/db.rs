@@ -119,6 +119,7 @@ impl Db {
             jwks_url: None,
             credential_mode: crate::config::CredentialMode::Refuse,
             servers,
+            requests_per_minute: 0,
         })
     }
 
@@ -132,6 +133,49 @@ impl Db {
             .await
             .map_err(GatewayError::database)?;
         Ok(row.map(|row| row.get("workspace_id")))
+    }
+
+    pub async fn gateway_audience(&self, gateway_id: Uuid) -> GatewayResult<Option<String>> {
+        let client = self.client.lock().await;
+        let row = client
+            .query_opt(
+                "select public_url from gateway.gateways where id = $1 and status = 'active'",
+                &[&gateway_id],
+            )
+            .await
+            .map_err(GatewayError::database)?;
+        Ok(row.map(|row| row.get("public_url")))
+    }
+
+    /// Monthly tool-call cap. A database that has not applied the hosted
+    /// migration has no `gateway.tool_quota`; that is treated as no cap so
+    /// self-host compose keeps working. Any other error fails closed.
+    pub async fn tool_quota(&self, gateway_id: Uuid) -> GatewayResult<ToolQuota> {
+        let client = self.client.lock().await;
+        let row = client
+            .query_opt(
+                "select allowed, used, cap from gateway.tool_quota($1)",
+                &[&gateway_id],
+            )
+            .await;
+        match row {
+            Ok(Some(row)) => Ok(ToolQuota {
+                allowed: row.get("allowed"),
+                used: row.get::<_, i32>("used") as i64,
+                cap: row.get::<_, Option<i32>>("cap").map(i64::from),
+            }),
+            Ok(None) => Ok(ToolQuota {
+                allowed: false,
+                used: 0,
+                cap: Some(0),
+            }),
+            Err(err) if err.code().is_some_and(|code| code.code() == "42883") => Ok(ToolQuota {
+                allowed: true,
+                used: 0,
+                cap: None,
+            }),
+            Err(err) => Err(GatewayError::database(err)),
+        }
     }
 
     pub async fn token_active(&self, gateway_id: Uuid, jti: &str) -> GatewayResult<bool> {
@@ -827,6 +871,13 @@ pub struct PinAlert {
     pub tool: String,
     pub description_preview: String,
     pub observed_sha256: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolQuota {
+    pub allowed: bool,
+    pub used: i64,
+    pub cap: Option<i64>,
 }
 
 pub struct AuditWrite {

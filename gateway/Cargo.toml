@@ -78,3 +78,8 @@ required-features = ["guard"]
 name = "fizz-linked-probe"
 path = "src/bin/fizz-linked-probe.rs"
 required-features = ["guard"]
+
+[[bin]]
+name = "fizz-hosted-probe"
+path = "src/bin/fizz-hosted-probe.rs"
+required-features = ["guard"]

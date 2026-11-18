@@ -119,6 +119,10 @@ async fn tick(store: &Supabase) -> Tick {
     if !failed && let Err(problem) = store.rpc("fizz_note_scheduler_run", json!({})).await {
         eprintln!("Fizz scheduler history was not recorded: {problem:?}");
     }
+    // Missing until 20261118000200 is applied. A failure here does not fail the tick.
+    if let Err(problem) = store.rpc("fizz_purge_gateway_audit", json!({})).await {
+        eprintln!("Fizz gateway audit retention was not applied: {problem:?}");
+    }
     let mut body = notifications(report);
     body["channels"] = json!({
         "claimed": channels.claimed,
