@@ -62,6 +62,20 @@ where
         };
         return agent_config(backend, &token, &query, if_none.as_deref(), &origin).await;
     }
+    if matches!(route, Route::AgentStatus) {
+        if method.as_str() != "POST" {
+            return ApiError::new(405, "method_not_allowed", "Use POST.").into_response();
+        }
+        let Some(token) = bearer else {
+            return ApiError::new(401, "unauthorized", "Registration token was rejected.")
+                .into_response();
+        };
+        let body = match read_json(request, 4 * 1024).await {
+            Ok(body) => body,
+            Err(error) => return error.into_response(),
+        };
+        return agent_status(backend, &token, &body).await;
+    }
     let Some(token) = bearer else {
         return ApiError::new(401, "unauthorized", "Sign in to continue.").into_response();
     };
@@ -625,6 +639,55 @@ async fn agent_config(
     }
 }
 
+async fn agent_status(backend: &impl Backend, token: &str, body: &Value) -> Response<ResponseBody> {
+    if !crypto::registration_token_ok(token) {
+        return ApiError::new(401, "unauthorized", "Registration token was rejected.")
+            .into_response();
+    }
+    let Some(revision) = body["revision"].as_i64().filter(|value| *value >= 0) else {
+        return ApiError::new(400, "invalid_request", "Check the gateway request.").into_response();
+    };
+    let Some(status) = body["status"]
+        .as_str()
+        .filter(|status| matches!(*status, "applied" | "rejected"))
+    else {
+        return ApiError::new(400, "invalid_request", "Check the gateway request.").into_response();
+    };
+    let detail = match body.get("detail") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(text)) if agent_detail_ok(text) => Some(text.as_str()),
+        _ => {
+            return ApiError::new(400, "invalid_request", "Check the gateway request.")
+                .into_response();
+        }
+    };
+    let mut payload = json!({
+        "token_hash": crypto::sha256_hex(token.as_bytes()),
+        "revision": revision,
+        "status": status,
+    });
+    if let Some(detail) = detail {
+        payload["detail"] = json!(detail);
+    }
+    let stored = match backend.call(None, "agent_status", payload).await {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    match map_db(stored, true) {
+        Ok(_) => json_ok(json!({"ok": true})),
+        Err(error) => error.into_response(),
+    }
+}
+
+fn agent_detail_ok(text: &str) -> bool {
+    let count = text.chars().count();
+    (1..=300).contains(&count)
+        && !text.chars().any(char::is_control)
+        && !text.to_ascii_lowercase().contains("fizz_reg_")
+        && !text.contains("eyJ")
+        && !text.contains("Bearer ")
+}
+
 fn render(
     backend: &impl Backend,
     source: &Value,
@@ -917,6 +980,7 @@ fn percent_decode(value: &str) -> String {
 enum Route {
     Jwks,
     AgentConfig,
+    AgentStatus,
     Gateways,
     Gateway(String),
     Servers(String),
@@ -944,6 +1008,7 @@ fn parse_route(path: &str) -> Option<Route> {
     match parts.as_slice() {
         ["jwks"] => Some(Route::Jwks),
         ["agent", "config"] => Some(Route::AgentConfig),
+        ["agent", "status"] => Some(Route::AgentStatus),
         ["gateways"] => Some(Route::Gateways),
         ["gateways", id] if valid_uuid(id) => Some(Route::Gateway((*id).to_string())),
         ["gateways", id, "servers"] if valid_uuid(id) => Some(Route::Servers((*id).to_string())),
@@ -1056,6 +1121,7 @@ mod tests {
     fn routes_cover_the_control_plane() {
         assert!(parse_route("jwks").is_some());
         assert!(parse_route("agent/config").is_some());
+        assert!(parse_route("agent/status").is_some());
         assert!(parse_route("gateways").is_some());
         let id = "11111111-1111-4111-8111-111111111111";
         assert!(parse_route(&format!("gateways/{id}/servers")).is_some());
@@ -1214,6 +1280,61 @@ mod tests {
             .insert("if-none-match", etag.parse().unwrap());
         let again = handle_with(again, &backend).await;
         assert_eq!(again.status().as_u16(), 304);
+        let (status, _, reported) = call(
+            &backend,
+            "POST",
+            "/api/gateway/agent/status",
+            Some(&registration),
+            Some(json!({"revision": 2, "status": "applied"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{reported}");
+        let (status, _, listed) = call(
+            &backend,
+            "GET",
+            "/api/gateway/gateways",
+            Some("user-a"),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{listed}");
+        let row = listed["gateways"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == gateway)
+            .unwrap();
+        assert_eq!(row["agent_status"], "applied");
+        assert_eq!(row["agent_revision"], 2);
+        let (status, _, leaked) = call(
+            &backend,
+            "POST",
+            "/api/gateway/agent/status",
+            Some(&registration),
+            Some(json!({
+                "revision": 2,
+                "status": "rejected",
+                "detail": format!("fizz_reg_{}", "ab".repeat(32))
+            })),
+        )
+        .await;
+        assert_eq!(status, 400, "{leaked}");
+        let (status, _, still) = call(
+            &backend,
+            "GET",
+            "/api/gateway/gateways",
+            Some("user-a"),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{still}");
+        let row = still["gateways"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == gateway)
+            .unwrap();
+        assert_eq!(row["agent_status"], "applied");
         let (status, _, preview) = call(
             &backend,
             "GET",

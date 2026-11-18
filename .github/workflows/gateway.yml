@@ -10,6 +10,7 @@ on:
       - supabase/migrations/20261114000300_gateway_policies.sql
       - supabase/migrations/20261114000400_gateway_control_plane.sql
       - supabase/migrations/20261118000000_phone_approval_calls.sql
+      - supabase/migrations/20261118000100_gateway_agent.sql
       - supabase/tests/gateway_rls.sql
       - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml
@@ -22,6 +23,7 @@ on:
       - supabase/migrations/20261114000300_gateway_policies.sql
       - supabase/migrations/20261114000400_gateway_control_plane.sql
       - supabase/migrations/20261118000000_phone_approval_calls.sql
+      - supabase/migrations/20261118000100_gateway_agent.sql
       - supabase/tests/gateway_rls.sql
       - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml
@@ -56,3 +58,5 @@ jobs:
         run: cargo test --locked --manifest-path gateway/Cargo.toml
       - name: Compose end to end
         run: gateway/compose/test.sh
+      - name: Linked config pull
+        run: gateway/compose/test-linked.sh
