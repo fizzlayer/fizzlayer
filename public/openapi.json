@@ -4,52 +4,116 @@
     "title": "Fizzlayer API",
     "version": "1.0.0",
     "summary": "Send sensor readings to Fizzlayer and connect AI agents to them.",
-    "description": "Fizzlayer is the secure connection layer for AI agents. This document is the sensors API: devices post readings with a per-sensor API key, and AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. Gateway routes under /api/gateway are documented at https://fizzlayer.com/docs and are not listed here. The hosted gateway is not running. Account management uses the website or its WebMCP tools. Guide: https://fizzlayer.com/sensors/docs",
+    "description": "Fizzlayer is the secure connection layer for AI agents. Devices post readings with a per-sensor API key, and AI agents read sensors through the remote MCP server with an agent token (fizz_agent_). The gateway control plane is the /api/gateway routes: signed-in calls use a Supabase access token (Authorization: Bearer or the fizz_supabase cookie), and fizz-agent uses a registration token (fizz_reg_). The hosted gateway is not running. Guide: https://fizzlayer.com/docs and https://fizzlayer.com/sensors/docs. Setup in the app is at https://fizzlayer.com/app.",
     "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/sensors/docs" },
     "termsOfService": "https://fizzlayer.com/terms.html"
   },
-  "externalDocs": { "description": "Fizzlayer documentation", "url": "https://fizzlayer.com/sensors/docs" },
-  "servers": [{ "url": "https://fizzlayer.com" }],
+  "externalDocs": {
+    "description": "Fizzlayer documentation",
+    "url": "https://fizzlayer.com/sensors/docs"
+  },
+  "servers": [
+    {
+      "url": "https://fizzlayer.com"
+    }
+  ],
   "tags": [
-    { "name": "Readings", "description": "Send readings from devices, scripts, and microcontrollers." },
-    { "name": "Agents", "description": "The remote MCP server for AI agents." },
-    { "name": "Alerts", "description": "Threshold and silence alerts for the signed-in account. Phone-call alerts are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email and webhook are included on every plan until the owner gates them. Email is refused unless RESEND_API_KEY and FIZZ_ALERT_FROM are set." },
-    { "name": "Service", "description": "Service status and sales contact." }
+    {
+      "name": "Readings",
+      "description": "Send readings from devices, scripts, and microcontrollers."
+    },
+    {
+      "name": "Agents",
+      "description": "The remote MCP server for AI agents."
+    },
+    {
+      "name": "Alerts",
+      "description": "Threshold and silence alerts for the signed-in account. Phone-call alerts are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email and webhook are included on every plan until the owner gates them. Email is refused unless RESEND_API_KEY and FIZZ_ALERT_FROM are set."
+    },
+    {
+      "name": "Service",
+      "description": "Service status and sales contact."
+    },
+    {
+      "name": "Gateway",
+      "description": "Gateway control plane. Signed-in routes use the Supabase access token. Agent routes use a registration token. GET /api/gateway/jwks is public. Plan limits answer 402. Credentials are write-only."
+    }
   ],
   "paths": {
     "/api/ingest": {
       "post": {
-        "tags": ["Readings"],
+        "tags": [
+          "Readings"
+        ],
         "operationId": "sendReadings",
         "summary": "Send readings for one sensor, or a batch from Home Assistant",
         "description": "Stores 1 to 16 metrics observed at one moment. Metrics are validated against the sensor's type (for example, a Temperature sensor accepts temperature_c from -100 to 200); Custom sensors accept any metric name. Sending the same event_id again is idempotent, so retries are safe. A Home Assistant connection key may instead send {\"readings\": [ ... ]} with 1 to 40 of those objects. One bad item does not reject the rest. Limits: 1,200 readings a minute per sensor and 5,000 per account.",
-        "security": [{ "sensorKey": [] }],
+        "security": [
+          {
+            "sensorKey": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/IngestRequest" },
-              "example": { "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13", "event_id": "reading-001", "metrics": { "temperature_c": 22.4 } }
+              "schema": {
+                "$ref": "#/components/schemas/IngestRequest"
+              },
+              "example": {
+                "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13",
+                "event_id": "reading-001",
+                "metrics": {
+                  "temperature_c": 22.4
+                }
+              }
             }
           }
         },
         "responses": {
           "202": {
             "description": "Readings stored (or already stored under this event_id).",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IngestResponse" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            }
           },
-          "400": { "$ref": "#/components/responses/InvalidRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "413": { "$ref": "#/components/responses/TooLarge" },
-          "415": { "description": "The body is not sent as application/json.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "description": "The body is not sent as application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     },
     "/api/stream": {
       "get": {
-        "tags": ["Readings"],
+        "tags": [
+          "Readings"
+        ],
         "operationId": "getStream",
         "summary": "Live stream and MQTT addresses",
         "description": "Discover live addresses here instead of hardcoding a host. Returns enabled:false until FIZZ_STREAM_URL is set. The hosted service uses the /compute/v1/fizz-worker prefix (not /workers/v1/) and mqtt_tcp_url null: MQTT is WebSocket only (subprotocol mqtt), with no TCP port 1883. Device sockets and MQTT publish use the sensor API key. Viewer sockets use a 15-minute token from POST /api/stream.",
@@ -62,13 +126,28 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "enabled": { "type": "boolean" },
-                    "websocket_url": { "type": "string" },
-                    "live_url": { "type": "string" },
-                    "mqtt_ws_url": { "type": "string" },
-                    "mqtt_tcp_url": { "type": ["string", "null"] }
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "websocket_url": {
+                      "type": "string"
+                    },
+                    "live_url": {
+                      "type": "string"
+                    },
+                    "mqtt_ws_url": {
+                      "type": "string"
+                    },
+                    "mqtt_tcp_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
                   },
-                  "required": ["enabled"]
+                  "required": [
+                    "enabled"
+                  ]
                 },
                 "examples": {
                   "hosted": {
@@ -81,7 +160,12 @@
                       "mqtt_tcp_url": null
                     }
                   },
-                  "disabled": { "summary": "Streaming not configured", "value": { "enabled": false } }
+                  "disabled": {
+                    "summary": "Streaming not configured",
+                    "value": {
+                      "enabled": false
+                    }
+                  }
                 }
               }
             }
@@ -89,11 +173,17 @@
         }
       },
       "post": {
-        "tags": ["Readings"],
+        "tags": [
+          "Readings"
+        ],
         "operationId": "issueStreamToken",
         "summary": "Mint a short-lived subscribe token",
         "description": "Session cookie or Authorization: Bearer fizz_agent_.... The token lasts 15 minutes, is scoped to the workspace, and cannot publish. Optional sensor_id limits it to one owned sensor. 60 an hour per workspace, 30 an hour per agent.",
-        "security": [{ "agentToken": [] }],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -101,7 +191,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "sensor_id": { "type": "string", "format": "uuid" }
+                  "sensor_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
                 }
               },
               "example": {}
@@ -109,17 +202,29 @@
           }
         },
         "responses": {
-          "201": { "description": "Token minted once. It is not stored in a recoverable form." },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "description": "sensor_id is not in this workspace." },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "201": {
+            "description": "Token minted once. It is not stored in a recoverable form."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "sensor_id is not in this workspace."
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     },
     "/api/alerts": {
       "post": {
-        "tags": ["Alerts"],
+        "tags": [
+          "Alerts"
+        ],
         "operationId": "createAlert",
         "summary": "Create a threshold or silence alert",
         "description": "Requires the signed-in dashboard session. channels lists dashboard, phone, email, and webhook. Omit it for a dashboard alert, or send notify_channel \"call\" with notify_phone for the existing phone behavior (dashboard plus that call). Phone calls require a paired US number and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. Email is sent only to the account's verified address and is refused unless RESEND_API_KEY and FIZZ_ALERT_FROM are set. webhook_url must be public https and is included on every plan. An optional webhook_secret (16 to 128 characters) signs that alert; otherwise the account secret does. Repeating an identical alert returns the existing rule.",
@@ -127,28 +232,45 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/AlertWrite" },
+              "schema": {
+                "$ref": "#/components/schemas/AlertWrite"
+              },
               "example": {
                 "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13",
                 "metric": "temperature_c",
                 "comparator": "gt",
                 "threshold": 30,
                 "unit": "C",
-                "channels": ["dashboard", "email"]
+                "channels": [
+                  "dashboard",
+                  "email"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "The alert rule, with created true or false when an identical rule was already active." },
-          "400": { "$ref": "#/components/responses/InvalidRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "402": { "description": "Phone calls, or email and webhook when the owner has gated them, are not included on this plan." },
-          "404": { "description": "The sensor is not in this account." }
+          "200": {
+            "description": "The alert rule, with created true or false when an identical rule was already active."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "Phone calls, or email and webhook when the owner has gated them, are not included on this plan."
+          },
+          "404": {
+            "description": "The sensor is not in this account."
+          }
         }
       },
       "patch": {
-        "tags": ["Alerts"],
+        "tags": [
+          "Alerts"
+        ],
         "operationId": "updateAlert",
         "summary": "Pause, resume, or change how an alert notifies",
         "description": "Requires the signed-in dashboard session. Send enabled to pause or resume, which is what the dashboard does today. Also send channels to replace dashboard, phone, email, and webhook. Phone, email, and webhook follow the same rules as create. Omit channels to leave them unchanged.",
@@ -156,41 +278,93 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/AlertUpdate" },
+              "schema": {
+                "$ref": "#/components/schemas/AlertUpdate"
+              },
               "example": {
                 "id": "8b1a0c2e-4d55-4a1e-9c20-6f0a1b2c3d4e",
                 "enabled": true,
-                "channels": ["dashboard", "webhook"],
+                "channels": [
+                  "dashboard",
+                  "webhook"
+                ],
                 "webhook_url": "https://alerts.example.com/fizz"
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "The updated rule." },
-          "400": { "$ref": "#/components/responses/InvalidRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "402": { "description": "The selected channels are not included on this plan." },
-          "404": { "description": "The alert is not in this account." }
+          "200": {
+            "description": "The updated rule."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "The selected channels are not included on this plan."
+          },
+          "404": {
+            "description": "The alert is not in this account."
+          }
         }
       }
     },
     "/api/mcp": {
       "post": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "operationId": "mcp",
         "summary": "Model Context Protocol endpoint (Streamable HTTP)",
         "description": "A stateless MCP server. Tools: list_sensors, get_readings, list_alerts, create_alert (threshold or silence alerts; tokens allowed to create alerts), and pair_device. create_alert accepts channels of dashboard, phone, email, and webhook. Phone calls require a number the owner has already paired and a plan that includes calls (Tinkerer, Pro, or Enterprise). Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email uses the account's verified address and is refused unless mail is configured. webhook_url must be a public https URL, and the JSON body is signed with HMAC-SHA256 in X-Fizzlayer-Signature. Agent tokens cannot pair a phone number. No initialize call or session is required. Supports protocol versions 2026-07-28 (send the version in _meta with MCP-Protocol-Version, Mcp-Method, and Mcp-Name headers) and 2025-03-26 through 2025-11-25. Limit: 120 requests a minute per token. Requests carrying another website's Origin header are rejected. Server card: https://fizzlayer.com/.well-known/mcp/server-card.json",
-        "security": [{ "agentToken": [] }],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/JsonRpcRequest" },
+              "schema": {
+                "$ref": "#/components/schemas/JsonRpcRequest"
+              },
               "examples": {
-                "listTools": { "value": { "jsonrpc": "2.0", "id": 1, "method": "tools/list" } },
-                "listSensors": { "value": { "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": "list_sensors", "arguments": {} } } },
-                "getReadings": { "value": { "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "get_readings", "arguments": { "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13", "limit": 20 } } } }
+                "listTools": {
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/list"
+                  }
+                },
+                "listSensors": {
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "list_sensors",
+                      "arguments": {}
+                    }
+                  }
+                },
+                "getReadings": {
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "get_readings",
+                      "arguments": {
+                        "sensor_id": "3f1c2a9e-8b7d-4c6e-9a51-2d0f7b8e4c13",
+                        "limit": 20
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -198,19 +372,65 @@
         "responses": {
           "200": {
             "description": "A JSON-RPC response with a result or a JSON-RPC error.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              }
+            }
           },
-          "202": { "description": "A notification was accepted. No body." },
-          "400": { "description": "Malformed JSON-RPC.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
-          "401": { "description": "Missing, revoked, or invalid agent token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
-          "403": { "description": "The request came from another website's page.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } },
-          "429": { "description": "More than 120 requests a minute for this token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonRpcResponse" } } } }
+          "202": {
+            "description": "A notification was accepted. No body."
+          },
+          "400": {
+            "description": "Malformed JSON-RPC.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, revoked, or invalid agent token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request came from another website's page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "More than 120 requests a minute for this token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/status": {
       "get": {
-        "tags": ["Service"],
+        "tags": [
+          "Service"
+        ],
         "operationId": "getStatus",
         "summary": "Service status",
         "security": [],
@@ -222,21 +442,69 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service": { "type": "string", "const": "fizz" },
-                    "status": { "type": "string", "enum": ["ok", "degraded"] },
-                    "database": { "type": "string", "enum": ["connected", "unavailable", "unconfigured"] },
+                    "service": {
+                      "type": "string",
+                      "const": "fizz"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
+                      ]
+                    },
+                    "database": {
+                      "type": "string",
+                      "enum": [
+                        "connected",
+                        "unavailable",
+                        "unconfigured"
+                      ]
+                    },
                     "scheduler": {
                       "type": "object",
                       "properties": {
-                        "status": { "type": "string", "enum": ["healthy", "stale", "unconfigured", "unknown"] },
-                        "last_success_at": { "type": ["string", "null"], "format": "date-time" },
-                        "recent": { "type": "array", "items": { "type": "string", "format": "date-time" }, "maxItems": 8 }
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "healthy",
+                            "stale",
+                            "unconfigured",
+                            "unknown"
+                          ]
+                        },
+                        "last_success_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "recent": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "maxItems": 8
+                        }
                       },
-                      "required": ["status", "last_success_at", "recent"]
+                      "required": [
+                        "status",
+                        "last_success_at",
+                        "recent"
+                      ]
                     },
-                    "description": { "type": "string" }
+                    "description": {
+                      "type": "string"
+                    }
                   },
-                  "required": ["service", "status", "database", "scheduler"]
+                  "required": [
+                    "service",
+                    "status",
+                    "database",
+                    "scheduler"
+                  ]
                 },
                 "example": {
                   "service": "fizz",
@@ -245,7 +513,10 @@
                   "scheduler": {
                     "status": "healthy",
                     "last_success_at": "2026-11-14T08:00:00Z",
-                    "recent": ["2026-11-14T08:00:00Z", "2026-11-14T07:59:00Z"]
+                    "recent": [
+                      "2026-11-14T08:00:00Z",
+                      "2026-11-14T07:59:00Z"
+                    ]
                   },
                   "description": "The secure connection layer for AI agents"
                 }
@@ -257,7 +528,9 @@
     },
     "/api/contact": {
       "post": {
-        "tags": ["Service"],
+        "tags": [
+          "Service"
+        ],
         "operationId": "contactSales",
         "summary": "Contact sales",
         "description": "Stores a row in fizz_business_interest. Enterprise uses it for a sales inquiry. The homepage private-beta form uses it with interest set to \"Gateway private beta\". The row is not emailed. A post with no company is the retired waitlist and is rejected. Limited per network to stop abuse.",
@@ -269,22 +542,1676 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": { "type": "string", "format": "email" },
-                  "company": { "type": "string", "minLength": 1, "maxLength": 120 },
-                  "interest": { "type": "string", "maxLength": 500, "description": "What they want to monitor." }
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "company": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "interest": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "What they want to monitor."
+                  }
                 },
-                "required": ["email", "company"]
+                "required": [
+                  "email",
+                  "company"
+                ]
               },
-              "example": { "email": "ada@example.com", "company": "Example Labs", "interest": "Water leaks across three warehouses" }
+              "example": {
+                "email": "ada@example.com",
+                "company": "Example Labs",
+                "interest": "Water leaks across three warehouses"
+              }
             }
           }
         },
         "responses": {
-          "200": { "description": "Sent.", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "const": true } }, "required": ["ok"] } } } },
-          "400": { "$ref": "#/components/responses/InvalidRequest" },
-          "410": { "description": "The request has no company. The waitlist this endpoint used to accept is closed (code waitlist_closed); create an account in the app instead.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "200": {
+            "description": "Sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "410": {
+            "description": "The request has no company. The waitlist this endpoint used to accept is closed (code waitlist_closed); create an account in the app instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/jwks": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "getGatewayJwks",
+        "summary": "Public JWKS for client JWTs",
+        "description": "ES256 keys used to verify client tokens minted by POST /api/gateway/gateways/{id}/tokens. No session. Cache for up to five minutes. 503 signing_unavailable when GATEWAY_SIGNING_KEY is missing or not a PKCS#8 ES256 PEM.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "A JWKS document.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/agent/config": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "getGatewayAgentConfig",
+        "summary": "YAML for fizz-agent",
+        "description": "Rendered agentgateway config for the gateway that owns this registration token. Upstream credentials are embedded as backendAuth.key.value. Do not log the body. ETag is the quoted config revision. If-None-Match or ?rev= equal to that revision returns 304 and an empty body. A bad token is 401 unauthorized, the same as an unknown token.",
+        "security": [
+          {
+            "registrationToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rev",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Config revision already on disk."
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "YAML config. ETag does not end in -redacted.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Config-Revision": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The caller's revision matches. Body is empty."
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewayAgentUnauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/agent/status": {
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "postGatewayAgentStatus",
+        "summary": "fizz-agent apply or reject report",
+        "description": "Stores agent_status, agent_revision, and an optional detail on the gateway. detail is 1 to 300 characters and is rejected when it contains a control character, fizz_reg_, eyJ, or Bearer. The body limit is 4 KB. Send JSON.",
+        "security": [
+          {
+            "registrationToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayAgentStatus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewayAgentUnauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGateways",
+        "summary": "List gateways, the plan, and the caller's role",
+        "description": "Creates the workspace on first use. plan is the platform ladder (Hobbyist, Tinkerer, Pro, Enterprise). Null limits mean custom / unlimited. phone_calls_per_month is the shared cap with sensor phone alerts. A member of another workspace sees an empty list.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace context.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayContext"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "createGateway",
+        "summary": "Create a gateway",
+        "description": "name starts with a lowercase letter and then uses lowercase letters, digits, and hyphens, at most 41 characters, not ending in a hyphen. mode is shared, dedicated, or selfhost. Omitted mode is shared unless the plan includes a dedicated gateway, in which case it is dedicated. selfhost requires public_url. The response includes registration_token once. 402 when the plan's gateway limit is reached or dedicated is not included.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created. registration_token is shown once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "402": {
+            "$ref": "#/components/responses/GatewayPayment"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/GatewayConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "updateGatewayUnreviewed",
+        "summary": "Show or hide unreviewed tools",
+        "description": "Sets unreviewed_tools to hide or show. hide removes an unreviewed tool from tools/list. tools/call stays denied until the pin is approved.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "unreviewed_tools": {
+                    "type": "string",
+                    "enum": [
+                      "hide",
+                      "show"
+                    ]
+                  }
+                },
+                "required": [
+                  "unreviewed_tools"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated gateway.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gateway": {
+                      "$ref": "#/components/schemas/Gateway"
+                    }
+                  },
+                  "required": [
+                    "gateway"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "deleteGateway",
+        "summary": "Delete a gateway",
+        "description": "Deletes the gateway and its servers, secrets, policies, pins, approvals, and client tokens.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/servers": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayServers",
+        "summary": "List MCP servers",
+        "description": "has_secret is true when an API key is stored. The key and ciphertext are not returned.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Servers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayServer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "servers"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "addGatewayServer",
+        "summary": "Add an MCP server",
+        "description": "url is http or https with no userinfo. auth_kind is none, key, or passthrough. api_key is required when auth_kind is key, stored encrypted, and never returned. transport stdio with command and args is only for a dedicated or self-hosted gateway on a plan that includes stdio. A shared gateway rejects stdio with 400 stdio_shared. 402 server_limit or stdio_not_included when the plan does not allow it.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayServerWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The server, without the credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "server": {
+                      "$ref": "#/components/schemas/GatewayServer"
+                    }
+                  },
+                  "required": [
+                    "server"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "402": {
+            "$ref": "#/components/responses/GatewayPayment"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "409": {
+            "$ref": "#/components/responses/GatewayConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/servers/{server_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/ServerId"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "deleteGatewayServer",
+        "summary": "Remove an MCP server",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/policies": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayPolicies",
+        "summary": "List tool rules",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policies": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayPolicy"
+                      }
+                    }
+                  },
+                  "required": [
+                    "policies"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "upsertGatewayPolicy",
+        "summary": "Allow, deny, or approve a tool",
+        "description": "Upserts one rule. tool_name is * or a name matching ^[A-Za-z0-9_.:-]{1,128}$. effect is allow, deny, or approve. notify_channel is log, webhook, or phone. Omitted on an update keeps the current channel. A new row defaults to log. server_id limits the rule to one server. A missing rule denies the call. Phone calls are not placed by this route; fizz-guard reserves the shared monthly cap later.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayPolicyWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policy": {
+                      "$ref": "#/components/schemas/GatewayPolicy"
+                    }
+                  },
+                  "required": [
+                    "policy"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/policies/{policy_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/PolicyId"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "deleteGatewayPolicy",
+        "summary": "Remove a tool rule",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/pins": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayPins",
+        "summary": "List tool pins",
+        "description": "status is unreviewed, approved, or changed. A changed pin means the server's description or input schema no longer matches the approved hash.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pins.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayPin"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pins"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/pins/approve": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "approveGatewayPin",
+        "summary": "Approve the observed tool hash",
+        "description": "Body is {\"server\",\"tool\"}. server is the server name, not its id. pin_sha256 becomes observed_sha256, status becomes approved, and open pin alerts for that tool are acknowledged. Same transition fizz-guard uses.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayPinApprove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approved, or no matching unreviewed or changed pin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/pin-alerts": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayPinAlerts",
+        "summary": "List changed-tool alerts",
+        "description": "description_preview is untrusted text from the MCP server, cut to 200 characters.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alerts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alerts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayPinAlert"
+                      }
+                    }
+                  },
+                  "required": [
+                    "alerts"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/pin-alerts/{alert_id}/ack": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/AlertId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "ackGatewayPinAlert",
+        "summary": "Acknowledge a pin alert",
+        "description": "Sets acknowledged_at. Does not approve the pin. Send a JSON object; {} is enough.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "acknowledged": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "acknowledged",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/approvals": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayApprovals",
+        "summary": "List approval requests",
+        "description": "args_preview is argument key names only, at most 120 characters. status is pending, approved, denied, or consumed.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approvals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "approvals": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayApproval"
+                      }
+                    }
+                  },
+                  "required": [
+                    "approvals"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/approvals/{approval_id}/decision": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/ApprovalId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "decideGatewayApproval",
+        "summary": "Approve or deny a pending call",
+        "description": "status is approved or denied. Only a pending row that has not expired is updated. An approval is single-use when the agent retries the same call.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "denied"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decided": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "decided",
+                    "id",
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/config": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "getGatewayConfig",
+        "summary": "Redacted YAML preview",
+        "description": "The signed-in preview omits upstream credentials. ETag ends in -redacted. If-None-Match or ?rev= returns 304. This is not the document fizz-agent writes.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rev",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Redacted YAML.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Config-Revision": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The caller's revision matches."
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/tokens": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayTokens",
+        "summary": "List client tokens",
+        "description": "Does not include the JWT. revoked_at is set after DELETE.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GatewayClientToken"
+                      }
+                    }
+                  },
+                  "required": [
+                    "tokens"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "mintGatewayToken",
+        "summary": "Mint a client JWT",
+        "description": "name is 1 to 80 characters with no control characters. ttl_seconds defaults to 3600 and must be from 60 to 2592000 (30 days). The JWT is returned once on token.token. aud is the gateway public_url. iss is fizzlayer. A disabled gateway returns 409 gateway_disabled. 503 signing_unavailable when GATEWAY_SIGNING_KEY is missing.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayTokenWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Minted once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "$ref": "#/components/schemas/GatewayMintedToken"
+                    }
+                  },
+                  "required": [
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/GatewayInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "409": {
+            "$ref": "#/components/responses/GatewayConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/tokens/{token_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/TokenId"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "revokeGatewayToken",
+        "summary": "Revoke a client token",
+        "description": "Sets revoked_at. fizz-guard reads that column. This does not reload the YAML.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "revoked",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "405": {
+            "$ref": "#/components/responses/GatewayMethod"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
+    "/api/gateway/gateways/{id}/registration-token": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "rotateGatewayRegistration",
+        "summary": "Rotate the fizz-agent registration token",
+        "description": "Returns the new registration_token once. The previous token stops working. Send a JSON object.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rotated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "registration_token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "registration_token"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "413": {
+            "$ref": "#/components/responses/GatewayTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/GatewayJson"
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
         }
       }
     }
@@ -300,27 +2227,74 @@
         "type": "http",
         "scheme": "bearer",
         "description": "An agent token (fizz_agent_...), created on https://fizzlayer.com/sensors/agents or with the create_agent_connection WebMCP tool. Revocable at any time."
+      },
+      "supabaseAccess": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabase access token for the signed-in user. Send Authorization: Bearer. This is not an agent token (fizz_agent_) and not a gateway registration token (fizz_reg_)."
+      },
+      "supabaseCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fizz_supabase",
+        "description": "HttpOnly cookie set by POST /api/auth. Same Supabase access token as supabaseAccess. Path is /api. Either this cookie or the bearer token authorizes a signed-in gateway route."
+      },
+      "registrationToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Gateway registration token. The value starts with fizz_reg_ and is 64 hex characters after that prefix. It is returned once when a gateway is created or the token is rotated. Send Authorization: Bearer. There is no cookie form."
       }
     },
     "schemas": {
       "IngestRequest": {
         "type": "object",
         "properties": {
-          "sensor_id": { "type": "string", "format": "uuid", "description": "The sensor this key belongs to." },
-          "event_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Your unique ID for this sample. Resending it is ignored." },
-          "observed_at": { "type": "string", "format": "date-time", "description": "When the reading was taken. Defaults to the time it is received." },
+          "sensor_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The sensor this key belongs to."
+          },
+          "event_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Your unique ID for this sample. Resending it is ignored."
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the reading was taken. Defaults to the time it is received."
+          },
           "metrics": {
             "type": "object",
             "minProperties": 1,
             "maxProperties": 16,
-            "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+            },
             "additionalProperties": {
-              "oneOf": [{ "type": "number" }, { "type": "boolean" }, { "type": "string", "maxLength": 512 }]
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 512
+                }
+              ]
             },
             "description": "Metric names and values. Built-in types: water flow_l_min (0-200) and leak; gas concentration_ppm (0-10000) and alarm; radio rssi_dbm (-150-0); temperature temperature_c (-100-200); pressure pressure_kpa (0-1000); humidity humidity_pct (0-100); sound sound_db (0-160); phone acceleration_ms2 (0-300) and orientation_deg (-360-360). Custom sensors accept any metric."
           }
         },
-        "required": ["sensor_id", "event_id", "metrics"]
+        "required": [
+          "sensor_id",
+          "event_id",
+          "metrics"
+        ]
       },
       "IngestResponse": {
         "type": "object",
@@ -331,76 +2305,244 @@
               "type": "object",
               "description": "A stored reading.",
               "properties": {
-                "id": { "type": "string" },
-                "sensor_id": { "type": "string", "format": "uuid" },
-                "event_id": { "type": "string" },
-                "observed_at": { "type": "string", "format": "date-time" },
-                "metric": { "type": "string" },
-                "numeric_value": { "type": ["number", "null"] },
-                "boolean_value": { "type": ["boolean", "null"] },
-                "text_value": { "type": ["string", "null"] },
-                "unit": { "type": ["string", "null"] },
-                "source": { "type": "string" }
+                "id": {
+                  "type": "string"
+                },
+                "sensor_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "event_id": {
+                  "type": "string"
+                },
+                "observed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "metric": {
+                  "type": "string"
+                },
+                "numeric_value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "boolean_value": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "text_value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
               }
             }
           }
         },
-        "required": ["accepted"]
+        "required": [
+          "accepted"
+        ]
       },
       "JsonRpcRequest": {
         "type": "object",
         "properties": {
-          "jsonrpc": { "type": "string", "const": "2.0" },
-          "id": { "type": ["string", "integer"] },
-          "method": { "type": "string", "examples": ["tools/list", "tools/call", "initialize", "server/discover"] },
-          "params": { "type": "object" }
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "examples": [
+              "tools/list",
+              "tools/call",
+              "initialize",
+              "server/discover"
+            ]
+          },
+          "params": {
+            "type": "object"
+          }
         },
-        "required": ["jsonrpc", "method"]
+        "required": [
+          "jsonrpc",
+          "method"
+        ]
       },
       "JsonRpcResponse": {
         "type": "object",
         "properties": {
-          "jsonrpc": { "type": "string", "const": "2.0" },
-          "id": { "type": ["string", "integer", "null"] },
-          "result": { "type": "object" },
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ]
+          },
+          "result": {
+            "type": "object"
+          },
           "error": {
             "type": "object",
-            "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": {} },
-            "required": ["code", "message"]
+            "properties": {
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "data": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
           }
         },
-        "required": ["jsonrpc"]
+        "required": [
+          "jsonrpc"
+        ]
       },
       "AlertWrite": {
         "type": "object",
         "properties": {
-          "sensor_id": { "type": "string", "format": "uuid" },
-          "kind": { "type": "string", "enum": ["threshold", "silence"], "default": "threshold" },
-          "metric": { "type": "string" },
-          "comparator": { "type": "string", "enum": ["gt", "gte", "lt", "lte"] },
-          "threshold": { "type": "number" },
-          "unit": { "type": "string" },
-          "silence_minutes": { "type": "integer", "minimum": 1, "maximum": 10080 },
-          "notify_recovery": { "type": "boolean" },
-          "notify_channel": { "type": "string", "enum": ["none", "call"], "description": "Legacy choice. none is dashboard. call is dashboard plus notify_phone. Ignored when channels is set, except that call without the phone channel is rejected." },
-          "notify_phone": { "type": "string", "description": "US number, required when phone is selected." },
-          "channels": { "type": "array", "items": { "type": "string", "enum": ["dashboard", "phone", "email", "webhook"] } },
-          "webhook_url": { "type": "string", "format": "uri" },
-          "webhook_secret": { "type": "string", "minLength": 16, "maxLength": 128 }
+          "sensor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "threshold",
+              "silence"
+            ],
+            "default": "threshold"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "comparator": {
+            "type": "string",
+            "enum": [
+              "gt",
+              "gte",
+              "lt",
+              "lte"
+            ]
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "silence_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10080
+          },
+          "notify_recovery": {
+            "type": "boolean"
+          },
+          "notify_channel": {
+            "type": "string",
+            "enum": [
+              "none",
+              "call"
+            ],
+            "description": "Legacy choice. none is dashboard. call is dashboard plus notify_phone. Ignored when channels is set, except that call without the phone channel is rejected."
+          },
+          "notify_phone": {
+            "type": "string",
+            "description": "US number, required when phone is selected."
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "dashboard",
+                "phone",
+                "email",
+                "webhook"
+              ]
+            }
+          },
+          "webhook_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "webhook_secret": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          }
         },
-        "required": ["sensor_id"]
+        "required": [
+          "sensor_id"
+        ]
       },
       "AlertUpdate": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "enabled": { "type": "boolean" },
-          "channels": { "type": "array", "items": { "type": "string", "enum": ["dashboard", "phone", "email", "webhook"] } },
-          "notify_phone": { "type": "string" },
-          "webhook_url": { "type": "string", "format": "uri" },
-          "webhook_secret": { "type": "string", "minLength": 16, "maxLength": 128 }
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "dashboard",
+                "phone",
+                "email",
+                "webhook"
+              ]
+            }
+          },
+          "notify_phone": {
+            "type": "string"
+          },
+          "webhook_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "webhook_secret": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          }
         },
-        "required": ["id"]
+        "required": [
+          "id"
+        ]
       },
       "Error": {
         "type": "object",
@@ -408,21 +2550,998 @@
           "error": {
             "type": "object",
             "properties": {
-              "code": { "type": "string", "examples": ["invalid_request", "unauthorized", "rate_limited"] },
-              "message": { "type": "string" }
+              "code": {
+                "type": "string",
+                "examples": [
+                  "invalid_request",
+                  "unauthorized",
+                  "rate_limited"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
             },
-            "required": ["code", "message"]
+            "required": [
+              "code",
+              "message"
+            ]
           }
         },
-        "required": ["error"]
+        "required": [
+          "error"
+        ]
+      },
+      "GatewayCap": {
+        "description": "Null means custom or unlimited.",
+        "oneOf": [
+          {
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "GatewayPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "hobbyist",
+              "tinkerer",
+              "pro",
+              "enterprise"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "gateway_limit": {
+            "$ref": "#/components/schemas/GatewayCap"
+          },
+          "mcp_server_limit": {
+            "$ref": "#/components/schemas/GatewayCap"
+          },
+          "stdio": {
+            "type": "boolean"
+          },
+          "dedicated": {
+            "type": "boolean"
+          },
+          "seat_limit": {
+            "$ref": "#/components/schemas/GatewayCap"
+          },
+          "tool_calls_per_month": {
+            "$ref": "#/components/schemas/GatewayCap"
+          },
+          "phone_calls_per_month": {
+            "$ref": "#/components/schemas/GatewayCap"
+          },
+          "audit_retention_days": {
+            "$ref": "#/components/schemas/GatewayCap"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "stdio",
+          "dedicated"
+        ]
+      },
+      "Gateway": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "dedicated",
+              "selfhost"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_url": {
+            "type": "string"
+          },
+          "listen_port": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "config_revision": {
+            "type": "integer"
+          },
+          "ag_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unreviewed_tools": {
+            "type": "string",
+            "enum": [
+              "hide",
+              "show"
+            ]
+          },
+          "agent_revision": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "agent_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "applied",
+              "rejected",
+              null
+            ]
+          },
+          "agent_detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agent_reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mode",
+          "public_url",
+          "status"
+        ]
+      },
+      "GatewayContext": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          },
+          "plan": {
+            "$ref": "#/components/schemas/GatewayPlan"
+          },
+          "gateways": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gateway"
+            }
+          }
+        },
+        "required": [
+          "workspace_id",
+          "role",
+          "plan",
+          "gateways"
+        ]
+      },
+      "GatewayCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "dedicated",
+              "selfhost"
+            ]
+          },
+          "region": {
+            "type": "string"
+          },
+          "public_url": {
+            "type": "string"
+          },
+          "listen_port": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "GatewayCreated": {
+        "type": "object",
+        "properties": {
+          "gateway": {
+            "$ref": "#/components/schemas/Gateway"
+          },
+          "registration_token": {
+            "type": "string",
+            "description": "fizz_reg_ plus 64 hex characters. Shown once."
+          }
+        },
+        "required": [
+          "gateway",
+          "registration_token"
+        ]
+      },
+      "GatewayServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gateway_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http",
+              "sse",
+              "stdio"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Remote URL, or the stdio command."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_kind": {
+            "type": "string",
+            "enum": [
+              "none",
+              "key",
+              "passthrough"
+            ]
+          },
+          "has_secret": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "transport",
+          "url",
+          "auth_kind",
+          "has_secret"
+        ]
+      },
+      "GatewayServerWrite": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http",
+              "sse",
+              "stdio"
+            ],
+            "default": "http"
+          },
+          "command": {
+            "type": "string",
+            "description": "stdio only. Sent as the command instead of url."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_kind": {
+            "type": "string",
+            "enum": [
+              "none",
+              "key",
+              "passthrough"
+            ]
+          },
+          "api_key": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "GatewayPolicy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gateway_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "approve"
+            ]
+          },
+          "notify_channel": {
+            "type": "string",
+            "enum": [
+              "log",
+              "webhook",
+              "phone"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tool_name",
+          "effect",
+          "notify_channel"
+        ]
+      },
+      "GatewayPolicyWrite": {
+        "type": "object",
+        "properties": {
+          "server_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "approve"
+            ]
+          },
+          "notify_channel": {
+            "type": "string",
+            "enum": [
+              "log",
+              "webhook",
+              "phone"
+            ]
+          }
+        },
+        "required": [
+          "tool_name",
+          "effect"
+        ]
+      },
+      "GatewayPin": {
+        "type": "object",
+        "properties": {
+          "server_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "pin_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_sha256": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unreviewed",
+              "approved",
+              "changed"
+            ]
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "server_name",
+          "tool_name",
+          "status"
+        ]
+      },
+      "GatewayPinApprove": {
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "server",
+          "tool"
+        ]
+      },
+      "GatewayPinAlert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "approved_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_sha256": {
+            "type": "string"
+          },
+          "description_preview": {
+            "type": "string",
+            "description": "Untrusted text from the MCP server."
+          },
+          "kind": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acknowledged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "server_name",
+          "tool_name"
+        ]
+      },
+      "GatewayApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "args_preview": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "notify_channel": {
+            "type": "string",
+            "enum": [
+              "log",
+              "webhook",
+              "phone"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decided_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "tool_name",
+          "status"
+        ]
+      },
+      "GatewayClientToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gateway_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "jti": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "GatewayMintedToken": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/GatewayClientToken"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Client JWT. Returned once."
+              },
+              "audience": {
+                "type": "string"
+              },
+              "workspace_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "token",
+              "audience",
+              "workspace_id"
+            ]
+          }
+        ]
+      },
+      "GatewayTokenWrite": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 2592000,
+            "default": 3600
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "GatewayAgentStatus": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "rejected"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "revision",
+          "status"
+        ]
+      },
+      "GatewayError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "not_found",
+                  "unauthorized",
+                  "method_not_allowed",
+                  "invalid_request",
+                  "unsupported_media_type",
+                  "forbidden",
+                  "gateway_limit",
+                  "server_limit",
+                  "stdio_not_included",
+                  "stdio_shared",
+                  "dedicated_not_included",
+                  "seat_limit",
+                  "conflict",
+                  "rate_limited",
+                  "gateway_disabled",
+                  "missing_secret",
+                  "database_unavailable",
+                  "signing_unavailable",
+                  "encryption_unavailable",
+                  "unavailable"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
       }
     },
     "responses": {
-      "InvalidRequest": { "description": "A field is missing or a value doesn't fit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Unauthorized": { "description": "The key is missing, wrong, rotated, or revoked.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "TooLarge": { "description": "The body is larger than 16 KB.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "RateLimited": { "description": "Too many requests. Wait and retry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Unavailable": { "description": "Temporarily unavailable. Retry later.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+      "InvalidRequest": {
+        "description": "A field is missing or a value doesn't fit.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The key is missing, wrong, rotated, or revoked.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "The body is larger than 16 KB.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests. Wait and retry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Temporarily unavailable. Retry later.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "GatewayInvalid": {
+        "description": "The body or a field was rejected (invalid_request, or stdio_shared).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewaySignIn": {
+        "description": "No Supabase access token. Code unauthorized. Message: Sign in to continue.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayAgentUnauthorized": {
+        "description": "Registration token missing or rejected. Code unauthorized.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayForbidden": {
+        "description": "The caller is a member. Code forbidden. Only an owner or admin can change the gateway.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayMissing": {
+        "description": "No such gateway in this workspace, or the id is not a UUID. Code not_found. Another workspace looks the same.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayMethod": {
+        "description": "That method is not supported on this route. Code method_not_allowed.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayPayment": {
+        "description": "Over a plan limit. HTTP 402. Codes: gateway_limit, server_limit, stdio_not_included, dedicated_not_included, seat_limit.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayConflict": {
+        "description": "Name already used (409 conflict) or the gateway is disabled (409 gateway_disabled).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayTooLarge": {
+        "description": "JSON body over 32 KB on a signed-in write, or over 4 KB on agent status. Code invalid_request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayJson": {
+        "description": "Content-Type is not JSON. Code unsupported_media_type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayRateLimited": {
+        "description": "Too many gateway requests. Code rate_limited. Retry-After: 60.",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      },
+      "GatewayUnavailable": {
+        "description": "503. Codes: database_unavailable, signing_unavailable, encryption_unavailable, missing_secret, unavailable. The gateway migrations or GATEWAY_SIGNING_KEY / GATEWAY_SECRET_KEY may be missing.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GatewayError"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "GatewayId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ServerId": {
+        "name": "server_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PolicyId": {
+        "name": "policy_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "AlertId": {
+        "name": "alert_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ApprovalId": {
+        "name": "approval_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "TokenId": {
+        "name": "token_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
     }
   }
 }
