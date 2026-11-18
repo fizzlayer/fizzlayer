@@ -1,7 +1,5 @@
-//! Server-side queries. fizz-guard and fizz-config connect as `gateway_runtime`
-//! (or the Supabase service role). Browser roles are not used here.
-
-use std::time::Duration;
+//! Server-side queries. fizz-guard, fizz-agent, and fizz-config connect as
+//! `gateway_runtime` (or the Supabase service role). Browser roles are not used here.
 
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
@@ -18,31 +16,14 @@ pub struct Db {
 }
 
 impl Db {
+    /// Connects using the `sslmode` on `url`. `disable` is plain TCP.
+    /// An omitted mode prefers TLS and falls back to plain TCP, which is how
+    /// local compose reaches Postgres. `require` encrypts without checking
+    /// the certificate. `verify-ca` and `verify-full` check it.
     pub async fn connect(url: &str) -> GatewayResult<Self> {
-        let mut config = url
-            .parse::<tokio_postgres::Config>()
-            .map_err(|_| GatewayError::message("database connection failed"))?;
-        config.connect_timeout(Duration::from_secs(5));
-        let mut last = GatewayError::message("database connection failed");
-        for attempt in 0..30 {
-            match config.connect(tokio_postgres::NoTls).await {
-                Ok((client, connection)) => {
-                    tokio::spawn(async move {
-                        let _ = connection.await;
-                    });
-                    return Ok(Self {
-                        client: Mutex::new(client),
-                    });
-                }
-                Err(err) => {
-                    last = GatewayError::database(err);
-                    if attempt < 29 {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
-        }
-        Err(last)
+        Ok(Self {
+            client: Mutex::new(crate::pg_tls::connect(url).await?),
+        })
     }
 
     pub async fn load_gateway(
