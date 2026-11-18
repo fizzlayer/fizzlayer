@@ -7,7 +7,9 @@ COPY gateway/Cargo.toml gateway/build.rs gateway/
 COPY gateway/src gateway/src
 COPY gateway/pins gateway/pins
 COPY supabase/compute/fizz-worker/src/protocol.rs supabase/compute/fizz-worker/src/protocol.rs
-RUN cargo build --release --locked --bin fizz-serve --jobs 2
+# Two jobs keeps self-host builds on small machines within memory. CI passes more.
+ARG CARGO_JOBS=2
+RUN cargo build --release --locked --bin fizz-serve --jobs "$CARGO_JOBS"
 
 FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update \

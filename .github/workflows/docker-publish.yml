@@ -20,33 +20,48 @@ on:
 permissions:
   contents: read
   packages: write
+# A newer PR push replaces the older run. Publishing runs are never cancelled.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    # The API and worker builds do not depend on each other.
+  # Each platform builds on its own native runner. arm64 under QEMU took over
+  # 30 minutes per Rust image. Each job pushes its image by digest only, and
+  # the publish job below tags the multi-arch manifest once both have finished.
+  build:
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
+        image:
           - name: fizzlayer-api
             file: deploy/Dockerfile.api
             context: .
             target: ""
+            build_args: CARGO_JOBS=4
           - name: fizzlayer-worker
             file: supabase/compute/fizz-worker/Dockerfile
             context: supabase/compute/fizz-worker
             target: ""
+            build_args: ""
           - name: fizzlayer-gateway
             file: gateway/docker/Dockerfile
             context: gateway
             target: runtime
+            build_args: ""
           - name: fizzlayer-hosted-gateway
             file: gateway/docker/Dockerfile.hosted
             context: gateway
             target: ""
+            build_args: ""
+        platform:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Check Docker Hub credentials
         id: hub
@@ -75,65 +90,42 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Image tags
-        id: tags
+      - name: Build
         env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+          IMAGE_CONTEXT: ${{ matrix.image.context }}
+          IMAGE_FILE: ${{ matrix.image.file }}
+          IMAGE_TARGET: ${{ matrix.image.target }}
+          IMAGE_BUILD_ARGS: ${{ matrix.image.build_args }}
+          ARCH: ${{ matrix.platform.arch }}
           PUSH_HUB: ${{ steps.hub.outputs.push }}
           DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
-          IMAGE: ${{ matrix.name }}
-        run: |
-          ns="${DOCKERHUB_NAMESPACE:-fizzlayer}"
-          tags="ghcr.io/fizzlayer/${IMAGE}:sha-${GITHUB_SHA}"
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            tags="${tags},ghcr.io/fizzlayer/${IMAGE}:latest"
-          fi
-          case "$GITHUB_REF" in
-            refs/tags/v*)
-              tags="${tags},ghcr.io/fizzlayer/${IMAGE}:${GITHUB_REF_NAME}"
-              ;;
-          esac
-          if [ "$PUSH_HUB" = "true" ]; then
-            tags="${tags},${ns}/${IMAGE}:sha-${GITHUB_SHA}"
-            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-              tags="${tags},${ns}/${IMAGE}:latest"
-            fi
-            case "$GITHUB_REF" in
-              refs/tags/v*)
-                tags="${tags},${ns}/${IMAGE}:${GITHUB_REF_NAME}"
-                ;;
-            esac
-          fi
-          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-          echo "Publishing ${tags}"
-      - name: Build and push
-        env:
-          IMAGE_NAME: ${{ matrix.name }}
-          IMAGE_CONTEXT: ${{ matrix.context }}
-          IMAGE_FILE: ${{ matrix.file }}
-          IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
-          IMAGE_TARGET: ${{ matrix.target }}
           PUBLISH: ${{ github.event_name != 'pull_request' }}
         run: |
           set -euo pipefail
-          platforms="linux/amd64,linux/arm64"
-          cmd=(docker buildx build --pull --file "$IMAGE_FILE")
+          # Layer cache per image and arch. Main writes it, and PRs read it.
+          # A missing or unreadable cache only makes the build slower.
+          cache="ghcr.io/fizzlayer/${IMAGE_NAME}:buildcache-${ARCH}"
+          cmd=(docker buildx build --pull --file "$IMAGE_FILE" --platform "linux/${ARCH}")
+          cmd+=(--cache-from "type=registry,ref=${cache}")
           if [ -n "${IMAGE_TARGET:-}" ]; then
             cmd+=(--target "$IMAGE_TARGET")
           fi
+          if [ -n "${IMAGE_BUILD_ARGS:-}" ]; then
+            cmd+=(--build-arg "$IMAGE_BUILD_ARGS")
+          fi
           if [ "$PUBLISH" = "true" ]; then
-            if [ -z "${IMAGE_TAGS}" ]; then
-              echo "No tags to publish."
-              exit 1
+            names="ghcr.io/fizzlayer/${IMAGE_NAME}"
+            if [ "$PUSH_HUB" = "true" ]; then
+              names="${names},docker.io/${DOCKERHUB_NAMESPACE:-fizzlayer}/${IMAGE_NAME}"
             fi
-            IFS=',' read -ra tags <<< "$IMAGE_TAGS"
-            for tag in "${tags[@]}"; do
-              cmd+=(--tag "$tag")
-            done
-            # Tags are applied only by this build. A failed attempt does not retag an older image.
-            cmd+=(--push --platform "$platforms")
+            # No tags here. The publish job tags only after every platform succeeds.
+            cmd+=(--output "type=image,\"name=${names}\",push-by-digest=true,name-canonical=true,push=true")
+            cmd+=(--cache-to "type=registry,ref=${cache},mode=max,image-manifest=true,oci-mediatypes=true")
+            cmd+=(--metadata-file /tmp/build-metadata.json)
           else
             mkdir -p /tmp/image-build
-            cmd+=(--platform linux/amd64 --output "type=oci,dest=/tmp/image-build/${IMAGE_NAME}.oci")
+            cmd+=(--output "type=oci,dest=/tmp/image-build/${IMAGE_NAME}.oci")
           fi
           cmd+=("$IMAGE_CONTEXT")
           rate_limited() {
@@ -149,7 +141,7 @@ jobs:
             set -e
             if [ "$status" -eq 0 ]; then
               rm -f "$log"
-              exit 0
+              break
             fi
             if [ "$attempt" -ge "$max" ] || ! rate_limited "$log"; then
               echo "Build failed (attempt ${attempt}/${max}, exit ${status})."
@@ -162,3 +154,100 @@ jobs:
             attempt="$((attempt + 1))"
             sleep "$wait"
           done
+          if [ "$PUBLISH" = "true" ]; then
+            digest="$(jq -r '."containerimage.digest"' /tmp/build-metadata.json)"
+            case "$digest" in
+              sha256:*) ;;
+              *) echo "No digest in build metadata."; exit 1 ;;
+            esac
+            mkdir -p /tmp/digests
+            touch "/tmp/digests/${digest#sha256:}"
+            echo "Pushed linux/${ARCH} as ${digest}"
+          fi
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        name:
+          - fizzlayer-api
+          - fizzlayer-worker
+          - fizzlayer-gateway
+          - fizzlayer-hosted-gateway
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.name }}-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - name: Check Docker Hub credentials
+        id: hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        if: steps.hub.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tag the multi-arch manifest
+        env:
+          PUSH_HUB: ${{ steps.hub.outputs.push }}
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          IMAGE: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          ns="${DOCKERHUB_NAMESPACE:-fizzlayer}"
+          repos=("ghcr.io/fizzlayer/${IMAGE}")
+          if [ "$PUSH_HUB" = "true" ]; then
+            repos+=("docker.io/${ns}/${IMAGE}")
+          fi
+          tags=()
+          for repo in "${repos[@]}"; do
+            tags+=(--tag "${repo}:sha-${GITHUB_SHA}")
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              tags+=(--tag "${repo}:latest")
+            fi
+            case "$GITHUB_REF" in
+              refs/tags/v*)
+                tags+=(--tag "${repo}:${GITHUB_REF_NAME}")
+                ;;
+            esac
+          done
+          sources=()
+          for digest in /tmp/digests/*; do
+            sources+=("ghcr.io/fizzlayer/${IMAGE}@sha256:$(basename "$digest")")
+          done
+          if [ "${#sources[@]}" -ne 2 ]; then
+            echo "Expected 2 platform digests, found ${#sources[@]}."
+            exit 1
+          fi
+          echo "Publishing ${tags[*]}"
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "ghcr.io/fizzlayer/${IMAGE}:sha-${GITHUB_SHA}"
