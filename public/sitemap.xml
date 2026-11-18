@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://fizzlayer.com/</loc></url>
+  <url><loc>https://fizzlayer.com/gateway</loc></url>
   <url><loc>https://fizzlayer.com/docs</loc></url>
   <url><loc>https://fizzlayer.com/sensors</loc></url>
   <url><loc>https://fizzlayer.com/sensors/docs</loc></url>

@@ -306,6 +306,7 @@ pub fn mapped_path(path: &str) -> &str {
     match path {
         "/" | "/index.html" => "/index.html",
         "/docs" | "/docs/" => "/gateway-docs.html",
+        "/gateway" | "/gateway/" => "/gateway.html",
         "/sensors" | "/sensors/" => "/sensors.html",
         "/sensors/docs" | "/sensors/docs/" => "/docs.html",
         "/sensors/agents" | "/sensors/agents/" => "/agents.html",
@@ -485,6 +486,8 @@ mod tests {
     fn clean_urls_map_to_the_same_files_as_vercel() {
         assert_eq!(mapped_path("/"), "/index.html");
         assert_eq!(mapped_path("/docs"), "/gateway-docs.html");
+        assert_eq!(mapped_path("/gateway"), "/gateway.html");
+        assert_eq!(mapped_path("/gateway/"), "/gateway.html");
         assert_eq!(mapped_path("/sensors"), "/sensors.html");
         assert_eq!(mapped_path("/sensors/docs"), "/docs.html");
         assert_eq!(mapped_path("/sensors/agents/"), "/agents.html");

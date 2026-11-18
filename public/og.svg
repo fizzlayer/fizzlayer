@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Fizzlayer, the secure connection layer for AI agents</title>
+  <desc id="desc">An agent connects through Fizzlayer Gateway to MCP servers, with allow, deny, and approve on each tool.</desc>
+  <rect width="1200" height="630" fill="#0b1722"/>
+  <circle cx="980" cy="120" r="220" fill="#14384a"/>
+  <text x="80" y="150" fill="#8ec9d6" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" letter-spacing="3">FIZZLAYER</text>
+  <text x="80" y="250" fill="#f4fbfd" font-family="ui-sans-serif, system-ui, sans-serif" font-size="64">The secure connection</text>
+  <text x="80" y="326" fill="#f4fbfd" font-family="ui-sans-serif, system-ui, sans-serif" font-size="64">layer for AI agents.</text>
+  <text x="80" y="400" fill="#b7c9d2" font-family="ui-sans-serif, system-ui, sans-serif" font-size="28">Gateway in front of your MCP servers.</text>
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="22">
+    <rect x="80" y="460" width="150" height="64" rx="10" fill="#112a39" stroke="#406273"/>
+    <text x="155" y="500" fill="#e7f4f8" text-anchor="middle">Agent</text>
+    <text x="250" y="500" fill="#6cabb7">→</text>
+    <rect x="280" y="448" width="280" height="88" rx="10" fill="#14384a" stroke="#4fb3c8"/>
+    <text x="420" y="488" fill="#a9eaf7" text-anchor="middle">Fizzlayer Gateway</text>
+    <text x="420" y="516" fill="#8eb0bf" text-anchor="middle" font-size="16">allow · deny · approve</text>
+    <text x="580" y="500" fill="#6cabb7">→</text>
+    <rect x="610" y="460" width="190" height="64" rx="10" fill="#112a39" stroke="#406273"/>
+    <text x="705" y="500" fill="#e7f4f8" text-anchor="middle">MCP servers</text>
+  </g>
+  <text x="80" y="580" fill="#7f97a3" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20">fizzlayer.com</text>
+</svg>

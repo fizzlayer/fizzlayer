@@ -2,7 +2,7 @@
   "name": "fizzlayer",
   "title": "Fizzlayer",
   "version": "0.1.0",
-  "description": "Fizzlayer is the secure connection layer for AI agents. The hosted gateway is in private beta. These tools manage sensors, alerts, and the account, which are available now.",
+  "description": "Fizzlayer is the secure connection layer for AI agents. These tools manage sensors, alerts, and the account. The hosted MCP gateway is not running. Gateway docs are at /docs.",
   "url": "https://fizzlayer.com/",
   "api": "document.modelContext",
   "pages": [

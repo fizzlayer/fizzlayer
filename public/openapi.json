@@ -4,7 +4,7 @@
     "title": "Fizzlayer API",
     "version": "1.0.0",
     "summary": "Send sensor readings to Fizzlayer and connect AI agents to them.",
-    "description": "Fizzlayer is the secure connection layer for AI agents. This document is the sensors API that works today: devices post readings with a per-sensor API key, and AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. The hosted gateway is in private beta and is not part of this API. Account management uses the website or its WebMCP tools. Guide: https://fizzlayer.com/sensors/docs",
+    "description": "Fizzlayer is the secure connection layer for AI agents. This document is the sensors API: devices post readings with a per-sensor API key, and AI agents read sensors, readings, and alerts through the remote MCP server with an agent token. Gateway routes under /api/gateway are documented at https://fizzlayer.com/docs and are not listed here. The hosted gateway is not running. Account management uses the website or its WebMCP tools. Guide: https://fizzlayer.com/sensors/docs",
     "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/sensors/docs" },
     "termsOfService": "https://fizzlayer.com/terms.html"
   },

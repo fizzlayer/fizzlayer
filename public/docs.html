@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1722">
   <title>Sensors docs | Fizzlayer</title>
-  <meta name="description" content="Fizzlayer Sensors docs: connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP. The hosted gateway is in private beta.">
+  <meta name="description" content="Fizzlayer Sensors docs: connect sensors, phones, and Linux devices, send readings over HTTP, set alerts, and connect AI agents through MCP and WebMCP. The gateway has its own docs.">
   <link rel="canonical" href="https://fizzlayer.com/sensors/docs">
   <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
   <script type="application/ld+json">
@@ -61,7 +61,7 @@
       <div class="container">
         <p class="eyebrow-label">Documentation</p>
         <h1 id="title">Build with Fizzlayer</h1>
-        <p class="docs-lede">Everything you need to connect sensors, phones, and Linux devices, send your own readings, set alerts, and let AI agents work with your physical world.</p>
+        <p class="docs-lede">Connect sensors, phones, and Linux devices, send readings, set alerts, and let an agent read them. The MCP gateway is a separate set of docs.</p>
         <div class="docs-quick">
           <a href="#get-started"><span class="fa fa-arrow-right-to-bracket" aria-hidden="true"></span><strong>Get started</strong><span>Create an account and add your first sensor.</span></a>
           <a href="#http-api"><span class="fa fa-code" aria-hidden="true"></span><strong>Send readings</strong><span>Post data from any device over HTTPS.</span></a>
@@ -120,9 +120,9 @@
 
       <article class="legal-body" aria-labelledby="title">
 
-        <p class="docs-legend">These are the Sensors docs. The hosted gateway is in private beta, and <a href="/docs">Gateway docs</a> are not written yet.</p>
+        <p class="docs-legend">These are the Sensors docs. Gateway setup, policies, and <code>/api/gateway</code> are in the <a href="/docs">gateway docs</a>. The hosted gateway is not running.</p>
         <h2 id="overview">How Fizzlayer Sensors works</h2>
-        <p>Fizzlayer Sensors is the sensors side of Fizzlayer: devices, readings, and alerts. Devices send <strong>readings</strong> (a temperature, a water flow rate, a phone's motion) to <strong>sensors</strong> in your account. The dashboard shows them live, <strong>alerts</strong> watch them for you, and <strong>Fizz</strong>, the built-in assistant, answers questions about them in plain English. AI agents can read the same data through <strong>MCP</strong>, or run your whole account from a browser through <strong>WebMCP</strong>. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts, and MCP. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.</p>
+        <p>Fizzlayer Sensors is the sensors side of Fizzlayer: devices, readings, and alerts. Devices send readings (a temperature, a water flow rate, a phone's motion) to sensors in your account. The dashboard shows them live, alerts watch them, and Fizz answers questions about them. AI agents can read the same data through MCP, or run the account from a browser through WebMCP. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts, and MCP. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.</p>
         <p>Every sensor has a type, such as Temperature or Water, and a source:</p>
         <dl class="docs-defs">
           <div><dt>Sample stream</dt><dd>Simulated readings that update every few seconds. Use them to explore before you have hardware. They never count toward your device limit.</dd></div>
