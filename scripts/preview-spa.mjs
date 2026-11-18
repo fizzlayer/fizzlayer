@@ -1,5 +1,5 @@
 // Static preview of public/ with the same /app fallback the Vercel rewrites use.
-// Real files win. Only missing /app paths serve the SPA shell.
+// Real files win, then a folder's index.html. Other /app paths get the loading shell.
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -24,13 +24,25 @@ function resolve(urlPath) {
   const full = path.join(root, rel);
   if (full !== root && !full.startsWith(root + path.sep)) return null;
   if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
-  if (decoded === "/app" || decoded === "/app/" || decoded.startsWith("/app/")) {
-    return path.join(root, "app", "index.html");
-  }
+  const index = path.join(full, "index.html");
+  if (fs.existsSync(index) && fs.statSync(index).isFile()) return index;
+  if (fs.existsSync(full + ".html")) return full + ".html";
+  if (decoded.startsWith("/app/")) return path.join(root, "app", "shell.html");
   return null;
 }
 
+// No API runs here. Answer like a server with nobody signed in, so pages show
+// their signed-out state instead of a connection error.
+function api(request, response) {
+  const signedOut = request.url.startsWith("/api/me");
+  response.writeHead(signedOut ? 401 : 503, { "content-type": "application/json" });
+  response.end(JSON.stringify({ error: signedOut
+    ? { code: "unauthorized", message: "Sign in first." }
+    : { code: "preview", message: "The API isn't running in this preview." } }));
+}
+
 const server = http.createServer((request, response) => {
+  if ((request.url ?? "").startsWith("/api/")) return api(request, response);
   const file = resolve(request.url ?? "/");
   if (!file) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });

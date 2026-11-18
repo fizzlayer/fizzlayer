@@ -1,6 +1,7 @@
 //// Checks the SPA fallback in vercel.json. Filesystem routes win on Vercel, so
 //// `/app/fizz_spa.js` is still served as a file. These patterns are only the
-//// fallback for paths that are not real files.
+//// fallback for paths that are not real files: `/app` gets the pre-rendered
+//// account screen and other `/app/...` paths get the loading shell.
 
 import gleam/list
 import gleam/string
@@ -42,7 +43,9 @@ const required = ["/app", "/app/", "/app/:path*"]
 pub fn check(rewrites: List(#(String, String))) -> Result(Nil, String) {
   let catch_all = list.find(rewrites, fn(rewrite) { is_catch_all(rewrite.0) })
   let spa =
-    list.filter(rewrites, fn(rewrite) { rewrite.1 == "/app/index.html" })
+    list.filter(rewrites, fn(rewrite) {
+      rewrite.1 == "/app/index.html" || rewrite.1 == "/app/shell.html"
+    })
   let unknown = list.find(spa, fn(rewrite) { !spa_fallback(rewrite.0) })
   let missing =
     list.find(required, fn(source) {

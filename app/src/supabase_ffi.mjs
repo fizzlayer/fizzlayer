@@ -58,39 +58,6 @@ export function get_session(done) {
     });
 }
 
-export function sign_in_with_otp(email, redirectTo, done) {
-  if (!client) {
-    done(failed(null, "Supabase client is not ready."));
-    return;
-  }
-  // Existing accounts only. Creating users here would skip the API's sign-up limits.
-  client.auth
-    .signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-    })
-    .then(({ error }) => {
-      done(error ? failed(error, "Could not send the sign-in email.") : [true, ""]);
-    })
-    .catch((error) => done(failed(error, "Could not send the sign-in email.")));
-}
-
-export function sign_in_with_github(redirectTo, done) {
-  if (!client) {
-    done(failed(null, "Supabase client is not ready."));
-    return;
-  }
-  client.auth
-    .signInWithOAuth({
-      provider: "github",
-      options: { redirectTo },
-    })
-    .then(({ error }) => {
-      done(error ? failed(error, "GitHub sign-in could not start.") : [true, ""]);
-    })
-    .catch((error) => done(failed(error, "GitHub sign-in could not start.")));
-}
-
 export function sign_out_local(done) {
   if (!client) {
     done([true, ""]);

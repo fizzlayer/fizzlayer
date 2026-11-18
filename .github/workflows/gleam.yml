@@ -29,3 +29,10 @@ jobs:
         run: npm ci && gleam test
       - name: Build
         run: bash scripts/build-spa.sh
+      - name: Pre-rendered pages are up to date
+        run: |
+          if [ -n "$(git status --porcelain -- public)" ]; then
+            git status --short -- public >&2
+            echo "Pre-rendered pages changed. Run scripts/build-spa.sh and commit public/." >&2
+            exit 1
+          fi

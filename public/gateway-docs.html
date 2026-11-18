@@ -1,49 +1,6 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gateway docs | Fizzlayer</title>
-  <meta name="description" content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane. The hosted URL is available once the shared fleet is deployed.">
-  <link rel="canonical" href="https://fizzlayer.com/docs">
-  <meta property="og:title" content="Fizzlayer Gateway docs">
-  <meta property="og:description" content="Standalone Docker quickstart, client config, policies, tool pins, JWTs, and the control-plane API.">
-  <meta property="og:url" content="https://fizzlayer.com/docs">
-  <meta property="og:image" content="https://fizzlayer.com/og-gateway.svg">
-  <meta property="og:image:type" content="image/svg+xml">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://fizzlayer.com/og-gateway.svg">
-  <link rel="icon" href="/fizz-agent.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/design.css">
-  <link rel="stylesheet" href="/legal.css">
-  <link rel="stylesheet" href="/docs.css">
-  <script src="/nav.js" defer></script>
-  <script src="/docs.js" defer></script>
-</head>
-<body>
-  <a class="skip-link" href="#main-content">Skip to content</a>
-  <header class="site-nav">
-    <nav class="container" aria-label="Main">
-      <a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="35" height="35"><span>Fizzlayer<span class="brand-dot">.</span></span></a>
-      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span class="fa fa-bars" aria-hidden="true"></span></button>
-      <ul class="nav-links" id="nav-links">
-        <li><a href="/gateway">Gateway</a></li>
-        <li><a href="/docs" aria-current="page">Docs</a></li>
-        <li><a href="/sensors/docs">Sensors docs</a></li>
-        <li><a href="/pricing">Pricing</a></li>
-        <li><a class="button nav-cta" href="/#beta">Hosted list</a></li>
-      </ul>
-    </nav>
-  </header>
-  <main class="legal docs" id="main-content">
-    <header class="legal-hero"><div class="container">
-      <p class="eyebrow-label">Gateway docs</p>
-      <h1>Fizzlayer Gateway</h1>
-      <p class="docs-lede">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. The hosted URL is available once the shared fleet is deployed and <code>GATEWAY_HOSTED</code> is turned on. It is not on yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.</p>
-    </div></header>
-    <div class="container legal-layout">
-      <nav class="toc docs-toc" aria-label="On this page">
-        <p class="toc-label">On this page</p>
+<html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="#ffffff" name="theme-color"><title>Gateway docs | Fizzlayer</title><meta content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane." name="description"><meta content="website" property="og:type"><meta content="Fizzlayer" property="og:site_name"><meta content="https://fizzlayer.com/docs" property="og:url"><meta content="Gateway docs | Fizzlayer" property="og:title"><meta content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane." property="og:description"><meta content="https://fizzlayer.com/og.svg" property="og:image"><meta content="Fizzlayer documentation." property="og:image:alt"><meta content="summary_large_image" name="twitter:card"><meta content="@fizzlayer" name="twitter:site"><link href="/fizz-agent.svg" rel="icon" type="image/svg+xml"><link href="https://fizzlayer.com/docs" rel="canonical"><link as="font" crossorigin href="/fonts/Geist-Variable.woff2" rel="preload" type="font/woff2"><link href="/fizz.css" rel="stylesheet"><script defer src="/docs.js"></script><script defer src="/analytics.js"></script></head><body class="site"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container site-header-inner"><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><nav aria-label="Main" class="site-nav"><a class="site-nav-link" href="/gateway">Gateway</a><a class="site-nav-link" href="/sensors">Sensors</a><a class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a></nav><div class="site-header-actions"><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></div><details class="site-menu"><summary>Menu</summary><nav aria-label="Main" class="site-menu-panel"><a class="site-nav-link" href="/gateway">Gateway</a><a class="site-nav-link" href="/sensors">Sensors</a><a class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></nav></details></div></header><main id="main"><section class="page-hero page-hero-docs"><div class="container"><p class="section-kicker">Gateway docs</p><h1 class="page-title" id="title">Fizzlayer Gateway</h1><p class="hero-sub">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. The hosted URL is available once the shared fleet is deployed and <code>GATEWAY_HOSTED</code> is turned on. It is not on yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.
+</p></div></section><div class="container docs-layout"><nav aria-label="On this page" class="docs-toc">        <p class="toc-label">On this page</p>
         <ol>
           <li><a href="#overview">Overview</a></li>
           <li><a href="#concepts">Concepts</a></li>
@@ -57,9 +14,8 @@
           <li><a href="#troubleshooting">Troubleshooting</a></li>
           <li><a href="#security">Security</a></li>
         </ol>
-      </nav>
-      <article class="legal-body">
-        <h2 id="overview">Overview</h2>
+      
+</nav><article aria-labelledby="title" class="legal-body prose">        <h2 id="overview">Overview</h2>
         <p>The data plane is unmodified <a href="https://github.com/agentgateway/agentgateway" rel="noopener noreferrer">agentgateway</a> v1.7, pinned by image digest. Fizzlayer does not rebuild that image. The pieces in <code>gateway/</code> are:</p>
         <ul>
           <li><code>fizz-config</code> reads servers from Postgres and writes agentgateway YAML. The write is atomic so the proxy's file watch can reload it. This is standalone mode.</li>
@@ -284,9 +240,5 @@ fizz-agent pull</code></pre>
           <li>License: Apache-2.0, copyright 2026 Fizzlayer LLC. agentgateway is included under its own Apache-2.0 license. See <code>gateway/NOTICE</code>.</li>
         </ul>
         <p>Repository notes: <a href="https://github.com/fizzlayer/fizzlayer/blob/main/gateway/README.md">gateway/README.md</a>. Sensor setup: <a href="/sensors/docs">/sensors/docs</a>.</p>
-      </article>
-    </div>
-  </main>
-  <footer class="site-footer"><div class="container footer-inner"><div class="footer-brand"><a class="wordmark" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="27" height="27"><span>Fizzlayer<span class="brand-dot">.</span></span></a><span>The secure connection layer for AI agents.</span></div><nav aria-label="Footer"><a href="/gateway">Gateway</a><a href="/docs" aria-current="page">Gateway docs</a><a href="/sensors/docs">Sensors docs</a><a href="/self-host">Self-host</a><a href="/pricing">Pricing</a><a href="/llms.txt">For AI agents</a></nav></div></footer>
-</body>
-</html>
+      
+</article></div></main><footer class="site-footer"><div class="container"><div class="footer-grid"><div><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><p class="footer-tagline">Control what your AI agents can do.</p></div><nav aria-label="Product"><h2 class="footer-title">Product</h2><ul class="footer-links"><li><a href="/gateway">Gateway</a></li><li><a href="/sensors">Sensors</a></li><li><a href="/pricing">Pricing</a></li><li><a href="/enterprise">Enterprise</a></li></ul></nav><nav aria-label="Developers"><h2 class="footer-title">Developers</h2><ul class="footer-links"><li><a href="/docs">Gateway docs</a></li><li><a href="/sensors/docs">Sensors docs</a></li><li><a href="/self-host">Self-host</a></li><li><a href="/status">Status</a></li><li><a href="/changelog">Changelog</a></li><li><a href="/llms.txt">For AI agents</a></li></ul></nav><nav aria-label="Company"><h2 class="footer-title">Company</h2><ul class="footer-links"><li><a href="https://github.com/fizzlayer/fizzlayer">GitHub</a></li><li><a href="https://x.com/fizzlayer">X</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li></ul></nav></div><div class="footer-bottom"><span>© 2026 Fizzlayer LLC</span><span>Open source under Apache-2.0</span></div></div></footer></body></html>

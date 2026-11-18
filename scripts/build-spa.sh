@@ -19,11 +19,18 @@ python3 "$root/scripts/prefix_spa_assets.py" dist/index.html
 rm -rf "$root/public/app"
 mkdir -p "$root/public/app"
 cp -a dist/. "$root/public/app/"
+# Pre-render the site pages and the app's first screen for each static URL.
+gleam run -m prerender
 
 test -f "$root/public/app/index.html"
 test -f "$root/public/app/fizz_spa.js"
 test -f "$root/public/app/fizz.css"
 test -f "$root/public/app/config.json"
+test -f "$root/public/app/shell.html"
+test -f "$root/public/app/sign-in/index.html"
+test -f "$root/public/app/preview/tools/index.html"
+grep -q '<div id="app"><div>' "$root/public/app/index.html"
+grep -q 'href="/fizz.css"' "$root/public/index.html"
 grep -q 'src="/app/fizz_spa.js"' "$root/public/app/index.html"
 grep -q 'href="/app/fizz.css"' "$root/public/app/index.html"
 # The existing site script stays at /app.js. The bundle lives under /app/.

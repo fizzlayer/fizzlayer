@@ -2,6 +2,7 @@ import gleam/bit_array
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -14,8 +15,11 @@ import config
 import fizz_spa
 import gateway
 import openapi_routes
+import prerender
 import rewrites
 import route
+import signin
+import site/landing
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -154,13 +158,14 @@ pub fn view_does_not_render_the_access_token_test() {
   let model =
     fizz_spa.Model(
       route: route.Start,
-      email: "ada@example.com",
-      password: "not-shown-after-sign-in",
-      creating: False,
+      signin: signin.Model(
+        ..signin.init(False, None).0,
+        email: "ada@example.com",
+        password: "not-shown-after-sign-in",
+      ),
       plan: "",
       notice: fizz_spa.Quiet,
       busy: False,
-      github: True,
       linked: True,
       token: token,
       account: fizz_spa.SignedIn(
@@ -356,4 +361,84 @@ pub fn rules_use_plain_names_test() {
   string.contains(html, ">Block<") |> should.be_true
   string.contains(html, ">Ask first<") |> should.be_true
   string.contains(html, ">Deny<") |> should.be_false
+}
+
+pub fn landing_keeps_waitlist_and_agent_hooks_test() {
+  let html = element.to_document_string(landing.page())
+  assert string.contains(html, "src=\"/webmcp.js\"")
+  assert string.contains(html, "id=\"beta-form\"")
+  assert string.contains(html, "id=\"beta-email\"")
+  assert string.contains(html, "id=\"beta-company\"")
+  assert string.contains(html, "id=\"beta-status\"")
+  assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn sign_in_form_has_its_own_url_test() {
+  route.parse("/app/sign-in") |> should.equal(route.SignIn)
+  route.parse("/pricing") |> should.equal(route.Leave("/pricing"))
+}
+
+pub fn app_pages_are_prerendered_test() {
+  let create = prerender.app_page("/app", "Create your account")
+  assert string.contains(create, "<div id=\"app\"><div>")
+  assert string.contains(create, "Create your account")
+  assert string.contains(create, "src=\"/app/fizz_spa.js\"")
+  let sign_in = prerender.app_page("/app/sign-in", "Sign in")
+  assert string.contains(sign_in, "<h2>Sign in</h2>")
+    || string.contains(sign_in, ">Sign in</h")
+  assert !string.contains(sign_in, "Create your account</h")
+  let shell = prerender.app_page("/app/gateways", "Fizzlayer")
+  assert string.contains(shell, "Checking your session.")
+  let tools = prerender.app_page("/app/preview/tools", "Example")
+  assert string.contains(tools, ">Ask first<")
+}
+
+pub fn sign_in_matches_the_old_app_page_test() {
+  let #(create, _) = signin.init(True, None)
+  let html = element.to_string(signin.view(create, False))
+  assert string.contains(html, "Create your account")
+  assert string.contains(html, "Sign up with Google")
+  assert string.contains(html, "Sign up with GitHub")
+  assert string.contains(html, "/terms.html")
+  let #(form, _) = signin.init(False, None)
+  let html = element.to_string(signin.view(form, False))
+  assert string.contains(html, "Forgot password?")
+  assert string.contains(html, "Sign in with Google")
+}
+
+pub fn email_links_open_the_right_form_test() {
+  let #(reset, _) = signin.init(True, Some("access_token=a.b.c&type=recovery"))
+  reset.mode |> should.equal(signin.Reset("a.b.c"))
+  let #(confirm, _) = signin.init(True, Some("access_token=a.b.c&type=signup"))
+  confirm.busy |> should.be_true
+  let #(failed, _) = signin.init(True, Some("auth_error=cancelled"))
+  failed.notice |> should.equal(signin.Problem("Sign-in was cancelled."))
+  let #(expired, _) =
+    signin.init(True, Some("error=access_denied&error_code=otp_expired"))
+  expired.mode |> should.equal(signin.SignIn)
+}
+
+pub fn sign_in_replies_move_the_form_along_test() {
+  let #(form, _) = signin.init(False, None)
+  let form = signin.Model(..form, mode: signin.Forgot, email: "ada@example.com")
+  let #(sent, _, outcome) =
+    signin.update(form, signin.Replied(#(200, "{\"ok\":true}")))
+  outcome |> should.equal(signin.Stay)
+  let assert signin.CheckEmail(_, "recover") = sent.mode
+  let form = signin.Model(..form, mode: signin.SignIn)
+  let #(_, _, outcome) =
+    signin.update(
+      form,
+      signin.Replied(#(200, "{\"ok\":true,\"username\":\"ada\"}")),
+    )
+  outcome |> should.equal(signin.SignedIn)
+  let #(unconfirmed, _, _) =
+    signin.update(
+      form,
+      signin.Replied(#(
+        400,
+        "{\"error\":{\"code\":\"email_not_confirmed\",\"message\":\"x\"}}",
+      )),
+    )
+  let assert signin.CheckEmail(_, "resend") = unconfirmed.mode
 }

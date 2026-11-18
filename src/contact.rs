@@ -46,7 +46,7 @@ pub async fn contact(request: Request) -> Response<ResponseBody> {
         return error(
             410,
             "waitlist_closed",
-            "The waitlist is closed. Anyone can create an account at /app.html.",
+            "The waitlist is closed. Anyone can create an account at /app.",
         );
     }
     let Some(company) = clean_text(data.get("company"), 120, false).filter(|c| !c.is_empty())

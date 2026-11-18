@@ -33,7 +33,7 @@ if (form && status) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error?.message || 'Something went wrong. Try again.');
-      status.textContent = `Saved for ${email.value.trim().toLowerCase()}. This does not create a gateway or reserve a plan.`;
+      status.textContent = `You're on the list. We'll email ${email.value.trim().toLowerCase()} when hosted gateways open.`;
       form.reset();
     } catch (error) {
       status.classList.add('error');
