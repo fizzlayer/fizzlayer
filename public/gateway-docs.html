@@ -153,7 +153,7 @@ fizz-agent pull</code></pre>
 
         <h2 id="policies">Policies and approvals</h2>
         <p>Put a rule with <code>PUT /api/gateway/gateways/{id}/policies</code>:</p>
-        <pre><code>curl https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/policies \
+        <pre><code>curl -X PUT https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/policies \
   -H 'Authorization: Bearer SUPABASE_ACCESS_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"tool_name":"*","effect":"approve","notify_channel":"log"}'</code></pre>
