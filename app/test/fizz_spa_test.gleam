@@ -16,6 +16,7 @@ import gateway
 import openapi_routes
 import rewrites
 import route
+import site/landing
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -356,4 +357,14 @@ pub fn rules_use_plain_names_test() {
   string.contains(html, ">Block<") |> should.be_true
   string.contains(html, ">Ask first<") |> should.be_true
   string.contains(html, ">Deny<") |> should.be_false
+}
+
+pub fn landing_keeps_waitlist_and_agent_hooks_test() {
+  let html = element.to_document_string(landing.page())
+  assert string.contains(html, "src=\"/webmcp.js\"")
+  assert string.contains(html, "id=\"beta-form\"")
+  assert string.contains(html, "id=\"beta-email\"")
+  assert string.contains(html, "id=\"beta-company\"")
+  assert string.contains(html, "id=\"beta-status\"")
+  assert string.contains(html, "href=\"/fizz.css\"")
 }

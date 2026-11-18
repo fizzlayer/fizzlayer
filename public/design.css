@@ -2,14 +2,14 @@
 @import url('/fonts.css');
 
 :root {
-  --ink: #142b3c;
-  --muted: #647786;
+  --ink: #0d2136;
+  --muted: #66788a;
   --line: #dfe7ed;
   --paper: #ffffff;
   --canvas: #f6f9fb;
   --navy: #0b1722;
   --cyan: #a9eaf7;
-  --accent: #087f99;
+  --accent: #2252d8;
   --green: #218165;
 }
 

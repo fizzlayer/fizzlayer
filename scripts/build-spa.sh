@@ -14,6 +14,8 @@ python3 "$root/scripts/write_spa_config.py" "$root/app/assets/config.json"
 cd "$root/app"
 npm ci
 gleam run -m lustre/dev build --minify --outdir=dist
+# Pre-render the public site pages (public/index.html, public/fizz.css).
+gleam run -m prerender
 python3 "$root/scripts/prefix_spa_assets.py" dist/index.html
 
 rm -rf "$root/public/app"
@@ -24,6 +26,7 @@ test -f "$root/public/app/index.html"
 test -f "$root/public/app/fizz_spa.js"
 test -f "$root/public/app/fizz.css"
 test -f "$root/public/app/config.json"
+grep -q 'href="/fizz.css"' "$root/public/index.html"
 grep -q 'src="/app/fizz_spa.js"' "$root/public/app/index.html"
 grep -q 'href="/app/fizz.css"' "$root/public/app/index.html"
 # The existing site script stays at /app.js. The bundle lives under /app/.
