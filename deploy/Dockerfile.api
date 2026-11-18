@@ -3,6 +3,9 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY api ./api
+COPY gateway/Cargo.toml gateway/build.rs gateway/
+COPY gateway/src gateway/src
+COPY gateway/pins gateway/pins
 COPY supabase/compute/fizz-worker/src/protocol.rs supabase/compute/fizz-worker/src/protocol.rs
 RUN cargo build --release --locked --bin fizz-serve --jobs 2
 

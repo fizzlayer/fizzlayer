@@ -103,6 +103,7 @@ impl Db {
                 url_or_cmd: server.get("url_or_cmd"),
                 command_args: server.get("command_args"),
                 auth_kind: server.get("auth_kind"),
+                credential: None,
             });
         }
         Ok(GatewaySpec {
@@ -115,6 +116,8 @@ impl Db {
             ag_version: row.get("ag_version"),
             guard_host: guard_host.to_string(),
             jwks_file: jwks_file.to_string(),
+            jwks_url: None,
+            credential_mode: crate::config::CredentialMode::Refuse,
             servers,
         })
     }

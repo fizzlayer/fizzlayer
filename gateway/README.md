@@ -96,3 +96,66 @@ Set `FIZZ_GUARD_ADMIN_TOKEN` to open the local API on `FIZZ_GUARD_ADMIN_LISTEN` 
 Send `Authorization: Bearer <token>`. Without the token, the admin listener stays off and approvals can still be updated in SQL by the owning user. The token can decide every pending row in that database. Do not publish port 9002 on a shared gateway.
 
 `usage_daily` counts calls the guard sees. Metering caps and upstream OAuth are not implemented. `failureMode` stays `failClosed`: if fizz-guard is down, or this process returns an error, agentgateway denies the call.
+
+## Control plane
+
+The Rust API on Vercel exposes the control plane under `/api/gateway/*`. It does not change `/api/mcp`, `/install.sh`, Home Assistant, or `/.well-known/*`. A signed-in caller sends a Supabase access token as `Authorization: Bearer`, or in the existing `fizz_supabase` cookie. The account's workspace is created on first use. The account owner is `owner`. `owner` and `admin` can change a gateway; a `member` can read it and gets `403 forbidden` on writes. Another workspace gets `404`, the same as a missing gateway.
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/gateway/jwks` | Public JWKS for `jwtAuth`. No session. |
+| GET | `/api/gateway/agent/config` | YAML for the gateway agent. `Authorization: Bearer fizz_reg_…`. `ETag` is the config revision. `If-None-Match` or `?rev=` returns `304`. |
+| GET, POST | `/api/gateway/gateways` | List, or create. The create response includes `registration_token` once. |
+| DELETE | `/api/gateway/gateways/{id}` | Delete the gateway and its servers, secrets, and tokens. |
+| PATCH | `/api/gateway/gateways/{id}` | Set `unreviewed_tools` to `hide` or `show` on `gateway.gateways`. |
+| GET, POST | `/api/gateway/gateways/{id}/servers` | List servers, or add one. `url` is http(s). `api_key` is stored encrypted and is never returned. `transport: stdio` with `command` and `args` is only for a dedicated or self-hosted gateway on a plan that includes stdio. |
+| DELETE | `/api/gateway/gateways/{id}/servers/{server_id}` | Remove a server. |
+| GET, PUT | `/api/gateway/gateways/{id}/policies` | List rules, or upsert one: `server_id` (optional), `tool_name` (`*` or one tool), `effect` (`allow`, `deny`, `approve`), and optional `notify_channel` (`log`, `webhook`, `phone`). |
+| DELETE | `/api/gateway/gateways/{id}/policies/{policy_id}` | Remove a rule. |
+| GET | `/api/gateway/gateways/{id}/pins` | List `gateway.tool_pins` for this gateway. |
+| POST | `/api/gateway/gateways/{id}/pins/approve` | Approve the observed hash for `{"server","tool"}`. Same transition fizz-guard uses: `pin_sha256` becomes `observed_sha256`, status `approved`, and open pin alerts for that tool are acknowledged. |
+| GET | `/api/gateway/gateways/{id}/pin-alerts` | List `gateway.pin_alerts`. `description_preview` is untrusted text from the MCP server. |
+| POST | `/api/gateway/gateways/{id}/pin-alerts/{alert_id}/ack` | Set `acknowledged_at`. |
+| GET | `/api/gateway/gateways/{id}/approvals` | List `gateway.approvals`. `args_preview` is key names only. |
+| POST | `/api/gateway/gateways/{id}/approvals/{approval_id}/decision` | `{"status":"approved"|"denied"}` on a pending row that has not expired. |
+| GET | `/api/gateway/gateways/{id}/config` | YAML preview. Credentials are omitted. `ETag` ends in `-redacted`. |
+| GET, POST | `/api/gateway/gateways/{id}/tokens` | List client tokens, or mint one. The JWT is returned once. Default life is 1 hour; `ttl_seconds` can be up to 30 days. |
+| DELETE | `/api/gateway/gateways/{id}/tokens/{token_id}` | Revoke a client token. `fizz-guard` reads `revoked_at`; this does not by itself reload the YAML. |
+| POST | `/api/gateway/gateways/{id}/registration-token` | Rotate the agent token. The new value is returned once. |
+
+Creating a gateway without `mode` uses `shared` on Hobbyist and Tinkerer, and `dedicated` on Pro and Enterprise. `dedicated` is only a row: nothing is provisioned. The default URL is `https://gw.fizzlayer.com/w/{id}/mcp` or `https://{name}.gw.fizzlayer.com/mcp`. Self-host requires `public_url`.
+
+Plan limits (platform plan §B4) are on `fizz_plans` and are returned by `GET /api/gateway/gateways` as `plan`. Over the cap, the API answers `402` with `gateway_limit`, `server_limit`, `stdio_not_included`, or `dedicated_not_included`. A downgrade disables the newest extra gateways and servers; it does not delete them. Phone-call approvals share the monthly cap already enforced by `gateway.phone_approval_budget`. This API does not place a call and does not reserve one. Client-token revocation is enforced by `fizz-guard` from `gateway.client_tokens`, not by the YAML file.
+
+### Policy rows
+
+`PUT /api/gateway/gateways/{id}/policies` writes the columns `fizz-guard` reads from `gateway.policies`:
+
+| Column | Meaning |
+|---|---|
+| `gateway_id` | The gateway. |
+| `server_id` | One server, or null for every server on that gateway. |
+| `tool_name` | `*` or a tool name matching `^[A-Za-z0-9_.:-]{1,128}$`. |
+| `effect` | `allow`, `deny`, or `approve`. |
+| `notify_channel` | `log`, `webhook`, or `phone`. Omitted on an update keeps the current value. A new row defaults to `log`. |
+
+Uniqueness is `(gateway_id, coalesce(server_id, zero uuid), tool_name)`. A missing rule denies the call. Pin approval writes `gateway.tool_pins` (`pin_sha256`, `observed_sha256`, `status`, `approved_at`) and acknowledges matching `gateway.pin_alerts`. Approval decisions write `gateway.approvals.status` and `decided_by` only while the row is `pending` and unexpired. `20261114000400_gateway_control_plane.sql` does not create those tables; `20261114000300_gateway_policies.sql` does.
+
+The rendered YAML does not copy those rules. It points `mcpGuardrails` at `fizz-guard`, which reads the tables. The agent pull is the copy that may contain `backendAuth.key.value`. The signed-in preview never does. Local `fizz-config` still refuses to write a credential.
+
+### Environment
+
+Set these on the Vercel project `fizz`. Do not commit the values.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `GATEWAY_SIGNING_KEY` | To mint tokens and serve JWKS | PKCS#8 PEM for the ES256 key. A single-line value may use `\n` for line breaks. The server does not generate one. |
+| `GATEWAY_SECRET_KEY` | To store an MCP API key or PAT | Base64 of 32 bytes. Ciphertext is AES-256-GCM, `key_id` `v1`. |
+| `GATEWAY_JWKS_URL` | Recommended in production | Absolute URL of `GET /api/gateway/jwks`, written into the YAML as `jwtAuth.jwks.url`. If unset, the request origin plus `/api/gateway/jwks` is used. |
+| `GATEWAY_GUARD_HOST` | Optional | `host:port` of `fizz-guard` in the YAML. Default `fizz-guard:9001`. |
+
+`20261114000400_gateway_control_plane.sql` has to be applied (`supabase db push`) before these routes can succeed. Until then they answer `503`.
+
+```sh
+cargo test --locked --lib gateway::
+```

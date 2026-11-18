@@ -75,6 +75,10 @@
       "destination": "/api/contact"
     },
     {
+      "source": "/api/gateway/:path*",
+      "destination": "/api/gateway?__path=:path*"
+    },
+    {
       "source": "/app",
       "destination": "/app/index.html"
     },
