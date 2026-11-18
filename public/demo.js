@@ -357,7 +357,7 @@
 
   function missingSensorReply(name) {
     const lead = name ? `“${name}” isn’t in this workspace.` : 'Which sensor should I watch?';
-    return `${lead} This sample workspace has ${sensorNames()}. I can set that alert on one of them — say which — or you can add a sensor in the app from the Sensors page: sample data, an API device, a phone, or a paired Linux device.`;
+    return `${lead} This sample workspace has ${sensorNames()}. Say which one should get that alert, or add a sensor in the app from the Sensors page: sample data, an API device, a phone, or a paired Linux device.`;
   }
 
   function mentionsAgentConnection(text) {
@@ -366,7 +366,7 @@
 
   function mcpAnswer(text) {
     const intro = /\bclaude\b/.test(text) ? 'Yes. Claude can read your sensors once it is connected over MCP. ' : '';
-    return `${intro}Fizzlayer exposes an MCP server at /api/mcp (Streamable HTTP; https://fizzlayer.com/api/mcp on the hosted site). Create an agent token on the Agents page — tokens start with fizz_agent_ — and send Authorization: Bearer. The tools are list_sensors, get_readings, list_alerts, create_alert (when the token is allowed to create alerts), and pair_device. Setup is in /sensors/docs#mcp, with a shorter guide at /llms.txt. This demo does not connect a live agent.`;
+    return `${intro}Fizzlayer exposes an MCP server at /api/mcp (Streamable HTTP; https://fizzlayer.com/api/mcp on the hosted site). Create an agent token on the Agents page. Tokens start with fizz_agent_. Send Authorization: Bearer. The tools are list_sensors, get_readings, list_alerts, create_alert (when the token is allowed to create alerts), and pair_device. Setup is in /sensors/docs#mcp, with a shorter guide at /llms.txt. This demo does not connect a live agent. The gateway is a different endpoint, documented at /docs, and this demo does not run it.`;
   }
 
   function answer(question) {
