@@ -338,7 +338,7 @@
   /* Onboarding steps */
   .steps { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-5); padding: 0; list-style: none; counter-reset: step; }
   .step { counter-increment: step; }
-  .step a {
+  .step a, .step-locked {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
@@ -348,7 +348,7 @@
     font-size: var(--text-sm);
     text-decoration: none;
   }
-  .step a::before {
+  .step a::before, .step-locked::before {
     content: counter(step);
     display: inline-grid;
     place-items: center;
@@ -360,6 +360,7 @@
     font-weight: 600;
   }
   .step a:hover { color: var(--color-text); }
+  .step-locked { opacity: 0.55; cursor: default; }
   .step-current a { color: var(--color-text); font-weight: 600; }
   .step-current a::before { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 

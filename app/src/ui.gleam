@@ -271,16 +271,21 @@ pub fn steps(items: List(#(String, String, Bool))) -> Element(msg) {
           }),
         ],
         [
-          html.a(
-            [
-              attribute.href(href),
-              case current {
-                True -> attribute.aria_current("step")
-                False -> attribute.none()
-              },
-            ],
-            [text(label)],
-          ),
+          case href {
+            // A step you can't reach yet is text, not a link.
+            "" -> html.span([attribute.class("step-locked")], [text(label)])
+            _ ->
+              html.a(
+                [
+                  attribute.href(href),
+                  case current {
+                    True -> attribute.aria_current("step")
+                    False -> attribute.none()
+                  },
+                ],
+                [text(label)],
+              )
+          },
         ],
       )
     }),

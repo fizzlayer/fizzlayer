@@ -40,10 +40,12 @@ pub const start_path = "/app/start"
 
 pub const gateways_path = "/app/gateways"
 
+/// The URL of an onboarding step. Every step after Create needs a gateway,
+/// so without an id it sends you back to Create instead of building
+/// `/app/onboarding//server`.
 pub fn onboarding_path(id: String, step: Step) -> String {
   case id, step {
-    "", Create -> "/app/onboarding"
-    _, Create -> "/app/onboarding"
+    "", _ | _, Create -> "/app/onboarding"
     _, Server -> "/app/onboarding/" <> id <> "/server"
     _, Tools -> "/app/onboarding/" <> id <> "/tools"
     _, Pin -> "/app/onboarding/" <> id <> "/pin"
