@@ -298,7 +298,8 @@ fn signed_in(
     "tinkerer" | "pro" -> #(Model(..model, plan: ""), checkout(model.plan))
     _ ->
       case model.route {
-        route.SignIn -> #(model, push(route.start_path))
+        // A signed-in visit lands on the gateway list.
+        route.SignIn -> #(model, push(route.gateways_path))
         other -> follow(model, other)
       }
   }

@@ -1,12 +1,16 @@
-//// Gateway onboarding and the signed-in gateway pages.
+//// The signed-in gateway screens: the gateway list, a form to create one, and
+//// one page per gateway with tabs for its servers, rules, approvals, tool
+//// changes, clients and settings.
 ////
 //// Secrets stay in this model only as long as the page has to show them:
-//// the registration token and the client JWT on the connect step, and the
-//// upstream key in the server field until submit. Other screens do not read
+//// the registration token and the client JWT on the Connect tab, and the
+//// upstream key in the add-server sheet until submit. Other tabs do not read
 //// those fields.
 
+import gleam/int
 import gleam/list
 import gleam/string
+import gleam/uri
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element, text}
@@ -15,22 +19,15 @@ import lustre/event
 
 import api
 import browser
+import catalog
 import clients
-import route.{type Route}
+import route.{type Route, type Tab}
 import ui
 
 pub type Screen {
-  Choose
-  Create
-  Server
-  Tools
-  Pin
-  Client
   List
-  Home
-  Inbox
-  Alerts
-  Tokens
+  Create
+  Page(Tab)
 }
 
 pub type Hosted {
@@ -45,10 +42,28 @@ pub type Note {
   Bad(String)
 }
 
+/// The add-server panel.
+pub type Sheet {
+  Closed
+  Custom
+  FromCatalog(catalog.Entry)
+}
+
+/// Registry search, separate from the featured list.
+pub type Search {
+  Idle
+  Searching
+  Searched(query: String)
+  SearchFailed(String)
+}
+
 pub type Model {
   Model(
     screen: Screen,
     id: String,
+    /// The gateway whose servers, rules and the rest are loaded, so switching
+    /// tabs does not fetch them again.
+    details_id: String,
     loaded: Bool,
     busy: Bool,
     hosted: Hosted,
@@ -67,6 +82,7 @@ pub type Model {
     public_url: String,
     server_name: String,
     server_url: String,
+    server_transport: String,
     auth_kind: String,
     api_key: String,
     tool_name: String,
@@ -81,6 +97,12 @@ pub type Model {
     notice: Note,
     upgrade: String,
     confirm_delete: Bool,
+    sheet: Sheet,
+    category: String,
+    query: String,
+    search: Search,
+    results: List(catalog.Entry),
+    next: String,
   )
 }
 
@@ -97,6 +119,7 @@ pub type Msg {
   ChannelEdited(String)
   TokenNameEdited(String)
   ServerPicked(String)
+  RulesFor(String)
   SubmitGateway
   SubmitServer
   SavePolicy(server_id: String, tool: String, effect: String)
@@ -104,14 +127,23 @@ pub type Msg {
   ApprovePin(server: String, tool: String)
   AckAlert(String)
   Decide(id: String, status: String)
+  RefreshApprovals
   MintToken
   RevokeToken(String)
   RotateRegistration
   AskDelete
+  CancelDelete
   DeleteGateway
   RemoveServer(String)
-  Continue(route.Step)
   Copy(String)
+  CategoryPicked(String)
+  QueryEdited(String)
+  SearchRegistry
+  MoreResults
+  ClearSearch
+  OpenEntry(catalog.Entry)
+  OpenCustom
+  CloseSheet
   ContextLoaded(#(Int, String))
   ServersLoaded(String, #(Int, String))
   PoliciesLoaded(String, #(Int, String))
@@ -119,6 +151,7 @@ pub type Msg {
   AlertsLoaded(String, #(Int, String))
   ApprovalsLoaded(String, #(Int, String))
   TokensLoaded(String, #(Int, String))
+  RegistryLoaded(Bool, #(Int, String))
   Wrote(String, #(Int, String))
   ProbeLoaded(#(Bool, String))
   HostedLoaded(#(Int, String))
@@ -127,8 +160,9 @@ pub type Msg {
 
 pub fn empty() -> Model {
   Model(
-    screen: Choose,
+    screen: List,
     id: "",
+    details_id: "",
     loaded: False,
     busy: False,
     hosted: Unknown,
@@ -147,6 +181,7 @@ pub fn empty() -> Model {
     public_url: "",
     server_name: "",
     server_url: "",
+    server_transport: "http",
     auth_kind: "key",
     api_key: "",
     tool_name: "",
@@ -161,99 +196,146 @@ pub fn empty() -> Model {
     notice: Quiet,
     upgrade: "",
     confirm_delete: False,
+    sheet: Closed,
+    category: "all",
+    query: "",
+    search: Idle,
+    results: [],
+    next: "",
   )
 }
 
 pub fn on_route(model: Model, route: Route) -> #(Model, Effect(Msg)) {
+  let model = Model(..model, sheet: Closed, confirm_delete: False, api_key: "")
   case route {
-    route.Start -> #(Model(..model, screen: Choose), load_context())
     route.Gateways -> #(Model(..model, screen: List), load_context())
-    route.Onboarding("", route.Create) -> #(
-      Model(..model, screen: Create, id: ""),
+    route.NewGateway -> #(
+      Model(..model, screen: Create, id: "", notice: Quiet),
       load_context(),
     )
-    route.Onboarding(id, step) -> #(
-      Model(..model, screen: screen_of(step), id: id),
-      effect.batch([load_context(), load_details(id)]),
-    )
-    route.GatewayHome(id) -> #(
-      Model(..model, screen: Home, id: id),
-      effect.batch([load_context(), load_details(id)]),
-    )
-    route.Approvals(id) -> #(
-      Model(..model, screen: Inbox, id: id),
-      effect.batch([load_context(), load_details(id)]),
-    )
-    route.PinAlerts(id) -> #(
-      Model(..model, screen: Alerts, id: id),
-      effect.batch([load_context(), load_details(id)]),
-    )
-    route.ClientTokens(id) -> #(
-      Model(..model, screen: Tokens, id: id),
-      effect.batch([load_context(), load_details(id)]),
-    )
+    route.Gateway(id, tab) ->
+      case id == model.details_id {
+        // Same gateway, another tab: keep what is loaded. Approvals change
+        // while the page is open, so those tabs ask again.
+        True -> #(
+          Model(..model, screen: Page(tab), notice: Quiet, upgrade: ""),
+          case tab {
+            route.Overview | route.Approvals -> load_approvals(id)
+            _ -> effect.none()
+          },
+        )
+        False -> {
+          // The create form sets `id` and the one-time registration token
+          // before it opens the new gateway. Keep them for that gateway only.
+          let same = id == model.id
+          #(
+            Model(
+              ..model,
+              screen: Page(tab),
+              id: id,
+              details_id: id,
+              servers: [],
+              policies: [],
+              pins: [],
+              alerts: [],
+              approvals: [],
+              tokens: [],
+              server_pick: "",
+              discovered: [],
+              probe_note: "",
+              registration: case same {
+                True -> model.registration
+                False -> ""
+              },
+              minted: "",
+            ),
+            effect.batch([load_context(), load_details(id)]),
+          )
+        }
+      }
     _ -> #(model, effect.none())
   }
 }
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
   case msg {
-    NameEdited(name) -> #(
-      Model(..model, name: name, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ModeEdited(mode) -> #(
-      Model(..model, mode: mode, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    PublicUrlEdited(url) -> #(
-      Model(..model, public_url: url, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ServerNameEdited(name) -> #(
-      Model(..model, server_name: name, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ServerUrlEdited(url) -> #(
-      Model(..model, server_url: url, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    AuthKindEdited(kind) -> #(
-      Model(..model, auth_kind: kind, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ApiKeyEdited(key) -> #(
-      Model(..model, api_key: key, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ToolEdited(name) -> #(
-      Model(..model, tool_name: name, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    EffectEdited(effect_name) -> #(
-      Model(..model, effect: effect_name, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    ChannelEdited(channel) -> #(
-      Model(..model, channel: channel, notice: Quiet),
-      effect.none(),
-      "",
-    )
-    TokenNameEdited(name) -> #(
-      Model(..model, token_name: name, notice: Quiet),
-      effect.none(),
-      "",
-    )
+    NameEdited(name) -> edited(Model(..model, name: name))
+    ModeEdited(mode) -> edited(Model(..model, mode: mode))
+    PublicUrlEdited(url) -> edited(Model(..model, public_url: url))
+    ServerNameEdited(name) -> edited(Model(..model, server_name: name))
+    ServerUrlEdited(url) -> edited(Model(..model, server_url: url))
+    AuthKindEdited(kind) -> edited(Model(..model, auth_kind: kind))
+    ApiKeyEdited(key) -> edited(Model(..model, api_key: key))
+    ToolEdited(name) -> edited(Model(..model, tool_name: name))
+    EffectEdited(effect_name) -> edited(Model(..model, effect: effect_name))
+    ChannelEdited(channel) -> edited(Model(..model, channel: channel))
+    TokenNameEdited(name) -> edited(Model(..model, token_name: name))
+    QueryEdited(query) -> #(Model(..model, query: query), effect.none(), "")
     ServerPicked(id) -> #(Model(..model, server_pick: id), effect.none(), "")
+    RulesFor(id) -> #(
+      Model(..model, server_pick: id),
+      effect.none(),
+      route.tab_path(model.id, route.Rules),
+    )
+    CategoryPicked(category) -> #(
+      Model(..model, category: category),
+      effect.none(),
+      "",
+    )
+    SearchRegistry -> search_registry(model)
+    MoreResults ->
+      case model.search, model.next {
+        Searched(query), next if next != "" -> #(
+          Model(..model, search: Searching),
+          registry(query, next, True),
+          "",
+        )
+        _, _ -> #(model, effect.none(), "")
+      }
+    ClearSearch -> #(
+      Model(..model, query: "", search: Idle, results: [], next: ""),
+      effect.none(),
+      "",
+    )
+    OpenEntry(entry) ->
+      case catalog.addable(entry) {
+        False -> #(model, effect.none(), "")
+        True -> #(
+          Model(
+            ..model,
+            sheet: FromCatalog(entry),
+            server_name: free_name(model, catalog.slug(entry.title)),
+            server_url: entry.url,
+            server_transport: entry.transport,
+            auth_kind: catalog.auth_kind(entry),
+            api_key: "",
+            notice: Quiet,
+            upgrade: "",
+          ),
+          effect.none(),
+          "",
+        )
+      }
+    OpenCustom -> #(
+      Model(
+        ..model,
+        sheet: Custom,
+        server_name: "",
+        server_url: "",
+        server_transport: "http",
+        auth_kind: "key",
+        api_key: "",
+        notice: Quiet,
+        upgrade: "",
+      ),
+      effect.none(),
+      "",
+    )
+    CloseSheet -> #(
+      Model(..model, sheet: Closed, api_key: ""),
+      effect.none(),
+      "",
+    )
     SubmitGateway -> submit_gateway(model)
     SubmitServer -> submit_server(model)
     SavePolicy(server_id, tool, effect_name) ->
@@ -262,7 +344,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
       save_policy(
         model,
         model.server_pick,
-        string_trim(model.tool_name),
+        string.trim(model.tool_name),
         model.effect,
       )
     ApprovePin(server, tool) ->
@@ -275,21 +357,22 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
         api.decision_body(status),
         "decision",
       )
+    RefreshApprovals -> #(
+      Model(..model, notice: Quiet),
+      load_approvals(model.id),
+      "",
+    )
     MintToken -> mint(model)
     RevokeToken(id) ->
       send_empty(model, "DELETE", token_url(model.id, id), "revoke")
     RotateRegistration ->
       post_json(model, registration_url(model.id), "{}", "rotate")
     AskDelete -> #(Model(..model, confirm_delete: True), effect.none(), "")
+    CancelDelete -> #(Model(..model, confirm_delete: False), effect.none(), "")
     DeleteGateway ->
       send_empty(model, "DELETE", gateway_url(model.id), "delete")
     RemoveServer(id) ->
       send_empty(model, "DELETE", server_url(model.id, id), "remove")
-    Continue(step) -> #(
-      model,
-      effect.none(),
-      route.onboarding_path(model.id, step),
-    )
     Copy(value) -> #(model, copy(value), "")
     ContextLoaded(#(status, body)) -> context_loaded(model, status, body)
     ServersLoaded(id, #(status, body)) ->
@@ -314,10 +397,16 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
       rows_loaded(model, id, status, body, api.tokens_of, fn(next, rows) {
         Model(..next, tokens: rows)
       })
+    RegistryLoaded(append, #(status, body)) ->
+      registry_loaded(model, append, status, body)
     Wrote(kind, #(status, body)) -> wrote(model, kind, status, body)
     ProbeLoaded(#(True, body)) -> #(probe_ok(model, body), effect.none(), "")
-    ProbeLoaded(#(False, message)) -> #(
-      Model(..model, probe_note: message, discovered: []),
+    ProbeLoaded(#(False, _)) -> #(
+      Model(
+        ..model,
+        probe_note: "The gateway lists this server's tools the first time an agent connects. Until then, name a tool below or set the default rule.",
+        discovered: [],
+      ),
       effect.none(),
       "",
     )
@@ -336,6 +425,122 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
     )
     Copied(#(False, _)) -> #(
       Model(..model, notice: Bad("Select the text and copy it.")),
+      effect.none(),
+      "",
+    )
+  }
+}
+
+fn edited(model: Model) -> #(Model, Effect(Msg), String) {
+  #(Model(..model, notice: Quiet), effect.none(), "")
+}
+
+/// A server name not already used on this gateway: `github`, then
+/// `github-2` and so on.
+fn free_name(model: Model, base: String) -> String {
+  let taken = list.map(model.servers, fn(row) { row.name })
+  free_name_from(taken, base, 1)
+}
+
+fn free_name_from(taken: List(String), base: String, n: Int) -> String {
+  let candidate = case n {
+    1 -> base
+    _ -> string.slice(base, 0, 38) <> "-" <> int.to_string(n)
+  }
+  case list.contains(taken, candidate) && n < 50 {
+    True -> free_name_from(taken, base, n + 1)
+    False -> candidate
+  }
+}
+
+fn search_registry(model: Model) -> #(Model, Effect(Msg), String) {
+  let query = string.trim(model.query)
+  case query {
+    "" -> #(
+      Model(..model, search: Idle, results: [], next: ""),
+      effect.none(),
+      "",
+    )
+    _ ->
+      case string.length(query) > 100 {
+        True -> #(
+          Model(
+            ..model,
+            search: SearchFailed("Search for up to 100 characters."),
+          ),
+          effect.none(),
+          "",
+        )
+        False -> #(
+          Model(..model, search: Searching, results: [], next: ""),
+          registry(query, "", False),
+          "",
+        )
+      }
+  }
+}
+
+fn registry(query: String, cursor: String, append: Bool) -> Effect(Msg) {
+  let path =
+    "/api/gateway/registry?search="
+    <> uri.percent_encode(query)
+    <> case cursor {
+      "" -> ""
+      _ -> "&cursor=" <> uri.percent_encode(cursor)
+    }
+  get(path, fn(pair) { RegistryLoaded(append, pair) })
+}
+
+fn registry_loaded(
+  model: Model,
+  append: Bool,
+  status: Int,
+  body: String,
+) -> #(Model, Effect(Msg), String) {
+  let query = string.trim(model.query)
+  case status {
+    200 ->
+      case catalog.page_of(body) {
+        Ok(page) -> #(
+          Model(
+            ..model,
+            search: Searched(query),
+            results: case append {
+              True -> list.append(model.results, page.entries)
+              False -> page.entries
+            },
+            next: page.next,
+          ),
+          effect.none(),
+          "",
+        )
+        Error(_) -> #(
+          Model(
+            ..model,
+            search: SearchFailed("The registry answer was not readable."),
+          ),
+          effect.none(),
+          "",
+        )
+      }
+    0 -> #(
+      Model(
+        ..model,
+        search: SearchFailed(
+          "Could not reach Fizzlayer. Check your connection.",
+        ),
+      ),
+      effect.none(),
+      "",
+    )
+    _ -> #(
+      Model(
+        ..model,
+        search: SearchFailed(api.error_message(
+          body,
+          "The MCP Registry did not answer. Try again, or add the server by URL.",
+        )),
+      ),
       effect.none(),
       "",
     )
@@ -388,11 +593,16 @@ fn submit_gateway(model: Model) -> #(Model, Effect(Msg), String) {
 }
 
 fn submit_server(model: Model) -> #(Model, Effect(Msg), String) {
+  let url = string.trim(model.server_url)
   case writable(model) {
     Error(message) -> #(bad(model, message), effect.none(), "")
     Ok(_) ->
-      case api.server_name_ok(model.server_name) {
-        False -> #(
+      case
+        api.server_name_ok(model.server_name),
+        catalog.needs_fill(url),
+        api.remote_url_ok(url)
+      {
+        False, _, _ -> #(
           bad(
             model,
             "Server name must start with a letter and use lowercase letters, digits, hyphens, or underscores.",
@@ -400,48 +610,59 @@ fn submit_server(model: Model) -> #(Model, Effect(Msg), String) {
           effect.none(),
           "",
         )
-        True ->
-          case api.remote_url_ok(model.server_url) {
-            False -> #(
-              bad(
-                model,
-                "Server URL must be http or https, with no username or password in it.",
-              ),
+        _, True, _ -> #(
+          bad(
+            model,
+            "Fill in the {…} parts of the URL. The server's docs say what goes there.",
+          ),
+          effect.none(),
+          "",
+        )
+        _, _, False -> #(
+          bad(
+            model,
+            "Server URL must be http or https, with no username or password in it.",
+          ),
+          effect.none(),
+          "",
+        )
+        True, False, True ->
+          case model.auth_kind == "key" && string.trim(model.api_key) == "" {
+            True -> #(
+              bad(model, "Paste the server's API key or token."),
               effect.none(),
               "",
             )
-            True ->
-              case
-                model.auth_kind == "key" && string_trim(model.api_key) == ""
-              {
-                True -> #(
-                  bad(model, "Paste the server's API key or token."),
-                  effect.none(),
-                  "",
-                )
-                False -> {
-                  let key = model.api_key
-                  let url = model.server_url
-                  let kind = model.auth_kind
-                  #(
-                    Model(
-                      ..model,
-                      busy: True,
-                      api_key: "",
-                      notice: Quiet,
-                      upgrade: "",
-                    ),
-                    post_then_probe(
-                      servers_url(model.id),
-                      api.server_body(model.server_name, url, kind, key),
-                      url,
-                      kind,
-                      key,
-                    ),
-                    "",
-                  )
-                }
+            False -> {
+              let key = case model.auth_kind {
+                "key" -> model.api_key
+                _ -> ""
               }
+              let kind = model.auth_kind
+              #(
+                Model(
+                  ..model,
+                  busy: True,
+                  api_key: "",
+                  notice: Quiet,
+                  upgrade: "",
+                ),
+                post_then_probe(
+                  servers_url(model.id),
+                  api.server_body(
+                    model.server_name,
+                    url,
+                    model.server_transport,
+                    kind,
+                    key,
+                  ),
+                  url,
+                  kind,
+                  key,
+                ),
+                "",
+              )
+            }
           }
       }
   }
@@ -503,7 +724,7 @@ fn save_policy(
 }
 
 fn mint(model: Model) -> #(Model, Effect(Msg), String) {
-  let name = string_trim(model.token_name)
+  let name = string.trim(model.token_name)
   case writable(model) {
     Error(message) -> #(bad(model, message), effect.none(), "")
     Ok(_) ->
@@ -587,9 +808,11 @@ fn rows_loaded(
 }
 
 fn remember_servers(model: Model, rows: List(api.ServerRow)) -> Model {
-  let pick = case model.server_pick, rows {
-    "", [first, ..] -> first.id
-    pick, _ -> pick
+  let known = list.any(rows, fn(row) { row.id == model.server_pick })
+  let pick = case known, rows {
+    True, _ -> model.server_pick
+    False, [first, ..] -> first.id
+    False, [] -> ""
   }
   Model(..model, servers: rows, server_pick: pick)
 }
@@ -631,9 +854,10 @@ fn wrote_ok(
           let note = case registration {
             "" ->
               Bad(
-                "The gateway was created, but the registration token was not usable. Rotate it on the connect step.",
+                "The gateway was created, but the registration token was not usable. Rotate it in Settings.",
               )
-            _ -> Quiet
+            _ ->
+              Good("Gateway created. Add the first MCP server it should reach.")
           }
           #(
             Model(
@@ -648,7 +872,7 @@ fn wrote_ok(
               upgrade: "",
             ),
             effect.none(),
-            route.onboarding_path(created.id, route.Server),
+            route.tab_path(created.id, route.Servers),
           )
         }
       }
@@ -657,12 +881,15 @@ fn wrote_ok(
         ..model,
         busy: False,
         api_key: "",
-        probe_note: "Checking that server for tools…",
+        sheet: Closed,
+        probe_note: "",
         upgrade: "",
-        notice: Quiet,
+        notice: Good(
+          "Server added. Its tools are blocked until you set a rule for them.",
+        ),
       ),
-      effect.none(),
-      route.onboarding_path(model.id, route.Tools),
+      effect.batch([load_servers(model.id), load_pins(model.id)]),
+      "",
     )
     "policy" -> #(
       Model(
@@ -854,16 +1081,6 @@ fn problem(model: Model, status: Int, body: String, fallback: String) -> Model {
   }
 }
 
-fn screen_of(step: route.Step) -> Screen {
-  case step {
-    route.Create -> Create
-    route.Server -> Server
-    route.Tools -> Tools
-    route.Pin -> Pin
-    route.Client -> Client
-  }
-}
-
 fn load_context() -> Effect(Msg) {
   use dispatch <- effect.from
   browser.send("GET", "/api/gateway/gateways", "", fn(pair) {
@@ -1007,108 +1224,158 @@ fn registration_url(id: String) -> String {
   gateway_url(id) <> "/registration-token"
 }
 
-fn string_trim(value: String) -> String {
-  string.trim(value)
-}
+// Views --------------------------------------------------------------------------
 
 pub fn view(model: Model) -> Element(Msg) {
-  html.div([], [
-    upgrade_box(model.upgrade),
-    note(model.notice),
-    case model.screen {
-      Choose -> choose(model)
-      Create -> create_form(model)
-      Server -> server_form(model)
-      Tools -> tools(model)
-      Pin -> pins(model)
-      Client -> client(model)
-      List -> list_page(model)
-      Home -> home(model)
-      Inbox -> inbox(model)
-      Alerts -> alerts(model)
-      Tokens -> token_page(model)
+  case model.screen {
+    List -> html.div([], [notices(model), list_page(model)])
+    Create -> html.div([], [notices(model), create_page(model)])
+    Page(tab) -> gateway_page(model, tab)
+  }
+}
+
+fn notices(model: Model) -> Element(Msg) {
+  html.div([], [upgrade_box(model.upgrade), note(model.notice)])
+}
+
+// The gateway list ----------------------------------------------------------------
+
+fn list_page(model: Model) -> Element(Msg) {
+  let under_limit = case model.plan.gateway_limit {
+    api.Unlimited -> True
+    api.Limited(cap) -> list.length(model.gateways) < cap
+  }
+  let new_button =
+    ui.link_button(
+      ui.Primary,
+      route.new_gateway_path,
+      ui.with_icon("plus", "New gateway"),
+    )
+  html.div([attribute.id("step-gateways")], [
+    ui.page_head(
+      "Gateways",
+      "Each gateway is one MCP endpoint for your agents, with its own servers, rules and approvals.",
+      case model.gateways, under_limit {
+        [], _ | _, False -> []
+        _, True -> [new_button]
+      },
+    ),
+    case model.loaded, model.gateways {
+      False, _ -> ui.muted("Loading gateways…")
+      True, [] ->
+        ui.empty_state(
+          "shield-halved",
+          "Create your first gateway",
+          "Point your agent at one gateway URL. Add the MCP servers it may use, choose what each tool can do, and approve risky calls before they run.",
+          [
+            new_button,
+            ui.link_button(
+              ui.Secondary,
+              "/sensors",
+              ui.with_icon("tower-broadcast", "Open Sensors"),
+            ),
+          ],
+        )
+      True, rows ->
+        ui.gateway_grid(
+          list.append(list.map(ordered(rows), gateway_card), case under_limit {
+            True -> [
+              ui.new_card(
+                route.new_gateway_path,
+                "New gateway",
+                "Another endpoint with its own servers and rules.",
+              ),
+            ]
+            False -> []
+          }),
+        )
+    },
+    case model.loaded {
+      True ->
+        ui.muted_content([
+          text(
+            model.plan.name
+            <> " plan: "
+            <> int.to_string(list.length(model.gateways))
+            <> " of "
+            <> api.cap_label(model.plan.gateway_limit)
+            <> " gateways, up to "
+            <> api.cap_label(model.plan.server_limit)
+            <> " MCP servers. ",
+          ),
+          html.a([attribute.href("/pricing")], [text("Plans and upgrades")]),
+        ])
+      False -> element.none()
     },
   ])
 }
 
-fn choose(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-choose")], [
-    html.h1([], [text("What do you want to set up?")]),
-    ui.lead("You can add the other one later."),
-    ui.choices([
-      ui.choice(True, [
-        html.h2([], [text("Gateway")]),
-        html.p([], [
-          text(
-            "Choose which tools your AI agents can use, and approve risky calls before they run.",
-          ),
-        ]),
-        ui.link_button(ui.Primary, route.onboarding_path("", route.Create), [
-          text("Set up a gateway"),
-        ]),
-      ]),
-      ui.choice(False, [
-        html.h2([], [text("Sensors")]),
-        html.p([], [
-          text("Connect devices, watch their readings, and get alerts."),
-        ]),
-        ui.link_button(ui.Secondary, "/sensors", [
-          text("Open Sensors"),
-        ]),
+/// Active gateways first, then paused ones, each in the order the API sent.
+fn ordered(rows: List(api.GatewayRow)) -> List(api.GatewayRow) {
+  let #(active, rest) = list.partition(rows, fn(row) { row.status == "active" })
+  list.append(active, rest)
+}
+
+fn gateway_card(row: api.GatewayRow) -> Element(Msg) {
+  ui.gateway_card(
+    route.tab_path(row.id, route.Overview),
+    row.name,
+    mode_label(row.mode),
+    row.status == "active",
+    status_label(row.status),
+    row.public_url,
+  )
+}
+
+fn status_label(status: String) -> String {
+  case status {
+    "active" -> "Active"
+    "disabled" -> "Paused"
+    other -> string.capitalise(other)
+  }
+}
+
+fn mode_label(mode: String) -> String {
+  case mode {
+    "shared" -> "Hosted, shared"
+    "selfhost" -> "Self-hosted"
+    "dedicated" -> "Hosted, dedicated"
+    other -> other
+  }
+}
+
+// Create ----------------------------------------------------------------------------
+
+fn create_page(model: Model) -> Element(Msg) {
+  ui.card([attribute.id("step-create")], [
+    html.p([], [
+      html.a([attribute.href(route.gateways_path)], [
+        ui.icon("arrow-left"),
+        text(" All gateways"),
       ]),
     ]),
-    case model.gateways {
-      [] -> element.none()
-      _ ->
-        html.p([], [
-          html.a([attribute.href(route.gateways_path)], [
-            text("Open your gateways"),
-          ]),
-        ])
-    },
-  ])
-}
-
-fn create_form(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-create")], [
-    steps(model),
-    html.h1([], [text("Create a gateway")]),
+    ui.panel_head(
+      "shield-halved",
+      "Create a gateway",
+      "A gateway is the one MCP URL your agents use. Next you add the servers behind it.",
+      [],
+    ),
     hosted_note(model),
-    plan_card(model.plan),
     html.form([event.on_submit(fn(_) { SubmitGateway })], [
-      field(
+      ui.field(
         "Gateway name",
         "gateway-name",
-        model.name,
-        "home",
-        False,
-        NameEdited,
+        "A lowercase letter, then letters, digits or hyphens. For example home or work.",
+        name_input(model),
       ),
-      ui.field(
-        "Where it runs",
-        "gateway-mode",
-        "",
-        ui.select(
-          [
-            attribute.id("gateway-mode"),
-            attribute.disabled(model.busy),
-            event.on_change(ModeEdited),
-          ],
-          [
-            option("shared", "Shared", model.mode == "shared"),
-            option("selfhost", "Self-host", model.mode == "selfhost"),
-            case model.plan.dedicated {
-              True ->
-                option("dedicated", "Dedicated", model.mode == "dedicated")
-              False ->
-                html.option(
-                  [attribute.value("dedicated"), attribute.disabled(True)],
-                  "Dedicated (Pro)",
-                )
-            },
-          ],
-        ),
-      ),
+      ui.field("Where it runs", "gateway-mode", "", mode_select(model)),
+      ui.muted(case model.mode {
+        "selfhost" ->
+          "You run the gateway with Docker and link it to this account. Your agents use the URL you publish."
+        "dedicated" ->
+          "A hosted gateway on its own machine. Dedicated gateways on Pro aren't ready yet."
+        _ -> "Fizzlayer hosts it. You get a URL at gw.fizzlayer.com right away."
+      }),
       case model.mode == "selfhost" {
         True ->
           field(
@@ -1124,224 +1391,1088 @@ fn create_form(model: Model) -> Element(Msg) {
       ui.actions([
         ui.button(
           ui.Primary,
-          [
-            attribute.type_("submit"),
-            attribute.disabled(model.busy),
-          ],
-          [text("Create gateway")],
+          [attribute.type_("submit"), attribute.disabled(model.busy)],
+          ui.with_icon("arrow-right", "Create gateway"),
+        ),
+        ui.link_button(ui.Quiet, route.gateways_path, [text("Cancel")]),
+      ]),
+    ]),
+    plan_card(model.plan),
+  ])
+}
+
+fn name_input(model: Model) -> Element(Msg) {
+  ui.input([
+    attribute.id("gateway-name"),
+    attribute.type_("text"),
+    attribute.autocomplete("off"),
+    attribute.placeholder("home"),
+    attribute.value(model.name),
+    event.on_input(NameEdited),
+  ])
+}
+
+fn mode_select(model: Model) -> Element(Msg) {
+  ui.select(
+    [
+      attribute.id("gateway-mode"),
+      attribute.disabled(model.busy),
+      event.on_change(ModeEdited),
+    ],
+    [
+      option("shared", "Hosted by Fizzlayer (shared)", model.mode == "shared"),
+      option("selfhost", "Self-host with Docker", model.mode == "selfhost"),
+      case model.plan.dedicated {
+        True ->
+          option(
+            "dedicated",
+            "Hosted, dedicated (Pro)",
+            model.mode == "dedicated",
+          )
+        False ->
+          html.option(
+            [attribute.value("dedicated"), attribute.disabled(True)],
+            "Hosted, dedicated (Pro)",
+          )
+      },
+    ],
+  )
+}
+
+// One gateway -----------------------------------------------------------------------
+
+fn gateway_page(model: Model, tab: Tab) -> Element(Msg) {
+  let row = current_gateway(model)
+  let name = case row {
+    Ok(gateway) -> gateway.name
+    Error(_) ->
+      case model.name {
+        "" -> "Gateway"
+        name -> name
+      }
+  }
+  let side =
+    ui.side([
+      ui.side_head(route.gateways_path, name, case row {
+        Ok(gateway) ->
+          ui.status_pill(
+            gateway.status == "active",
+            status_label(gateway.status),
+          )
+        Error(_) -> element.none()
+      }),
+      ui.tab_menu(
+        "Gateway sections",
+        list.map(route.tabs, fn(item) { menu_item(model, item, tab) }),
+      ),
+    ])
+  html.div([attribute.id("gateway-" <> route.tab_slug(tab))], [
+    ui.gateway_layout(
+      side,
+      ui.panel(route.tab_slug(tab), [
+        notices(model),
+        case row {
+          Ok(gateway) if gateway.status == "disabled" ->
+            ui.notice_text(
+              ui.Bad,
+              "This gateway is paused because your plan's gateway limit is reached. Remove a gateway or upgrade to run it again.",
+            )
+          _ -> element.none()
+        },
+        case tab {
+          route.Overview -> overview_tab(model)
+          route.Servers -> servers_tab(model)
+          route.Rules -> rules_tab(model)
+          route.Approvals -> approvals_tab(model)
+          route.Changes -> changes_tab(model)
+          route.Connect -> connect_tab(model)
+          route.Settings -> settings_tab(model)
+        },
+      ]),
+    ),
+    sheet_view(model),
+  ])
+}
+
+fn menu_item(model: Model, tab: Tab, current: Tab) -> ui.MenuItem {
+  let #(icon, label, count, alert) = case tab {
+    route.Overview -> #("gauge-high", "Overview", 0, False)
+    route.Servers -> #("server", "Servers", list.length(model.servers), False)
+    route.Rules -> #("list-check", "Rules", 0, False)
+    route.Approvals -> #("hand", "Approvals", list.length(pending(model)), True)
+    route.Changes -> #(
+      "triangle-exclamation",
+      "Tool changes",
+      list.length(open_alert_rows(model)),
+      True,
+    )
+    route.Connect -> #("plug", "Connect", 0, False)
+    route.Settings -> #("gear", "Settings", 0, False)
+  }
+  ui.MenuItem(
+    href: route.tab_path(model.id, tab),
+    icon: icon,
+    label: label,
+    count: count,
+    current: tab == current,
+    alert: alert,
+  )
+}
+
+fn pending(model: Model) -> List(api.ApprovalRow) {
+  list.filter(model.approvals, fn(row) { row.status == "pending" })
+}
+
+fn open_alert_rows(model: Model) -> List(api.AlertRow) {
+  list.filter(model.alerts, fn(row) { !row.acknowledged })
+}
+
+fn active_tokens(model: Model) -> List(api.TokenRow) {
+  list.filter(model.tokens, fn(row) { !row.revoked })
+}
+
+// Overview ------------------------------------------------------------------------
+
+fn overview_tab(model: Model) -> Element(Msg) {
+  let url = endpoint_url(model)
+  let waiting = pending(model)
+  html.div([], [
+    ui.panel_head(
+      "gauge-high",
+      "Overview",
+      "Agents call this one URL. Every tool call is checked against your rules before it reaches a server.",
+      [],
+    ),
+    ui.block("Endpoint", [], [
+      ui.copy_line(url, [copy_button(url)]),
+      ui.muted(case model.hosted, current_mode(model) {
+        Up, "shared" ->
+          "Hosted by Fizzlayer. Agents need a client token from Connect."
+        _, "selfhost" ->
+          "Self-hosted. This is the URL you published. Link your gateway with the registration token in Connect."
+        _, _ -> "Agents need a client token from Connect to call this URL."
+      }),
+    ]),
+    ui.stat_grid([
+      ui.stat(
+        route.tab_path(model.id, route.Servers),
+        "server",
+        list.length(model.servers),
+        "Servers",
+        False,
+      ),
+      ui.stat(
+        route.tab_path(model.id, route.Rules),
+        "list-check",
+        list.length(model.policies),
+        "Rules",
+        False,
+      ),
+      ui.stat(
+        route.tab_path(model.id, route.Approvals),
+        "hand",
+        list.length(waiting),
+        "Waiting for you",
+        True,
+      ),
+      ui.stat(
+        route.tab_path(model.id, route.Changes),
+        "triangle-exclamation",
+        list.length(open_alert_rows(model)),
+        "Changed tools",
+        True,
+      ),
+      ui.stat(
+        route.tab_path(model.id, route.Connect),
+        "key",
+        list.length(active_tokens(model)),
+        "Client tokens",
+        False,
+      ),
+    ]),
+    ui.block("Get started", [], [
+      ui.checklist([
+        #(
+          model.servers != [],
+          "Add an MCP server",
+          route.tab_path(model.id, route.Servers),
+          "Add a server",
+        ),
+        #(
+          model.policies != [],
+          "Choose what its tools can do",
+          route.tab_path(model.id, route.Rules),
+          "Set rules",
+        ),
+        #(
+          active_tokens(model) != [],
+          "Connect an agent with a client token",
+          route.tab_path(model.id, route.Connect),
+          "Connect",
         ),
       ]),
+    ]),
+    case waiting {
+      [] -> element.none()
+      rows ->
+        ui.block(
+          "Waiting for you",
+          [
+            ui.link_button(
+              ui.Quiet,
+              route.tab_path(model.id, route.Approvals),
+              ui.with_icon("arrow-right", "All approvals"),
+            ),
+          ],
+          [ui.item_list(list.map(list.take(rows, 3), approval_row))],
+        )
+    },
+  ])
+}
+
+// Servers --------------------------------------------------------------------------
+
+fn servers_tab(model: Model) -> Element(Msg) {
+  html.div([], [
+    ui.panel_head(
+      "server",
+      "Servers",
+      "The MCP servers this gateway forwards to. A key you add is stored encrypted and never shown again.",
+      [
+        ui.button(
+          ui.Secondary,
+          [attribute.type_("button"), event.on_click(OpenCustom)],
+          ui.with_icon("link", "Add by URL"),
+        ),
+      ],
+    ),
+    case model.servers {
+      [] -> element.none()
+      rows ->
+        ui.block("Connected", [], [
+          ui.item_list(list.map(rows, fn(row) { server_row(model, row) })),
+        ])
+    },
+    ui.block(
+      case model.servers {
+        [] -> "Add your first server"
+        _ -> "Add another server"
+      },
+      [],
+      [
+        ui.muted(
+          "Pick one from the official MCP Registry, or search all of it. Every tool on a new server is blocked until you set a rule.",
+        ),
+        ui.search_bar(
+          [event.on_submit(fn(_) { SearchRegistry })],
+          [
+            attribute.id("registry-search"),
+            attribute.placeholder("Search the MCP Registry, for example linear"),
+            attribute.value(model.query),
+            attribute.autocomplete("off"),
+            event.on_input(QueryEdited),
+          ],
+          "Search",
+          model.search == Searching,
+        ),
+        case model.search {
+          Idle -> featured_view(model)
+          Searching ->
+            case model.results {
+              [] -> ui.muted("Searching the MCP Registry…")
+              _ -> results_view(model, string.trim(model.query))
+            }
+          Searched(query) -> results_view(model, query)
+          SearchFailed(message) ->
+            html.div([], [
+              ui.notice_text(ui.Bad, message),
+              ui.actions([
+                ui.button(
+                  ui.Quiet,
+                  [attribute.type_("button"), event.on_click(ClearSearch)],
+                  ui.with_icon("arrow-left", "Back to featured servers"),
+                ),
+              ]),
+            ])
+        },
+        ui.muted(
+          "Featured servers come from the official MCP Registry and are published by the vendor. They take one API key or none. Servers that need an OAuth sign-in or other headers can't be added yet.",
+        ),
+      ],
+    ),
+  ])
+}
+
+fn server_row(model: Model, row: api.ServerRow) -> Element(Msg) {
+  ui.item_row(
+    server_icon(row.url),
+    row.name,
+    [
+      html.code([], [text(row.url)]),
+      text(" "),
+      case row.has_secret {
+        True -> ui.pill(ui.Good, "key", "Key stored")
+        False -> ui.pill(ui.Neutral, "lock-open", "No key")
+      },
+    ],
+    [
+      ui.button(
+        ui.Secondary,
+        [
+          attribute.type_("button"),
+          attribute.disabled(model.busy),
+          event.on_click(RulesFor(row.id)),
+        ],
+        ui.with_icon("list-check", "Rules"),
+      ),
+      ui.button(
+        ui.Danger,
+        [
+          attribute.type_("button"),
+          attribute.disabled(model.busy),
+          event.on_click(RemoveServer(row.id)),
+        ],
+        ui.with_icon("trash", "Remove"),
+      ),
+    ],
+  )
+}
+
+/// A featured server's icon when its URL matches, otherwise a server.
+fn server_icon(url: String) -> String {
+  case list.find(catalog.featured(), fn(entry) { entry.url == url }) {
+    Ok(entry) -> entry.icon
+    Error(_) -> "fa-solid fa-server"
+  }
+}
+
+fn featured_view(model: Model) -> Element(Msg) {
+  let entries = catalog.in_category(catalog.featured(), model.category)
+  html.div([], [
+    ui.chips(
+      "Categories",
+      list.map(catalog.categories, fn(item) {
+        let #(key, label) = item
+        #(label, model.category == key, event.on_click(CategoryPicked(key)))
+      }),
+    ),
+    ui.catalog_grid([
+      #("custom", ui.custom_card([event.on_click(OpenCustom)])),
+      ..list.index_map(entries, fn(entry, index) {
+        #(entry.id, catalog_card(model, entry, index + 1))
+      })
     ]),
   ])
 }
 
-fn server_form(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-server")], [
-    steps(model),
-    html.h1([], [text("Add an MCP server")]),
-    ui.muted(
-      "Paste the server URL. If it needs a key, it is stored encrypted and is not shown again. This page does not keep the key after you submit.",
+fn results_view(model: Model, query: String) -> Element(Msg) {
+  html.div([], [
+    ui.block(
+      "Registry results for “" <> query <> "”",
+      [
+        ui.button(
+          ui.Quiet,
+          [attribute.type_("button"), event.on_click(ClearSearch)],
+          ui.with_icon("xmark", "Clear"),
+        ),
+      ],
+      [
+        case model.results, model.search {
+          [], Searched(_) ->
+            ui.empty_state(
+              "magnifying-glass",
+              "No remote servers found",
+              "Only servers with a remote URL are listed. Try another word, or add the server by URL.",
+              [
+                ui.button(
+                  ui.Secondary,
+                  [attribute.type_("button"), event.on_click(OpenCustom)],
+                  ui.with_icon("link", "Add by URL"),
+                ),
+              ],
+            )
+          rows, _ ->
+            ui.catalog_grid(
+              list.index_map(rows, fn(entry, index) {
+                #(
+                  entry.id <> " " <> entry.url,
+                  catalog_card(model, entry, index),
+                )
+              }),
+            )
+        },
+        case model.next, model.search {
+          "", _ -> element.none()
+          _, Searching ->
+            ui.actions([
+              ui.button(
+                ui.Secondary,
+                [attribute.type_("button"), attribute.disabled(True)],
+                [
+                  ui.icon_classes("fa-solid fa-spinner fa-spin"),
+                  text("Loading"),
+                ],
+              ),
+            ])
+          _, _ ->
+            ui.actions([
+              ui.button(
+                ui.Secondary,
+                [attribute.type_("button"), event.on_click(MoreResults)],
+                ui.with_icon("angles-down", "Load more"),
+              ),
+            ])
+        },
+      ],
     ),
-    html.form([event.on_submit(fn(_) { SubmitServer })], [
-      field(
-        "Server name",
-        "server-name",
-        model.server_name,
-        "github",
-        False,
-        ServerNameEdited,
-      ),
-      field(
-        "Server URL",
+  ])
+}
+
+fn catalog_card(
+  model: Model,
+  entry: catalog.Entry,
+  index: Int,
+) -> Element(Msg) {
+  let added = list.any(model.servers, fn(row) { row.url == entry.url })
+  let source = case entry.category {
+    "registry" -> entry.id
+    _ -> "MCP Registry · " <> entry.id
+  }
+  ui.catalog_card(
+    index,
+    entry.icon,
+    entry.title,
+    source,
+    case entry.description {
+      "" -> "No description in the registry."
+      description -> description
+    },
+    [
+      auth_pill(entry.auth),
+      case added, catalog.addable(entry) {
+        True, _ -> ui.pill(ui.Good, "check", "Added")
+        _, False ->
+          ui.button(
+            ui.Secondary,
+            [attribute.type_("button"), attribute.disabled(True)],
+            [text("Not supported yet")],
+          )
+        _, True ->
+          ui.button(
+            ui.Primary,
+            [
+              attribute.type_("button"),
+              attribute.disabled(model.busy),
+              attribute.aria_label("Add " <> entry.title),
+              event.on_click(OpenEntry(entry)),
+            ],
+            ui.with_icon("plus", "Add"),
+          )
+      },
+    ],
+  )
+}
+
+fn auth_pill(auth: catalog.Auth) -> Element(Msg) {
+  case auth {
+    catalog.KeyRequired -> ui.pill(ui.Neutral, "key", catalog.auth_label(auth))
+    catalog.KeyOptional -> ui.pill(ui.Neutral, "key", catalog.auth_label(auth))
+    catalog.NoKey -> ui.pill(ui.Good, "lock-open", catalog.auth_label(auth))
+    catalog.OtherHeaders(names) ->
+      ui.pill(ui.Caution, "ban", "Needs " <> string.join(names, ", "))
+  }
+}
+
+fn sheet_view(model: Model) -> Element(Msg) {
+  case model.sheet {
+    Closed -> element.none()
+    Custom ->
+      ui.sheet("Add a server by URL", "fa-solid fa-link", close_sheet(), [
+        ui.muted(
+          "Any remote MCP server that speaks streamable HTTP or SSE. Servers that need an OAuth sign-in can't be added yet.",
+        ),
+        server_form(model, ""),
+      ])
+    FromCatalog(entry) ->
+      ui.sheet("Add " <> entry.title, entry.icon, close_sheet(), [
+        html.p([], [text(entry.description)]),
+        ui.muted_content([
+          text("From the official MCP Registry: "),
+          html.code([], [text(entry.id)]),
+          case entry.website {
+            "" -> element.none()
+            site ->
+              html.span([], [
+                text(" · "),
+                html.a(
+                  [
+                    attribute.href(site),
+                    attribute.target("_blank"),
+                    attribute.rel("noopener noreferrer"),
+                  ],
+                  [text("Docs "), ui.icon("arrow-up-right-from-square")],
+                ),
+              ])
+          },
+        ]),
+        server_form(model, entry.key_hint),
+      ])
+  }
+}
+
+fn close_sheet() -> List(attribute.Attribute(Msg)) {
+  [event.on_click(CloseSheet)]
+}
+
+fn server_form(model: Model, key_hint: String) -> Element(Msg) {
+  html.form([event.on_submit(fn(_) { SubmitServer })], [
+    ui.field(
+      "Name",
+      "server-name",
+      "Agents see it before each tool name. Lowercase letters, digits, hyphens or underscores.",
+      text_input("server-name", model.server_name, "github", ServerNameEdited),
+    ),
+    ui.field(
+      "Server URL",
+      "server-url",
+      case catalog.needs_fill(model.server_url) {
+        True -> "Replace each {…} part. The server's docs say what goes there."
+        False -> ""
+      },
+      text_input(
         "server-url",
         model.server_url,
         "https://example.com/mcp",
-        False,
         ServerUrlEdited,
       ),
-      ui.field(
-        "Auth",
-        "auth-kind",
-        "",
-        ui.select(
-          [
-            attribute.id("auth-kind"),
-            attribute.disabled(model.busy),
-            event.on_change(AuthKindEdited),
-          ],
-          [
-            option("none", "No extra credential", model.auth_kind == "none"),
-            option("key", "API key or token", model.auth_kind == "key"),
-            option(
-              "passthrough",
-              "Pass the client token through",
-              model.auth_kind == "passthrough",
-            ),
-          ],
-        ),
-      ),
-      case model.auth_kind == "key" {
-        True ->
-          field(
-            "API key or token",
-            "api-key",
-            model.api_key,
-            "",
-            True,
-            ApiKeyEdited,
-          )
-        False -> element.none()
-      },
-      ui.actions([
-        ui.button(
-          ui.Primary,
-          [
-            attribute.type_("submit"),
-            attribute.disabled(model.busy),
-          ],
-          [text("Add server")],
-        ),
-      ]),
-    ]),
-    server_list(model),
-  ])
-}
-
-fn tools(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-tools")], [
-    steps(model),
-    html.h1([], [text("Rules for each tool")]),
-    ui.lead(
-      "Allow runs the tool. Block stops it. Ask first holds each call until you approve it, then the agent tries again. Tools without a rule are blocked.",
     ),
-    channel_field(model),
-    case model.probe_note {
-      "" -> element.none()
-      note -> ui.muted(note)
-    },
-    server_picker(model),
-    ui.list([
-      tool_row(model, "*"),
-      ..list.map(tool_names(model), fn(name) { tool_row(model, name) })
-    ]),
-    case tool_names(model) {
-      [] ->
-        ui.muted(
-          "No tool names yet. Type one, or wait until the gateway lists them.",
+    ui.field(
+      "Credential",
+      "auth-kind",
+      "",
+      ui.select(
+        [
+          attribute.id("auth-kind"),
+          attribute.disabled(model.busy),
+          event.on_change(AuthKindEdited),
+        ],
+        [
+          option("none", "No credential", model.auth_kind == "none"),
+          option("key", "API key or token", model.auth_kind == "key"),
+          option(
+            "passthrough",
+            "Pass the agent's own token through",
+            model.auth_kind == "passthrough",
+          ),
+        ],
+      ),
+    ),
+    case model.auth_kind == "key" {
+      True ->
+        ui.field(
+          "API key or token",
+          "api-key",
+          case key_hint {
+            "" ->
+              "Stored encrypted and sent as Authorization: Bearer. It is not shown again."
+            hint -> hint <> " Stored encrypted and not shown again."
+          },
+          ui.input([
+            attribute.id("api-key"),
+            attribute.type_("password"),
+            attribute.autocomplete("off"),
+            attribute.value(model.api_key),
+            event.on_input(ApiKeyEdited),
+          ]),
         )
+      False -> element.none()
+    },
+    ui.actions([
+      ui.button(
+        ui.Primary,
+        [attribute.type_("submit"), attribute.disabled(model.busy)],
+        case model.busy {
+          True -> [
+            ui.icon_classes("fa-solid fa-spinner fa-spin"),
+            text("Adding"),
+          ]
+          False -> ui.with_icon("plus", "Add server")
+        },
+      ),
+      ui.button(
+        ui.Quiet,
+        [attribute.type_("button"), event.on_click(CloseSheet)],
+        [text("Cancel")],
+      ),
+    ]),
+    // Last in the form, beside the button that caused it. A conditional
+    // first child would also shift the prerendered fields on hydration.
+    case model.notice {
+      Bad(message) -> ui.notice_text(ui.Bad, message)
       _ -> element.none()
     },
-    html.form([event.on_submit(fn(_) { SaveNamedTool })], [
-      field(
-        "Tool name",
-        "tool-name",
-        model.tool_name,
-        "create_issue",
-        False,
-        ToolEdited,
-      ),
-      ui.actions([
+  ])
+}
+
+// Rules ----------------------------------------------------------------------------
+
+fn rules_tab(model: Model) -> Element(Msg) {
+  html.div([attribute.id("step-tools")], [
+    ui.panel_head(
+      "list-check",
+      "Rules for each tool",
+      "Allow runs the tool. Block stops it. Ask first holds each call until you approve it, then the agent tries again. Tools without a rule are blocked.",
+      [],
+    ),
+    case model.servers {
+      [] ->
+        ui.empty_state(
+          "server",
+          "Add a server first",
+          "Rules apply to the tools of a server on this gateway.",
+          [
+            ui.link_button(
+              ui.Primary,
+              route.tab_path(model.id, route.Servers),
+              ui.with_icon("plus", "Add a server"),
+            ),
+          ],
+        )
+      rows ->
+        html.div([], [
+          ui.chips(
+            "Server",
+            list.map(rows, fn(row) {
+              #(
+                row.name,
+                row.id == model.server_pick,
+                event.on_click(ServerPicked(row.id)),
+              )
+            }),
+          ),
+          channel_field(model),
+          case model.probe_note {
+            "" -> element.none()
+            note -> ui.muted(note)
+          },
+          ui.item_list([
+            tool_row(model, "*"),
+            ..list.map(tool_names(model), fn(name) { tool_row(model, name) })
+          ]),
+          case tool_names(model) {
+            [] ->
+              ui.muted(
+                "No tool names yet. They show up after an agent first connects. You can also type one below.",
+              )
+            _ -> element.none()
+          },
+          html.form([event.on_submit(fn(_) { SaveNamedTool })], [
+            field(
+              "Rule for a tool by name",
+              "tool-name",
+              model.tool_name,
+              "create_issue",
+              False,
+              ToolEdited,
+            ),
+            ui.field(
+              "Rule",
+              "tool-effect",
+              "",
+              ui.select(
+                [attribute.id("tool-effect"), event.on_change(EffectEdited)],
+                [
+                  option("allow", rule_label("allow"), model.effect == "allow"),
+                  option("deny", rule_label("deny"), model.effect == "deny"),
+                  option(
+                    "approve",
+                    rule_label("approve"),
+                    model.effect == "approve",
+                  ),
+                ],
+              ),
+            ),
+            ui.actions([
+              ui.button(
+                ui.Secondary,
+                [attribute.type_("submit"), attribute.disabled(model.busy)],
+                ui.with_icon("floppy-disk", "Save rule"),
+              ),
+            ]),
+          ]),
+        ])
+    },
+  ])
+}
+
+fn tool_row(model: Model, name: String) -> Element(Msg) {
+  let title = case name {
+    "*" -> "Every tool (default)"
+    _ -> name
+  }
+  ui.item_row(
+    case name {
+      "*" -> "fa-solid fa-layer-group"
+      _ -> "fa-solid fa-wrench"
+    },
+    title,
+    [text(policy_label(model, name))],
+    [
+      ui.rule_switch("Rule for " <> title, [
+        rule_option(model, name, "allow", "check"),
+        rule_option(model, name, "deny", "ban"),
+        rule_option(model, name, "approve", "hand"),
+      ]),
+    ],
+  )
+}
+
+fn rule_option(
+  model: Model,
+  tool: String,
+  effect_name: String,
+  icon: String,
+) -> #(String, String, String, Bool, List(attribute.Attribute(Msg))) {
+  #(
+    effect_name,
+    icon,
+    rule_label(effect_name),
+    current_effect(model, tool) == Ok(effect_name),
+    [
+      attribute.disabled(model.busy),
+      event.on_click(SavePolicy(model.server_pick, tool, effect_name)),
+    ],
+  )
+}
+
+/// The UI names for rule effects. The API keeps allow, deny, and approve.
+pub fn rule_label(effect_name: String) -> String {
+  case effect_name {
+    "allow" -> "Allow"
+    "deny" -> "Block"
+    "approve" -> "Ask first"
+    other -> other
+  }
+}
+
+fn current_policy(model: Model, tool: String) -> Result(api.PolicyRow, Nil) {
+  list.find(model.policies, fn(row) {
+    row.tool_name == tool
+    && { row.server_id == model.server_pick || row.server_id == "" }
+  })
+}
+
+fn current_effect(model: Model, tool: String) -> Result(String, Nil) {
+  case current_policy(model, tool) {
+    Ok(row) -> Ok(row.effect)
+    Error(_) -> Error(Nil)
+  }
+}
+
+fn policy_label(model: Model, tool: String) -> String {
+  case current_policy(model, tool) {
+    Ok(row) ->
+      case row.effect {
+        "approve" ->
+          rule_label(row.effect) <> " · notify by " <> row.notify_channel
+        _ -> rule_label(row.effect)
+      }
+    Error(_) ->
+      case tool {
+        "*" -> "No default yet, so tools without a rule are blocked"
+        _ -> "No rule yet"
+      }
+  }
+}
+
+fn tool_names(model: Model) -> List(String) {
+  let server = case
+    list.find(model.servers, fn(row) { row.id == model.server_pick })
+  {
+    Ok(row) -> row.name
+    Error(_) -> ""
+  }
+  unique(
+    list.flatten([
+      model.discovered,
+      list.filter_map(model.pins, fn(row) {
+        case server == "" || row.server_name == server {
+          True -> Ok(row.tool_name)
+          False -> Error(Nil)
+        }
+      }),
+      list.filter_map(model.policies, fn(row) {
+        case row.tool_name, row.server_id == model.server_pick {
+          "*", _ | "", _ -> Error(Nil)
+          name, True -> Ok(name)
+          _, False -> Error(Nil)
+        }
+      }),
+    ]),
+  )
+}
+
+fn unique(items: List(String)) -> List(String) {
+  list.fold(items, [], fn(acc, item) {
+    case list.contains(acc, item) {
+      True -> acc
+      False -> list.append(acc, [item])
+    }
+  })
+}
+
+fn channel_field(model: Model) -> Element(Msg) {
+  html.div([], [
+    ui.field(
+      "When a tool asks first, notify by",
+      "notify",
+      "",
+      ui.select([attribute.id("notify"), event.on_change(ChannelEdited)], [
+        option("log", "Log", model.channel == "log"),
+        option("webhook", "Webhook", model.channel == "webhook"),
+        case api.phone_ok(model.plan) {
+          True -> option("phone", "Phone", model.channel == "phone")
+          False -> element.none()
+        },
+      ]),
+    ),
+    case api.phone_ok(model.plan) {
+      True -> ui.muted("Phone calls share the monthly cap with sensor alerts.")
+      False ->
+        ui.muted_content([
+          text(
+            "Phone calls are on Tinkerer and Pro. This plan can log the request or send a webhook. ",
+          ),
+          html.a([attribute.href("/pricing")], [text("See plans")]),
+          text("."),
+        ])
+    },
+  ])
+}
+
+// Approvals ------------------------------------------------------------------------
+
+fn approvals_tab(model: Model) -> Element(Msg) {
+  let decided =
+    list.filter(model.approvals, fn(row) { row.status != "pending" })
+  html.div([attribute.id("step-approvals")], [
+    ui.panel_head(
+      "hand",
+      "Approvals",
+      "Calls held by an Ask first rule. Approving lets that same call through once. The agent has to retry it.",
+      [
         ui.button(
           ui.Secondary,
-          [
-            attribute.type_("submit"),
-            attribute.disabled(model.busy),
-          ],
-          [text("Save rule for this name")],
+          [attribute.type_("button"), event.on_click(RefreshApprovals)],
+          ui.with_icon("rotate", "Refresh"),
         ),
-      ]),
-    ]),
-    ui.actions([
-      ui.button(
-        ui.Primary,
-        [
-          attribute.type_("button"),
-          attribute.disabled(model.busy),
-          event.on_click(Continue(route.Pin)),
-        ],
-        [text("Continue to pins")],
-      ),
-    ]),
-  ])
-}
-
-fn pins(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-pin")], [
-    steps(model),
-    html.h1([], [text("Pin tool descriptions")]),
-    ui.muted(
-      "A pin is the description the gateway has seen. If that text changes later, the tool is hidden until you approve the new one. Calls stay denied until the pin is approved.",
+      ],
     ),
-    case model.pins {
+    case pending(model) {
       [] ->
-        ui.muted(
-          "Nothing is pinned yet. Pins show up after the gateway lists the server's tools. You can connect a client and come back.",
+        ui.empty_state(
+          "circle-check",
+          "No pending approvals",
+          "When an agent calls a tool set to Ask first, the call waits here until you decide.",
+          [],
         )
-      rows -> ui.list(list.map(rows, pin_row))
+      rows -> ui.item_list(list.map(rows, approval_row))
     },
-    open_alerts(model),
-    ui.actions([
+    case decided {
+      [] -> element.none()
+      rows ->
+        ui.block("Decided", [], [
+          ui.item_list(
+            list.map(list.take(rows, 10), fn(row) {
+              ui.item_row(
+                "fa-solid fa-clock-rotate-left",
+                row.tool_name,
+                [
+                  text(row.server_name <> " · "),
+                  case row.status {
+                    "approved" -> ui.pill(ui.Good, "check", "Approved")
+                    "denied" -> ui.pill(ui.Bad, "xmark", "Rejected")
+                    other -> ui.pill(ui.Neutral, "clock", other)
+                  },
+                ],
+                [],
+              )
+            }),
+          ),
+        ])
+    },
+  ])
+}
+
+fn approval_row(row: api.ApprovalRow) -> Element(Msg) {
+  ui.item_row(
+    "fa-solid fa-hand",
+    row.tool_name,
+    [
+      text(row.server_name),
+      case row.args_preview {
+        "" -> element.none()
+        args -> html.span([], [text(" · arguments: " <> args)])
+      },
+    ],
+    [
       ui.button(
         ui.Primary,
-        [
-          attribute.type_("button"),
-          attribute.disabled(model.busy),
-          event.on_click(Continue(route.Client)),
-        ],
-        [text("Continue to a client")],
+        [attribute.type_("button"), event.on_click(Decide(row.id, "approved"))],
+        ui.with_icon("check", "Approve"),
       ),
+      ui.button(
+        ui.Secondary,
+        [attribute.type_("button"), event.on_click(Decide(row.id, "denied"))],
+        ui.with_icon("xmark", "Reject"),
+      ),
+    ],
+  )
+}
+
+// Tool changes ------------------------------------------------------------------------
+
+fn changes_tab(model: Model) -> Element(Msg) {
+  html.div([attribute.id("step-alerts")], [
+    ui.panel_head(
+      "triangle-exclamation",
+      "Tool changes",
+      "The gateway pins each tool's description. If a server changes it, the tool is hidden until you approve the new text.",
+      [],
+    ),
+    ui.block("Changed tools", [], [
+      ui.muted(
+        "The description is text from the MCP server. Treat it as untrusted. Approving stores the new text. Dismiss only hides the alert.",
+      ),
+      open_alerts(model),
+    ]),
+    ui.block("Pinned tools", [], [
+      case model.pins {
+        [] ->
+          ui.muted(
+            "Nothing is pinned yet. Pins show up after the gateway lists a server's tools.",
+          )
+        rows -> ui.item_list(list.map(rows, pin_row))
+      },
     ]),
   ])
 }
 
-fn client(model: Model) -> Element(Msg) {
-  let hosted = model.hosted == Up
+fn pin_row(row: api.PinRow) -> Element(Msg) {
+  ui.item_row(
+    "fa-solid fa-thumbtack",
+    row.server_name <> " / " <> row.tool_name,
+    [
+      case row.status {
+        "approved" -> ui.pill(ui.Good, "check", "Approved")
+        "changed" -> ui.pill(ui.Caution, "triangle-exclamation", "Changed")
+        other ->
+          ui.pill(ui.Neutral, "circle-question", string.capitalise(other))
+      },
+    ],
+    [
+      case row.status == "approved" {
+        True -> element.none()
+        False ->
+          ui.button(
+            ui.Secondary,
+            [
+              attribute.type_("button"),
+              event.on_click(ApprovePin(row.server_name, row.tool_name)),
+            ],
+            ui.with_icon("check", "Approve pin"),
+          )
+      },
+    ],
+  )
+}
+
+fn open_alerts(model: Model) -> Element(Msg) {
+  case open_alert_rows(model) {
+    [] -> ui.pill(ui.Good, "circle-check", "No changed tools")
+    rows ->
+      ui.item_list(
+        list.map(rows, fn(row) {
+          ui.item_row(
+            "fa-solid fa-triangle-exclamation",
+            row.server_name <> " / " <> row.tool_name,
+            [html.p([], [text(row.preview)])],
+            [
+              ui.button(
+                ui.Primary,
+                [
+                  attribute.type_("button"),
+                  event.on_click(ApprovePin(row.server_name, row.tool_name)),
+                ],
+                ui.with_icon("check", "Approve the new description"),
+              ),
+              ui.button(
+                ui.Secondary,
+                [attribute.type_("button"), event.on_click(AckAlert(row.id))],
+                [text("Dismiss")],
+              ),
+            ],
+          )
+        }),
+      )
+  }
+}
+
+// Connect ------------------------------------------------------------------------
+
+fn connect_tab(model: Model) -> Element(Msg) {
+  let hosted = model.hosted == Up && current_mode(model) != "selfhost"
   let url =
-    clients.endpoint(hosted, current_mode(model), current_public_url(model))
-  ui.card([attribute.id("step-client")], [
-    steps(model),
-    html.h1([], [text("Connect a client")]),
+    clients.endpoint(
+      model.hosted == Up,
+      current_mode(model),
+      current_public_url(model),
+    )
+  html.div([attribute.id("step-client")], [
+    ui.panel_head(
+      "plug",
+      "Connect an agent",
+      "Give each agent its own client token. Revoke one without touching the others.",
+      [],
+    ),
     case hosted {
       True ->
-        html.div([], [
-          html.p([], [text("Clients use this URL.")]),
-          ui.code_block(current_public_url(model)),
-          html.h2([], [text("Run it yourself")]),
-          ui.muted(
-            "Linked mode still uses a registration token. That token is not the client token.",
-          ),
-          registration_box(model),
+        ui.block("Gateway URL", [], [
+          ui.copy_line(current_public_url(model), [
+            copy_button(current_public_url(model)),
+          ]),
         ])
-      False -> self_host(model)
+      False -> ui.block("Run it yourself", [], [self_host(model)])
     },
-    html.form([event.on_submit(fn(_) { MintToken })], [
-      field(
-        "Token name",
-        "token-name",
-        model.token_name,
-        "Cursor",
-        False,
-        TokenNameEdited,
-      ),
-      ui.actions([
-        ui.button(
-          ui.Primary,
-          [
-            attribute.type_("submit"),
-            attribute.disabled(model.busy),
-          ],
-          [text("Mint a client token")],
+    ui.block("Client token", [], [
+      html.form([event.on_submit(fn(_) { MintToken })], [
+        field(
+          "Token name",
+          "token-name",
+          model.token_name,
+          "Cursor",
+          False,
+          TokenNameEdited,
         ),
+        ui.actions([
+          ui.button(
+            ui.Primary,
+            [attribute.type_("submit"), attribute.disabled(model.busy)],
+            ui.with_icon("key", "Mint a client token"),
+          ),
+        ]),
       ]),
+      case api.client_token_ok(model.minted) {
+        False ->
+          ui.muted("Mint a token to fill the snippets. It is shown once.")
+        True -> snippets(url, model.minted)
+      },
     ]),
-    case api.client_token_ok(model.minted) {
-      False -> ui.muted("Mint a token to fill the snippets. It is shown once.")
-      True -> snippets(url, model.minted)
-    },
-    html.p([], [
-      html.a([attribute.href(route.gateway_path(model.id))], [
-        text("Open this gateway"),
-      ]),
+    ui.block("Tokens", [], [
+      case model.tokens {
+        [] -> ui.muted("No client tokens yet.")
+        rows -> ui.item_list(list.map(rows, token_row))
+      },
     ]),
   ])
 }
@@ -1349,9 +2480,12 @@ fn client(model: Model) -> Element(Msg) {
 fn self_host(model: Model) -> Element(Msg) {
   html.div([attribute.id("self-host")], [
     html.p([], [
-      text(
-        "The shared host is not answering yet, so this gateway has no public MCP URL to hand a client. Run it yourself and link it with the registration token.",
-      ),
+      text(case current_mode(model) {
+        "selfhost" ->
+          "This gateway runs on your machine. Link it to this account with the registration token."
+        _ ->
+          "The shared host is not answering yet, so this gateway has no public MCP URL to hand a client. Run it yourself and link it with the registration token."
+      }),
     ]),
     html.ol([], [
       html.li([], [
@@ -1397,26 +2531,13 @@ fn registration_box(model: Model) -> Element(Msg) {
               attribute.disabled(model.busy),
               event.on_click(RotateRegistration),
             ],
-            [text("Rotate registration token")],
+            ui.with_icon("rotate", "Rotate registration token"),
           ),
         ]),
       ])
     True ->
-      html.div([], [
-        ui.snippet(
-          "Registration token, for fizz-agent only",
-          model.registration,
-          [
-            ui.button(
-              ui.Secondary,
-              [
-                attribute.type_("button"),
-                event.on_click(Copy(model.registration)),
-              ],
-              [text("Copy")],
-            ),
-          ],
-        ),
+      ui.snippet("Registration token, for fizz-agent only", model.registration, [
+        copy_button(model.registration),
       ])
   }
 }
@@ -1431,192 +2552,26 @@ fn snippets(url: String, token: String) -> Element(Msg) {
 }
 
 fn snippet(title: String, body: String) -> Element(Msg) {
-  ui.snippet(title, body, [
-    ui.button(
-      ui.Secondary,
-      [attribute.type_("button"), event.on_click(Copy(body))],
-      [text("Copy")],
-    ),
-  ])
+  ui.snippet(title, body, [copy_button(body)])
 }
 
-fn list_page(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-gateways")], [
-    html.h1([], [text("Gateways")]),
-    plan_card(model.plan),
-    case model.loaded, model.gateways {
-      False, _ -> ui.muted("Loading gateways…")
-      True, [] ->
-        html.p([], [
-          text("No gateway yet. "),
-          html.a([attribute.href(route.onboarding_path("", route.Create))], [
-            text("Create one"),
-          ]),
-          text("."),
-        ])
-      True, rows -> ui.list(list.map(rows, gateway_row))
-    },
-    html.p([], [
-      ui.link_button(ui.Primary, route.onboarding_path("", route.Create), [
-        text("New gateway"),
-      ]),
-    ]),
-  ])
-}
-
-fn home(model: Model) -> Element(Msg) {
-  let row = current_gateway(model)
-  ui.card([attribute.id("step-home")], [
-    html.h1([], [
-      text(case row {
-        Ok(gateway) -> gateway.name
-        Error(_) -> "Gateway"
-      }),
-    ]),
-    case row {
-      Ok(gateway) ->
-        html.div([], [
-          html.p([], [
-            ui.badge(mode_label(gateway.mode)),
-            text(" "),
-            ui.badge(gateway.status),
-          ]),
-          case gateway.status {
-            "disabled" ->
-              ui.notice_text(
-                ui.Bad,
-                "This gateway is paused because your plan's gateway limit is reached. Remove a gateway or upgrade to run it again.",
-              )
-            _ -> element.none()
-          },
-          ui.code_block(gateway.public_url),
-        ])
-      Error(_) -> ui.muted("Loading…")
-    },
-    nav_links(model.id),
-    server_list(model),
-    registration_box(model),
-    case model.confirm_delete {
-      False ->
-        ui.button(
-          ui.Secondary,
-          [
-            attribute.type_("button"),
-            event.on_click(AskDelete),
-          ],
-          [text("Delete gateway")],
-        )
-      True ->
-        html.div([], [
-          html.p([], [text("Delete this gateway, its servers, and its tokens?")]),
-          ui.button(
-            ui.Primary,
-            [
-              attribute.type_("button"),
-              attribute.disabled(model.busy),
-              event.on_click(DeleteGateway),
-            ],
-            [text("Confirm delete")],
-          ),
-        ])
-    },
-  ])
-}
-
-fn inbox(model: Model) -> Element(Msg) {
-  let pending =
-    list.filter(model.approvals, fn(row) { row.status == "pending" })
-  ui.card([attribute.id("step-approvals")], [
-    html.h1([], [text("Approvals")]),
-    ui.muted(
-      "Approve or deny a pending call. Approving allows that same call once. The agent has to retry it.",
-    ),
-    nav_links(model.id),
-    case pending {
-      [] -> html.p([], [text("No pending approvals.")])
-      rows -> ui.list(list.map(rows, approval_row))
-    },
-  ])
-}
-
-fn alerts(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-alerts")], [
-    html.h1([], [text("Changed tools")]),
-    ui.muted(
-      "The description below is text from the MCP server. Treat it as untrusted. Approving the pin stores the new hash. Dismiss only hides the alert.",
-    ),
-    nav_links(model.id),
-    open_alerts(model),
-  ])
-}
-
-fn token_page(model: Model) -> Element(Msg) {
-  ui.card([attribute.id("step-tokens")], [
-    html.h1([], [text("Client tokens")]),
-    ui.muted(
-      "Revoking a token blocks it on the next call. The JWT itself is only shown when you mint it.",
-    ),
-    nav_links(model.id),
-    case api.client_token_ok(model.minted) {
-      True ->
-        html.div([], [
-          html.p([], [text("New token")]),
-          secret_block(model.minted),
-        ])
-      False -> element.none()
-    },
-    html.form([event.on_submit(fn(_) { MintToken })], [
-      field(
-        "Token name",
-        "token-name",
-        model.token_name,
-        "Cursor",
-        False,
-        TokenNameEdited,
-      ),
-      ui.button(
-        ui.Primary,
-        [
-          attribute.type_("submit"),
-          attribute.disabled(model.busy),
-        ],
-        [text("Mint a client token")],
-      ),
-    ]),
-    case model.tokens {
-      [] -> ui.muted("No client tokens yet.")
-      rows -> ui.list(list.map(rows, token_row))
-    },
-  ])
-}
-
-fn approval_row(row: api.ApprovalRow) -> Element(Msg) {
-  ui.list_row(
-    row.tool_name,
-    [text(row.server_name <> " · " <> row.args_preview)],
-    [
-      ui.button(
-        ui.Primary,
-        [attribute.type_("button"), event.on_click(Decide(row.id, "approved"))],
-        [text("Approve")],
-      ),
-      ui.button(
-        ui.Secondary,
-        [attribute.type_("button"), event.on_click(Decide(row.id, "denied"))],
-        [text("Reject")],
-      ),
-    ],
+fn copy_button(value: String) -> Element(Msg) {
+  ui.button(
+    ui.Secondary,
+    [attribute.type_("button"), event.on_click(Copy(value))],
+    ui.with_icon("copy", "Copy"),
   )
 }
 
 fn token_row(row: api.TokenRow) -> Element(Msg) {
-  ui.list_row(
+  ui.item_row(
+    "fa-solid fa-key",
     row.name,
     [
-      ui.badge(case row.revoked {
-        True -> "Revoked"
-        False -> "Active"
-      }),
+      case row.revoked {
+        True -> ui.pill(ui.Neutral, "ban", "Revoked")
+        False -> ui.pill(ui.Good, "check", "Active")
+      },
     ],
     [
       case row.revoked {
@@ -1625,284 +2580,87 @@ fn token_row(row: api.TokenRow) -> Element(Msg) {
           ui.button(
             ui.Danger,
             [attribute.type_("button"), event.on_click(RevokeToken(row.id))],
-            [text("Revoke")],
+            ui.with_icon("ban", "Revoke"),
           )
       },
     ],
   )
 }
 
-fn pin_row(row: api.PinRow) -> Element(Msg) {
-  ui.list_row(
-    row.server_name <> " / " <> row.tool_name,
-    [ui.badge(row.status)],
-    [
-      case row.status == "approved" {
-        True -> element.none()
+// Settings ------------------------------------------------------------------------
+
+fn settings_tab(model: Model) -> Element(Msg) {
+  let row = current_gateway(model)
+  html.div([attribute.id("step-settings")], [
+    ui.panel_head("gear", "Settings", "", []),
+    ui.block("This gateway", [], [
+      ui.facts([
+        #(
+          "Name",
+          text(case row {
+            Ok(gateway) -> gateway.name
+            Error(_) -> model.name
+          }),
+        ),
+        #("Where it runs", text(mode_label(current_mode(model)))),
+        #("Status", case row {
+          Ok(gateway) ->
+            ui.status_pill(
+              gateway.status == "active",
+              status_label(gateway.status),
+            )
+          Error(_) -> text("…")
+        }),
+        #("URL", html.code([], [text(current_public_url(model))])),
+      ]),
+    ]),
+    plan_card(model.plan),
+    ui.danger_zone([
+      html.h2([], [ui.icon("triangle-exclamation"), text(" Delete gateway")]),
+      html.p([], [
+        text(
+          "Deletes the gateway, its servers, rules and tokens. Agents using its URL stop working.",
+        ),
+      ]),
+      case model.confirm_delete {
         False ->
           ui.button(
-            ui.Secondary,
-            [
-              attribute.type_("button"),
-              event.on_click(ApprovePin(row.server_name, row.tool_name)),
-            ],
-            [text("Approve pin")],
+            ui.Danger,
+            [attribute.type_("button"), event.on_click(AskDelete)],
+            ui.with_icon("trash", "Delete gateway"),
           )
+        True ->
+          ui.actions([
+            ui.button(
+              ui.Danger,
+              [
+                attribute.type_("button"),
+                attribute.disabled(model.busy),
+                event.on_click(DeleteGateway),
+              ],
+              ui.with_icon("trash", "Yes, delete it"),
+            ),
+            ui.button(
+              ui.Quiet,
+              [attribute.type_("button"), event.on_click(CancelDelete)],
+              [text("Keep it")],
+            ),
+          ])
       },
-    ],
-  )
-}
-
-fn open_alerts(model: Model) -> Element(Msg) {
-  let open = list.filter(model.alerts, fn(row) { !row.acknowledged })
-  case open {
-    [] -> ui.muted("No changed tools.")
-    rows ->
-      ui.list(
-        list.map(rows, fn(row) {
-          ui.list_row(
-            row.server_name <> " / " <> row.tool_name,
-            [html.p([], [text(row.preview)])],
-            [
-              ui.button(
-                ui.Primary,
-                [
-                  attribute.type_("button"),
-                  event.on_click(ApprovePin(row.server_name, row.tool_name)),
-                ],
-                [text("Approve the new description")],
-              ),
-              ui.button(
-                ui.Secondary,
-                [attribute.type_("button"), event.on_click(AckAlert(row.id))],
-                [text("Dismiss")],
-              ),
-            ],
-          )
-        }),
-      )
-  }
-}
-
-fn tool_row(model: Model, name: String) -> Element(Msg) {
-  let title = case name {
-    "*" -> "Every tool (default)"
-    _ -> name
-  }
-  ui.list_row(title, [text(policy_label(model, name))], [
-    rule_button(model, name, "allow"),
-    rule_button(model, name, "deny"),
-    rule_button(model, name, "approve"),
-  ])
-}
-
-fn rule_button(
-  model: Model,
-  tool: String,
-  effect_name: String,
-) -> Element(Msg) {
-  let current = current_effect(model, tool) == Ok(effect_name)
-  ui.button(
-    case current {
-      True -> ui.Primary
-      False -> ui.Secondary
-    },
-    [
-      attribute.type_("button"),
-      attribute.aria_pressed(case current {
-        True -> "true"
-        False -> "false"
-      }),
-      attribute.disabled(model.busy),
-      event.on_click(SavePolicy(model.server_pick, tool, effect_name)),
-    ],
-    [text(rule_label(effect_name))],
-  )
-}
-
-/// The UI names for rule effects. The API keeps allow, deny, and approve.
-pub fn rule_label(effect_name: String) -> String {
-  case effect_name {
-    "allow" -> "Allow"
-    "deny" -> "Block"
-    "approve" -> "Ask first"
-    other -> other
-  }
-}
-
-fn current_policy(model: Model, tool: String) -> Result(api.PolicyRow, Nil) {
-  list.find(model.policies, fn(row) {
-    row.tool_name == tool
-    && { row.server_id == model.server_pick || row.server_id == "" }
-  })
-}
-
-fn current_effect(model: Model, tool: String) -> Result(String, Nil) {
-  case current_policy(model, tool) {
-    Ok(row) -> Ok(row.effect)
-    Error(_) -> Error(Nil)
-  }
-}
-
-fn policy_label(model: Model, tool: String) -> String {
-  case current_policy(model, tool) {
-    Ok(row) ->
-      case row.effect {
-        "approve" ->
-          rule_label(row.effect) <> " · notify by " <> row.notify_channel
-        _ -> rule_label(row.effect)
-      }
-    Error(_) -> "No rule yet"
-  }
-}
-
-fn tool_names(model: Model) -> List(String) {
-  unique(
-    list.flatten([
-      model.discovered,
-      list.map(model.pins, fn(row) { row.tool_name }),
-      list.filter_map(model.policies, fn(row) {
-        case row.tool_name {
-          "*" | "" -> Error(Nil)
-          name -> Ok(name)
-        }
-      }),
     ]),
-  )
-}
-
-fn unique(items: List(String)) -> List(String) {
-  list.fold(items, [], fn(acc, item) {
-    case list.contains(acc, item) {
-      True -> acc
-      False -> list.append(acc, [item])
-    }
-  })
-}
-
-fn server_picker(model: Model) -> Element(Msg) {
-  case model.servers {
-    [] -> element.none()
-    rows ->
-      html.div([], [
-        ui.field(
-          "Server",
-          "server-pick",
-          "",
-          ui.select(
-            [attribute.id("server-pick"), event.on_change(ServerPicked)],
-            list.map(rows, fn(row) {
-              option(row.id, row.name, row.id == model.server_pick)
-            }),
-          ),
-        ),
-      ])
-  }
-}
-
-fn server_list(model: Model) -> Element(Msg) {
-  case model.servers {
-    [] -> element.none()
-    rows ->
-      ui.list(
-        list.map(rows, fn(row) {
-          ui.list_row(
-            row.name,
-            [
-              text(
-                row.url
-                <> case row.has_secret {
-                  True -> " · credential stored"
-                  False -> ""
-                },
-              ),
-            ],
-            [
-              ui.button(
-                ui.Secondary,
-                [
-                  attribute.type_("button"),
-                  event.on_click(RemoveServer(row.id)),
-                ],
-                [text("Remove")],
-              ),
-            ],
-          )
-        }),
-      )
-  }
-}
-
-fn gateway_row(row: api.GatewayRow) -> Element(Msg) {
-  ui.list_row(row.name, [text(mode_label(row.mode) <> " · " <> row.status)], [
-    ui.link_button(ui.Secondary, route.gateway_path(row.id), [text("Open")]),
-    ui.link_button(ui.Quiet, route.approvals_path(row.id), [text("Approvals")]),
-    ui.link_button(ui.Quiet, route.alerts_path(row.id), [text("Changed tools")]),
-    ui.link_button(ui.Quiet, route.tokens_path(row.id), [text("Tokens")]),
   ])
 }
 
-fn mode_label(mode: String) -> String {
-  case mode {
-    "shared" -> "Shared"
-    "selfhost" -> "Self-hosted"
-    "dedicated" -> "Dedicated"
-    other -> other
-  }
-}
-
-fn nav_links(id: String) -> Element(Msg) {
-  ui.nav("Gateway pages", [
-    ui.nav_link(route.gateways_path, "All gateways", False),
-    ui.nav_link(route.approvals_path(id), "Approvals", False),
-    ui.nav_link(route.alerts_path(id), "Changed tools", False),
-    ui.nav_link(route.tokens_path(id), "Tokens", False),
-    ui.nav_link(route.onboarding_path(id, route.Tools), "Rules", False),
-  ])
-}
-
-fn channel_field(model: Model) -> Element(Msg) {
-  html.div([], [
-    ui.field(
-      "When a tool asks",
-      "notify",
-      "",
-      ui.select([attribute.id("notify"), event.on_change(ChannelEdited)], [
-        option("log", "Log", model.channel == "log"),
-        option("webhook", "Webhook", model.channel == "webhook"),
-        case api.phone_ok(model.plan) {
-          True -> option("phone", "Phone", model.channel == "phone")
-          False -> element.none()
-        },
-      ]),
-    ),
-    case api.phone_ok(model.plan) {
-      True -> ui.muted("Phone calls share the monthly cap with sensor alerts.")
-      False ->
-        ui.muted_content([
-          text(
-            "Phone calls are on Tinkerer and Pro. This plan can log the request or send a webhook. ",
-          ),
-          html.a([attribute.href("/pricing")], [text("See plans")]),
-          text("."),
-        ])
-    },
-  ])
-}
+// Shared pieces ------------------------------------------------------------------
 
 fn hosted_note(model: Model) -> Element(Msg) {
   case model.hosted {
     Unknown -> ui.muted("Checking whether the shared gateway is up…")
-    Up ->
-      html.p([], [
-        text(
-          "The shared gateway is up. A new shared gateway gets a hosted MCP URL.",
-        ),
-      ])
+    Up -> ui.pill(ui.Good, "circle-check", "Hosted gateways are up")
     Down ->
       html.p([], [
         text(
-          "The shared host is not answering yet. You can still save the gateway, servers, and rules. The connect step shows how to run it yourself.",
+          "The shared host is not answering yet. You can still save the gateway, servers, and rules. Connect shows how to run it yourself.",
         ),
       ])
   }
@@ -1910,7 +2668,7 @@ fn hosted_note(model: Model) -> Element(Msg) {
 
 fn plan_card(plan: api.Plan) -> Element(Msg) {
   ui.plan([attribute.id("plan-limits")], [
-    html.h2([], [text(plan.name)]),
+    html.h2([], [text(plan.name <> " plan")]),
     html.ul([], [
       html.li([], [text("Gateways: " <> api.cap_label(plan.gateway_limit))]),
       html.li([], [text("MCP servers: " <> api.cap_label(plan.server_limit))]),
@@ -1941,42 +2699,6 @@ fn plan_card(plan: api.Plan) -> Element(Msg) {
   ])
 }
 
-fn steps(model: Model) -> Element(Msg) {
-  let current = step_of_screen(model.screen)
-  ui.steps(
-    list.map(
-      [
-        #(route.Create, "Gateway"),
-        #(route.Server, "Server"),
-        #(route.Tools, "Rules"),
-        #(route.Pin, "Pin"),
-        #(route.Client, "Connect"),
-      ],
-      fn(item) {
-        let #(step, label) = item
-        // Before the gateway exists, later steps have nowhere to go.
-        let href = case model.id, step {
-          "", route.Create -> route.onboarding_path("", step)
-          "", _ -> ""
-          id, _ -> route.onboarding_path(id, step)
-        }
-        #(href, label, current == Ok(step))
-      },
-    ),
-  )
-}
-
-fn step_of_screen(screen: Screen) -> Result(route.Step, Nil) {
-  case screen {
-    Create -> Ok(route.Create)
-    Server -> Ok(route.Server)
-    Tools -> Ok(route.Tools)
-    Pin -> Ok(route.Pin)
-    Client -> Ok(route.Client)
-    _ -> Error(Nil)
-  }
-}
-
 fn field(
   label: String,
   id: String,
@@ -2003,12 +2725,24 @@ fn field(
   )
 }
 
-fn option(value: String, label: String, selected: Bool) -> Element(Msg) {
-  html.option([attribute.value(value), attribute.selected(selected)], label)
+fn text_input(
+  id: String,
+  value: String,
+  placeholder: String,
+  msg: fn(String) -> Msg,
+) -> Element(Msg) {
+  ui.input([
+    attribute.id(id),
+    attribute.type_("text"),
+    attribute.autocomplete("off"),
+    attribute.placeholder(placeholder),
+    attribute.value(value),
+    event.on_input(msg),
+  ])
 }
 
-fn secret_block(value: String) -> Element(Msg) {
-  ui.code_block(value)
+fn option(value: String, label: String, selected: Bool) -> Element(Msg) {
+  html.option([attribute.value(value), attribute.selected(selected)], label)
 }
 
 fn upgrade_box(message: String) -> Element(Msg) {
@@ -2048,6 +2782,17 @@ fn current_public_url(model: Model) -> String {
   }
 }
 
+/// The URL to show on Overview: the hosted URL for a shared gateway, the
+/// published one for a self-hosted gateway.
+fn endpoint_url(model: Model) -> String {
+  case current_public_url(model) {
+    "" -> "No URL yet"
+    url -> url
+  }
+}
+
+// Example data for /app/preview/<name> --------------------------------------------
+
 pub fn preview(name: String) -> Model {
   let id = "11111111-1111-4111-8111-111111111111"
   let base =
@@ -2056,6 +2801,7 @@ pub fn preview(name: String) -> Model {
       loaded: True,
       hosted: Down,
       id: id,
+      details_id: id,
       name: "home",
       mode: "shared",
       public_url: "https://gw.fizzlayer.com/w/" <> id <> "/mcp",
@@ -2076,7 +2822,7 @@ pub fn preview(name: String) -> Model {
         api.ServerRow(
           id: "22222222-2222-4222-8222-222222222222",
           name: "github",
-          url: "https://example.com/mcp",
+          url: "https://api.githubcopilot.com/mcp/",
           transport: "http",
           auth_kind: "key",
           has_secret: True,
@@ -2133,22 +2879,32 @@ pub fn preview(name: String) -> Model {
         ),
       ],
       server_name: "github",
-      server_url: "https://example.com/mcp",
+      server_url: "https://api.githubcopilot.com/mcp/",
       probe_note: "These names came from the server just now. Tools without a rule are blocked.",
     )
+  let quiet = Model(..base, registration: "", minted: "", api_key: "")
   case name {
-    "choose" ->
-      Model(..base, screen: Choose, registration: "", minted: "", api_key: "")
-    "create" -> Model(..base, screen: Create, registration: "", minted: "")
-    "server" ->
-      Model(..base, screen: Server, registration: "", minted: "", api_key: "")
-    "tools" -> Model(..base, screen: Tools, registration: "", minted: "")
+    "gateways" | "choose" -> Model(..quiet, screen: List)
+    "empty" -> Model(..quiet, screen: List, gateways: [])
+    "create" -> Model(..quiet, screen: Create, id: "", details_id: "")
+    "overview" -> Model(..quiet, screen: Page(route.Overview))
+    "server" | "servers" -> Model(..quiet, screen: Page(route.Servers))
+    "add-server" ->
+      case catalog.featured() {
+        [first, ..] ->
+          Model(
+            ..quiet,
+            screen: Page(route.Servers),
+            sheet: FromCatalog(first),
+            server_name: "github-2",
+          )
+        [] -> Model(..quiet, screen: Page(route.Servers), sheet: Custom)
+      }
+    "tools" -> Model(..quiet, screen: Page(route.Rules))
     "tools-pro" ->
       Model(
-        ..base,
-        screen: Tools,
-        registration: "",
-        minted: "",
+        ..quiet,
+        screen: Page(route.Rules),
         plan: api.Plan(
           ..api.hobbyist(),
           id: "pro",
@@ -2158,22 +2914,20 @@ pub fn preview(name: String) -> Model {
           stdio: True,
         ),
       )
-    "pin" -> Model(..base, screen: Pin, registration: "", minted: "")
-    "client" -> Model(..base, screen: Client)
-    "client-hosted" -> Model(..base, screen: Client, hosted: Up)
-    "gateways" ->
-      Model(..base, screen: List, registration: "", minted: "", api_key: "")
-    "approvals" -> Model(..base, screen: Inbox, registration: "", minted: "")
-    "alerts" -> Model(..base, screen: Alerts, registration: "", minted: "")
-    "tokens" -> Model(..base, screen: Tokens, minted: "")
+    "pin" | "alerts" -> Model(..quiet, screen: Page(route.Changes))
+    "client" -> Model(..base, screen: Page(route.Connect))
+    "client-hosted" -> Model(..base, screen: Page(route.Connect), hosted: Up)
+    "approvals" -> Model(..quiet, screen: Page(route.Approvals))
+    "tokens" -> Model(..base, screen: Page(route.Connect), minted: "")
+    "settings" -> Model(..quiet, screen: Page(route.Settings))
     "limit" ->
       Model(
-        ..base,
+        ..quiet,
         screen: Create,
-        registration: "",
-        minted: "",
+        id: "",
+        details_id: "",
         upgrade: "Your plan's gateway limit is reached. Hobbyist and Tinkerer include 1 shared gateway, and Pro includes 1 dedicated gateway. Remove a gateway or upgrade.",
       )
-    _ -> Model(..base, screen: Choose, registration: "", minted: "")
+    _ -> Model(..quiet, screen: List)
   }
 }

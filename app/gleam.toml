@@ -30,4 +30,7 @@ proxy = { from = "/api", to = "http://localhost:3000/api" }
 [tools.lustre.html]
 title = "Fizzlayer"
 lang = "en"
-stylesheets = [{ href = "/fizz.css" }]
+stylesheets = [
+  { href = "/vendor/fontawesome/css/icons.min.css" },
+  { href = "/fizz.css" },
+]

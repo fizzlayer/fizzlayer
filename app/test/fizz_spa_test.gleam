@@ -10,6 +10,7 @@ import lustre/element
 import simplifile
 
 import api
+import catalog
 import clients
 import config
 import fizz_spa
@@ -34,44 +35,115 @@ pub fn routes_under_app_test() {
   route.parse("/") |> should.equal(route.SignIn)
   route.parse("/workspace") |> should.equal(route.Gateways)
   let id = "11111111-1111-4111-8111-111111111111"
-  route.parse("/app/start") |> should.equal(route.Start)
-  route.parse("/app/onboarding")
-  |> should.equal(route.Onboarding(id: "", step: route.Create))
-  route.parse("/app/onboarding/" <> id <> "/server")
-  |> should.equal(route.Onboarding(id:, step: route.Server))
-  route.parse("/app/onboarding/" <> id <> "/tools")
-  |> should.equal(route.Onboarding(id:, step: route.Tools))
-  route.parse("/app/onboarding/" <> id <> "/pin")
-  |> should.equal(route.Onboarding(id:, step: route.Pin))
-  route.parse("/app/onboarding/" <> id <> "/client")
-  |> should.equal(route.Onboarding(id:, step: route.Client))
+  route.parse("/app/start") |> should.equal(route.Gateways)
+  route.parse("/app/gateways") |> should.equal(route.Gateways)
+  route.parse("/app/onboarding") |> should.equal(route.NewGateway)
+  route.parse("/app/gateways/" <> id)
+  |> should.equal(route.Gateway(id:, tab: route.Overview))
+  route.parse("/app/gateways/" <> id <> "/servers")
+  |> should.equal(route.Gateway(id:, tab: route.Servers))
+  route.parse("/app/gateways/" <> id <> "/rules")
+  |> should.equal(route.Gateway(id:, tab: route.Rules))
   route.parse("/app/gateways/" <> id <> "/approvals")
-  |> should.equal(route.Approvals(id:))
+  |> should.equal(route.Gateway(id:, tab: route.Approvals))
   route.parse("/app/gateways/" <> id <> "/alerts")
-  |> should.equal(route.PinAlerts(id:))
+  |> should.equal(route.Gateway(id:, tab: route.Changes))
+  route.parse("/app/gateways/" <> id <> "/connect")
+  |> should.equal(route.Gateway(id:, tab: route.Connect))
+  route.parse("/app/gateways/" <> id <> "/settings")
+  |> should.equal(route.Gateway(id:, tab: route.Settings))
+  // Links from before the tabs keep working.
   route.parse("/app/gateways/" <> id <> "/tokens")
-  |> should.equal(route.ClientTokens(id:))
+  |> should.equal(route.Gateway(id:, tab: route.Connect))
+  route.parse("/app/onboarding/" <> id <> "/server")
+  |> should.equal(route.Gateway(id:, tab: route.Servers))
+  route.parse("/app/onboarding/" <> id <> "/tools")
+  |> should.equal(route.Gateway(id:, tab: route.Rules))
+  route.parse("/app/onboarding/" <> id <> "/pin")
+  |> should.equal(route.Gateway(id:, tab: route.Changes))
+  route.parse("/app/onboarding/" <> id <> "/client")
+  |> should.equal(route.Gateway(id:, tab: route.Connect))
+  route.parse("/app/gateways/" <> id <> "/nope")
+  |> should.equal(route.NotFound(path: "/app/gateways/" <> id <> "/nope"))
   route.parse("/sensors") |> should.equal(route.Leave(path: "/sensors"))
   route.parse("/app/preview/client")
   |> should.equal(route.Preview(name: "client"))
 }
 
-pub fn onboarding_path_without_a_gateway_test() {
+pub fn tab_paths_round_trip_and_need_an_id_test() {
   let id = "11111111-1111-4111-8111-111111111111"
-  route.onboarding_path("", route.Create) |> should.equal("/app/onboarding")
-  route.onboarding_path("", route.Server) |> should.equal("/app/onboarding")
-  route.onboarding_path("", route.Client) |> should.equal("/app/onboarding")
-  route.onboarding_path(id, route.Server)
-  |> should.equal("/app/onboarding/" <> id <> "/server")
+  list.each(route.tabs, fn(tab) {
+    route.parse(route.tab_path(id, tab))
+    |> should.equal(route.Gateway(id:, tab:))
+  })
+  route.tab_path("", route.Servers) |> should.equal("/app/gateways")
 }
 
-pub fn create_step_does_not_link_ahead_test() {
-  let create =
-    gateway.Model(..gateway.preview("tools"), screen: gateway.Create, id: "")
-  let html = element.to_string(gateway.view(create))
-  string.contains(html, "/app/onboarding//") |> should.be_false
-  string.contains(html, "href=\"/app/onboarding\"") |> should.be_true
-  string.contains(html, "step-locked") |> should.be_true
+pub fn gateway_page_has_every_tab_and_counts_test() {
+  let html = element.to_string(gateway.view(gateway.preview("overview")))
+  list.each(route.tabs, fn(tab) {
+    string.contains(
+      html,
+      "href=\""
+        <> route.tab_path("11111111-1111-4111-8111-111111111111", tab)
+        <> "\"",
+    )
+    |> should.be_true
+  })
+  string.contains(html, "aria-current=\"page\"") |> should.be_true
+  string.contains(html, "fa-solid fa-hand") |> should.be_true
+  string.contains(html, "/app/gateways//") |> should.be_false
+}
+
+pub fn servers_tab_lists_the_featured_registry_servers_test() {
+  let html = element.to_string(gateway.view(gateway.preview("servers")))
+  list.each(catalog.featured(), fn(entry) {
+    string.contains(html, entry.id) |> should.be_true
+  })
+  string.contains(html, "registry-search") |> should.be_true
+  // GitHub is already on the example gateway.
+  string.contains(html, "Add GitHub") |> should.be_false
+  string.contains(html, "Add Stripe") |> should.be_true
+}
+
+pub fn add_sheet_prefills_from_the_catalog_test() {
+  let html = element.to_string(gateway.view(gateway.preview("add-server")))
+  string.contains(html, "role=\"dialog\"") |> should.be_true
+  string.contains(html, "https://api.githubcopilot.com/mcp/") |> should.be_true
+  string.contains(html, "personal access token") |> should.be_true
+  string.contains(html, "type=\"password\"") |> should.be_true
+}
+
+pub fn catalog_slugs_are_valid_server_names_test() {
+  list.each(catalog.featured(), fn(entry) {
+    api.server_name_ok(catalog.slug(entry.title)) |> should.be_true
+    api.remote_url_ok(entry.url) |> should.be_true
+    catalog.addable(entry) |> should.be_true
+  })
+  catalog.slug("monday.com") |> should.equal("monday-com")
+  catalog.slug("123 Go!") |> should.equal("go")
+  catalog.slug("!!!") |> should.equal("server")
+}
+
+pub fn registry_page_maps_auth_test() {
+  let body =
+    "{\"servers\":["
+    <> "{\"name\":\"a/key\",\"title\":\"Key\",\"description\":\"\",\"website\":\"\",\"remotes\":[{\"type\":\"streamable-http\",\"url\":\"https://a.example.com/mcp\",\"headers\":[{\"name\":\"Authorization\",\"secret\":true,\"required\":true,\"description\":\"Bearer key\"}],\"variables\":[]}]},"
+    <> "{\"name\":\"b/open\",\"title\":\"Open\",\"description\":\"\",\"website\":\"\",\"remotes\":[{\"type\":\"sse\",\"url\":\"https://b.example.com/sse\",\"headers\":[],\"variables\":[]}]},"
+    <> "{\"name\":\"c/custom\",\"title\":\"Custom\",\"description\":\"\",\"website\":\"\",\"remotes\":[{\"type\":\"streamable-http\",\"url\":\"https://{tenant}.example.com/mcp\",\"headers\":[{\"name\":\"X-Api-Key\",\"secret\":true,\"required\":true,\"description\":\"\"}],\"variables\":[\"tenant\"]}]}"
+    <> "],\"next\":\"c/custom:1\"}"
+  let assert Ok(page) = catalog.page_of(body)
+  page.next |> should.equal("c/custom:1")
+  let assert [key, open, custom] = page.entries
+  key.auth |> should.equal(catalog.KeyRequired)
+  key.key_hint |> should.equal("Bearer key")
+  open.auth |> should.equal(catalog.NoKey)
+  open.transport |> should.equal("sse")
+  custom.auth |> should.equal(catalog.OtherHeaders(["X-Api-Key"]))
+  catalog.addable(custom) |> should.be_false
+  catalog.needs_fill(custom.url) |> should.be_true
+  let assert Ok(last) = catalog.page_of("{\"servers\":[],\"next\":null}")
+  last.next |> should.equal("")
 }
 
 pub fn routes_outside_the_spa_leave_test() {
@@ -175,7 +247,7 @@ pub fn view_does_not_render_the_access_token_test() {
   let token = "eyJhbGciOiJub25lIn0.payload.signature"
   let model =
     fizz_spa.Model(
-      route: route.Start,
+      route: route.Gateways,
       signin: signin.Model(
         ..signin.init(False, None).0,
         email: "ada@example.com",
@@ -286,7 +358,13 @@ pub fn gateway_parsers_and_names_test() {
   row.name |> should.equal("home")
   api.registration_ok(row.registration) |> should.be_true
   let server =
-    api.server_body("github", "https://example.com/mcp", "key", "secret-value")
+    api.server_body(
+      "github",
+      "https://example.com/mcp",
+      "http",
+      "key",
+      "secret-value",
+    )
   string.contains(server, "secret-value") |> should.be_true
   case
     api.failure(
@@ -304,7 +382,7 @@ pub fn every_gateway_route_is_in_openapi_test() {
   let assert Ok(rust) = simplifile.read("../src/gateway/mod.rs")
   let assert Ok(spec) = simplifile.read("../public/openapi.json")
   let paths = openapi_routes.paths_from_rust(rust)
-  list.length(paths) |> should.equal(22)
+  list.length(paths) |> should.equal(23)
   list.each(paths, fn(path) {
     string.contains(spec, "\"" <> path <> "\"") |> should.be_true
   })

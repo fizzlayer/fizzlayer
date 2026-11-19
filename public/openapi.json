@@ -5,7 +5,11 @@
     "version": "1.0.0",
     "summary": "Send sensor readings to Fizzlayer and connect AI agents to them.",
     "description": "Fizzlayer is the secure connection layer for AI agents. Devices post readings with a per-sensor API key, and AI agents read sensors through the remote MCP server with an agent token (fizz_agent_). The gateway control plane is the /api/gateway routes: signed-in calls use a Supabase access token (Authorization: Bearer or the fizz_supabase cookie), and fizz-agent uses a registration token (fizz_reg_). The hosted gateway is not running. Guide: https://fizzlayer.com/docs and https://fizzlayer.com/sensors/docs. Setup in the app is at https://fizzlayer.com/app.",
-    "contact": { "name": "Fizzlayer support", "email": "support@fizzlayer.com", "url": "https://fizzlayer.com/sensors/docs" },
+    "contact": {
+      "name": "Fizzlayer support",
+      "email": "support@fizzlayer.com",
+      "url": "https://fizzlayer.com/sensors/docs"
+    },
     "termsOfService": "https://fizzlayer.com/terms.html"
   },
   "externalDocs": {
@@ -639,6 +643,156 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/gateway/registry": {
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "searchMcpRegistry",
+        "summary": "Search the official MCP Registry for remote servers",
+        "description": "Proxies registry.modelcontextprotocol.io (latest versions, 30 per page). Only active servers with an https streamable-http or sse remote are returned. Text fields are trimmed and cut to fixed lengths; treat them as third-party input. The browser app uses this because its CSP limits connect-src to this origin.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Substring of the server name."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "The next value from the previous page."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of servers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "servers",
+                    "next"
+                  ],
+                  "properties": {
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "name",
+                          "title",
+                          "description",
+                          "website",
+                          "remotes"
+                        ],
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "website": {
+                            "type": "string"
+                          },
+                          "remotes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "url",
+                                "headers",
+                                "variables"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "streamable-http",
+                                    "sse"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string"
+                                },
+                                "headers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "secret": {
+                                        "type": "boolean"
+                                      },
+                                      "required": {
+                                        "type": "boolean"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "variables": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Search or cursor too long, or holds control characters."
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "502": {
+            "description": "The registry did not answer."
           }
         }
       }
