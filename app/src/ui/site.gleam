@@ -4,7 +4,7 @@
 //// `prerender.gleam`, so nothing here sends messages.
 
 import gleam/list
-import lustre/attribute.{type Attribute}
+import lustre/attribute
 import lustre/element.{type Element, text}
 import lustre/element/html
 
@@ -456,59 +456,6 @@ pub fn split_card(
     html.h3([], [text(title)]),
     html.p([], [text(body)]),
     ..children
-  ])
-}
-
-/// The hosted-gateway waitlist. `public/gateway-beta.js` submits it.
-pub fn waitlist_form() -> Element(msg) {
-  html.form([attribute.id("beta-form"), attribute.class("waitlist-form")], [
-    html.label(
-      [attribute.class("visually-hidden"), attribute.for("beta-email")],
-      [
-        text("Email"),
-      ],
-    ),
-    input("beta-email", "email", "Email", "email", []),
-    html.label(
-      [attribute.class("visually-hidden"), attribute.for("beta-company")],
-      [text("Name or company")],
-    ),
-    input("beta-company", "text", "Name or company", "organization", [
-      attribute.attribute("maxlength", "120"),
-    ]),
-    html.button(
-      [
-        attribute.class("button button-primary button-lg"),
-        attribute.type_("submit"),
-      ],
-      [text("Join the waitlist")],
-    ),
-    html.p(
-      [
-        attribute.id("beta-status"),
-        attribute.class("waitlist-status"),
-        attribute.role("status"),
-      ],
-      [],
-    ),
-  ])
-}
-
-fn input(
-  id: String,
-  kind: String,
-  placeholder: String,
-  autocomplete: String,
-  extra: List(Attribute(msg)),
-) -> Element(msg) {
-  html.input([
-    attribute.class("input"),
-    attribute.id(id),
-    attribute.type_(kind),
-    attribute.placeholder(placeholder),
-    attribute.autocomplete(autocomplete),
-    attribute.required(True),
-    ..extra
   ])
 }
 

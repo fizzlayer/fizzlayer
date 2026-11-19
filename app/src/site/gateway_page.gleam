@@ -12,7 +12,7 @@ pub fn page() -> Element(msg) {
       description: "Fizzlayer Gateway sits between your AI agents and your MCP servers. Set a rule for each tool, approve risky calls before they run, and keep API keys off the client.",
       path: "/gateway",
       image_alt: "Fizzlayer Gateway between an AI agent and its tools, with Allow, Block and Ask first rules.",
-      scripts: ["/gateway-beta.js", "/analytics.js"],
+      scripts: ["/analytics.js"],
     ),
     [
       hero(),
@@ -41,7 +41,7 @@ fn hero() -> Element(msg) {
       site.primary("/app", "Get started"),
       site.link_arrow("/docs", "Read the docs"),
     ],
-    "Self-host free with Docker. Hosted gateways are on the waitlist.",
+    "Hosted in the app, or self-host free with Docker.",
     site.preview(
       "Example: rules for a payments server, and a tool that changed.",
       [
@@ -128,7 +128,7 @@ fn questions() -> Element(msg) {
     site.faq([
       #(
         "Can I point Claude or Cursor at a hosted gateway today?",
-        "Not yet. Hosted gateways are on the waitlist. You can point Claude Code or Cursor at a gateway you run yourself.",
+        "Yes. Create a gateway in the app and paste its hosted URL into Claude Code or Cursor. Dedicated gateways on Pro aren't ready yet.",
       ),
       #(
         "Does it work with ChatGPT or Claude connectors?",

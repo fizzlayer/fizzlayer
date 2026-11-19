@@ -56,6 +56,24 @@ pub fn routes_under_app_test() {
   |> should.equal(route.Preview(name: "client"))
 }
 
+pub fn onboarding_path_without_a_gateway_test() {
+  let id = "11111111-1111-4111-8111-111111111111"
+  route.onboarding_path("", route.Create) |> should.equal("/app/onboarding")
+  route.onboarding_path("", route.Server) |> should.equal("/app/onboarding")
+  route.onboarding_path("", route.Client) |> should.equal("/app/onboarding")
+  route.onboarding_path(id, route.Server)
+  |> should.equal("/app/onboarding/" <> id <> "/server")
+}
+
+pub fn create_step_does_not_link_ahead_test() {
+  let create =
+    gateway.Model(..gateway.preview("tools"), screen: gateway.Create, id: "")
+  let html = element.to_string(gateway.view(create))
+  string.contains(html, "/app/onboarding//") |> should.be_false
+  string.contains(html, "href=\"/app/onboarding\"") |> should.be_true
+  string.contains(html, "step-locked") |> should.be_true
+}
+
 pub fn routes_outside_the_spa_leave_test() {
   route.parse("/app.html") |> should.equal(route.Leave(path: "/app.html"))
   route.parse("/index.html") |> should.equal(route.Leave(path: "/index.html"))
@@ -363,13 +381,12 @@ pub fn rules_use_plain_names_test() {
   string.contains(html, ">Deny<") |> should.be_false
 }
 
-pub fn landing_keeps_waitlist_and_agent_hooks_test() {
+pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   let html = element.to_document_string(landing.page())
   assert string.contains(html, "src=\"/webmcp.js\"")
-  assert string.contains(html, "id=\"beta-form\"")
-  assert string.contains(html, "id=\"beta-email\"")
-  assert string.contains(html, "id=\"beta-company\"")
-  assert string.contains(html, "id=\"beta-status\"")
+  assert !string.contains(html, "waitlist")
+  assert !string.contains(html, "gateway-beta.js")
+  assert string.contains(html, "Set one up")
   assert string.contains(html, "href=\"/fizz.css\"")
 }
 

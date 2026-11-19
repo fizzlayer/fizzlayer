@@ -1954,7 +1954,13 @@ fn steps(model: Model) -> Element(Msg) {
       ],
       fn(item) {
         let #(step, label) = item
-        #(route.onboarding_path(model.id, step), label, current == Ok(step))
+        // Before the gateway exists, later steps have nowhere to go.
+        let href = case model.id, step {
+          "", route.Create -> route.onboarding_path("", step)
+          "", _ -> ""
+          id, _ -> route.onboarding_path(id, step)
+        }
+        #(href, label, current == Ok(step))
       },
     ),
   )

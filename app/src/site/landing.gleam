@@ -14,7 +14,6 @@ pub fn page() -> Element(msg) {
       image_alt: "Fizzlayer between an AI agent and its tools, with Allow, Block and Ask first rules.",
       scripts: [
         "/auth-redirect.js",
-        "/gateway-beta.js",
         "/webmcp.js",
         "/analytics.js",
       ],
@@ -147,8 +146,8 @@ pub fn run_it() -> Element(msg) {
       ),
       site.split_card(
         "Hosted",
-        "Hosted gateways are on the way. Join the waitlist and we'll email you when yours is ready.",
-        [site.waitlist_form()],
+        "Create a gateway in the app and get a hosted URL for your agent. Nothing to run yourself.",
+        [site.link_arrow("/app", "Set one up")],
       ),
     ]),
   ])
