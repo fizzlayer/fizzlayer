@@ -3,27 +3,31 @@
 //// The Lustre dev server is the whole origin, so `/` is also the sign-in
 //// screen there. Production only serves this bundle under `/app`.
 //// `/sensors` and the rest of the site are full page loads.
+////
+//// Each gateway has one page with tabs at `/app/gateways/<id>/<tab>`. The
+//// older onboarding URLs (`/app/onboarding/<id>/server` and the rest) and
+//// `/tokens` still open the matching tab, so old links keep working.
 
 import gleam/list
 import gleam/string
 
-pub type Step {
-  Create
-  Server
-  Tools
-  Pin
-  Client
+/// The sections of a gateway's page.
+pub type Tab {
+  Overview
+  Servers
+  Rules
+  Approvals
+  Changes
+  Connect
+  Settings
 }
 
 pub type Route {
   SignIn
-  Start
-  Onboarding(id: String, step: Step)
+  /// The gateway list. `/app/start` and `/app/gateways` both land here.
   Gateways
-  GatewayHome(id: String)
-  Approvals(id: String)
-  PinAlerts(id: String)
-  ClientTokens(id: String)
+  NewGateway
+  Gateway(id: String, tab: Tab)
   Preview(name: String)
   NotFound(path: String)
   Leave(path: String)
@@ -36,37 +40,42 @@ pub const sign_in_path = "/app"
 /// The sign-in form, as opposed to account creation at `/app`.
 pub const sign_in_form_path = "/app/sign-in"
 
-pub const start_path = "/app/start"
-
+/// Where a signed-in visit lands: the list of gateways.
 pub const gateways_path = "/app/gateways"
 
-/// The URL of an onboarding step. Every step after Create needs a gateway,
-/// so without an id it sends you back to Create instead of building
-/// `/app/onboarding//server`.
-pub fn onboarding_path(id: String, step: Step) -> String {
-  case id, step {
-    "", _ | _, Create -> "/app/onboarding"
-    _, Server -> "/app/onboarding/" <> id <> "/server"
-    _, Tools -> "/app/onboarding/" <> id <> "/tools"
-    _, Pin -> "/app/onboarding/" <> id <> "/pin"
-    _, Client -> "/app/onboarding/" <> id <> "/client"
+pub const new_gateway_path = "/app/onboarding"
+
+/// Every tab in menu order.
+pub const tabs = [
+  Overview,
+  Servers,
+  Rules,
+  Approvals,
+  Changes,
+  Connect,
+  Settings,
+]
+
+/// The URL of one tab of a gateway. Without an id there is no gateway page,
+/// so it falls back to the list instead of building `/app/gateways//servers`.
+pub fn tab_path(id: String, tab: Tab) -> String {
+  case id, tab {
+    "", _ -> gateways_path
+    _, Overview -> "/app/gateways/" <> id
+    _, _ -> "/app/gateways/" <> id <> "/" <> tab_slug(tab)
   }
 }
 
-pub fn gateway_path(id: String) -> String {
-  "/app/gateways/" <> id
-}
-
-pub fn approvals_path(id: String) -> String {
-  "/app/gateways/" <> id <> "/approvals"
-}
-
-pub fn alerts_path(id: String) -> String {
-  "/app/gateways/" <> id <> "/alerts"
-}
-
-pub fn tokens_path(id: String) -> String {
-  "/app/gateways/" <> id <> "/tokens"
+pub fn tab_slug(tab: Tab) -> String {
+  case tab {
+    Overview -> "overview"
+    Servers -> "servers"
+    Rules -> "rules"
+    Approvals -> "approvals"
+    Changes -> "alerts"
+    Connect -> "connect"
+    Settings -> "settings"
+  }
 }
 
 pub fn preview_path(name: String) -> String {
@@ -78,15 +87,19 @@ pub fn preview_path(name: String) -> String {
 pub fn parse(path: String) -> Route {
   case segments(path) {
     [] | [""] | ["app"] | ["app", "index.html"] | ["app", "sign-in"] -> SignIn
-    ["start"] | ["app", "start"] -> Start
-    ["onboarding"] | ["app", "onboarding"] -> Onboarding(id: "", step: Create)
+    ["start"]
+    | ["app", "start"]
+    | ["gateways"]
+    | ["app", "gateways"]
+    | ["workspace"]
+    | ["app", "workspace"] -> Gateways
+    ["onboarding"] | ["app", "onboarding"] -> NewGateway
     ["onboarding", id, step] | ["app", "onboarding", id, step] ->
-      onboarding(path, id, step)
-    ["gateways"] | ["app", "gateways"] | ["workspace"] | ["app", "workspace"] ->
-      Gateways
-    ["gateways", id] | ["app", "gateways", id] -> gateway_home(path, id)
+      gateway(path, id, old_step(step))
+    ["gateways", id] | ["app", "gateways", id] ->
+      gateway(path, id, Ok(Overview))
     ["gateways", id, page] | ["app", "gateways", id, page] ->
-      gateway_page(path, id, page)
+      gateway(path, id, tab_of(page))
     ["preview", name] | ["app", "preview", name] -> Preview(name:)
     ["app", ..] -> NotFound(path:)
     _ -> Leave(path:)
@@ -111,37 +124,34 @@ pub fn query_value(query: String, key: String) -> String {
   |> result_or("")
 }
 
-fn onboarding(path: String, id: String, step: String) -> Route {
-  case uuid_ish(id) {
-    False -> NotFound(path:)
-    True ->
-      case step {
-        "server" -> Onboarding(id:, step: Server)
-        "tools" -> Onboarding(id:, step: Tools)
-        "pin" -> Onboarding(id:, step: Pin)
-        "client" -> Onboarding(id:, step: Client)
-        _ -> NotFound(path:)
-      }
+fn gateway(path: String, id: String, tab: Result(Tab, Nil)) -> Route {
+  case uuid_ish(id), tab {
+    True, Ok(tab) -> Gateway(id:, tab:)
+    _, _ -> NotFound(path:)
   }
 }
 
-fn gateway_home(path: String, id: String) -> Route {
-  case uuid_ish(id) {
-    True -> GatewayHome(id:)
-    False -> NotFound(path:)
+fn tab_of(page: String) -> Result(Tab, Nil) {
+  case page {
+    "overview" -> Ok(Overview)
+    "servers" -> Ok(Servers)
+    "rules" -> Ok(Rules)
+    "approvals" -> Ok(Approvals)
+    "alerts" | "changes" -> Ok(Changes)
+    "connect" | "tokens" -> Ok(Connect)
+    "settings" -> Ok(Settings)
+    _ -> Error(Nil)
   }
 }
 
-fn gateway_page(path: String, id: String, page: String) -> Route {
-  case uuid_ish(id) {
-    False -> NotFound(path:)
-    True ->
-      case page {
-        "approvals" -> Approvals(id:)
-        "alerts" -> PinAlerts(id:)
-        "tokens" -> ClientTokens(id:)
-        _ -> NotFound(path:)
-      }
+/// The steps of the old setup wizard, mapped onto tabs.
+fn old_step(step: String) -> Result(Tab, Nil) {
+  case step {
+    "server" -> Ok(Servers)
+    "tools" -> Ok(Rules)
+    "pin" -> Ok(Changes)
+    "client" -> Ok(Connect)
+    _ -> Error(Nil)
   }
 }
 

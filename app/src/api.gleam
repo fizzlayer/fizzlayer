@@ -294,12 +294,19 @@ pub fn gateway_body(name: String, mode: String, public_url: String) -> String {
   json.object(fields) |> json.to_string
 }
 
+/// `transport` is `http` (streamable HTTP) or `sse`. Anything else is sent as
+/// `http`.
 pub fn server_body(
   name: String,
   url: String,
+  transport: String,
   auth_kind: String,
   api_key: String,
 ) -> String {
+  let transport = case transport {
+    "sse" -> "sse"
+    _ -> "http"
+  }
   let kind = case api_key {
     "" -> auth_kind
     _ -> "key"
@@ -307,7 +314,7 @@ pub fn server_body(
   let fields = [
     #("name", json.string(name)),
     #("url", json.string(url)),
-    #("transport", json.string("http")),
+    #("transport", json.string(transport)),
     #("auth_kind", json.string(kind)),
   ]
   let fields = case api_key {

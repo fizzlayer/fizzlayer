@@ -9,6 +9,7 @@ mod crypto;
 mod limits;
 #[cfg(test)]
 mod memory;
+mod registry;
 mod store;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -137,6 +138,13 @@ async fn dispatch(
     view: &View<'_>,
 ) -> Result<Response<ResponseBody>, ApiError> {
     match (method, route) {
+        ("GET", Route::Registry) => {
+            let (search, cursor) = registry::params(
+                &query_value(view.query, "search").unwrap_or_default(),
+                &query_value(view.query, "cursor").unwrap_or_default(),
+            )?;
+            Ok(json_ok(registry::search(&search, &cursor).await?))
+        }
         ("GET", Route::Gateways) => Ok(json_ok(map_db(
             backend.call(Some(user), "context", json!({})).await?,
             false,
@@ -1269,6 +1277,7 @@ fn percent_decode(value: &str) -> String {
 enum Route {
     Jwks,
     Hosted,
+    Registry,
     AgentConfig,
     AgentStatus,
     AgentFleet,
@@ -1300,6 +1309,7 @@ fn parse_route(path: &str) -> Option<Route> {
     match parts.as_slice() {
         ["jwks"] => Some(Route::Jwks),
         ["hosted"] => Some(Route::Hosted),
+        ["registry"] => Some(Route::Registry),
         ["agent", "config"] => Some(Route::AgentConfig),
         ["agent", "status"] => Some(Route::AgentStatus),
         ["agent", "fleet"] => Some(Route::AgentFleet),
@@ -1416,6 +1426,7 @@ mod tests {
     fn routes_cover_the_control_plane() {
         assert!(parse_route("jwks").is_some());
         assert!(parse_route("hosted").is_some());
+        assert!(parse_route("registry").is_some());
         assert!(!hosted_flag(None));
         assert!(!hosted_flag(Some("")));
         assert!(!hosted_flag(Some("false")));
@@ -1442,6 +1453,20 @@ mod tests {
             resource_path("/api/gateway", "__path=gateways%2Fabc"),
             "gateways/abc"
         );
+    }
+
+    #[tokio::test]
+    async fn registry_search_needs_a_session() {
+        let (backend, _) = harness();
+        let (status, _, body) = call(
+            &backend,
+            "GET",
+            "/api/gateway/registry?search=github",
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, 401, "{body}");
     }
 
     #[tokio::test]

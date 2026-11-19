@@ -29,8 +29,9 @@ fn read_file(path: String) -> String
 /// The example screens at `/app/preview/<name>`. Keep in step with
 /// `gateway.preview`.
 pub const previews = [
-  "choose", "create", "server", "tools", "tools-pro", "pin", "client",
-  "client-hosted", "gateways", "approvals", "alerts", "tokens", "limit",
+  "choose", "gateways", "empty", "create", "overview", "server", "servers",
+  "add-server", "tools", "tools-pro", "pin", "client", "client-hosted",
+  "approvals", "alerts", "tokens", "settings", "limit",
 ]
 
 pub fn main() -> Nil {
@@ -111,6 +112,20 @@ pub fn app_page(path: String, title: String) -> String {
           attribute.attribute("as", "font"),
           attribute.type_("font/woff2"),
           attribute.attribute("crossorigin", ""),
+        ]),
+        // Font Awesome Free 6.7.2, self-hosted because the CSP only allows
+        // fonts and styles from this origin. Its fonts use font-display:
+        // block, so the solid set is preloaded to keep icons from blinking.
+        html.link([
+          attribute.rel("preload"),
+          attribute.href("/vendor/fontawesome/webfonts/fa-solid-900.woff2"),
+          attribute.attribute("as", "font"),
+          attribute.type_("font/woff2"),
+          attribute.attribute("crossorigin", ""),
+        ]),
+        html.link([
+          attribute.rel("stylesheet"),
+          attribute.href("/vendor/fontawesome/css/icons.min.css"),
         ]),
         html.link([attribute.rel("stylesheet"), attribute.href("/app/fizz.css")]),
         // Passkey sign-in uses window.fizzPasskey; it must run before the app.
