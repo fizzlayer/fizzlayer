@@ -106,7 +106,9 @@ pub fn page() -> Element(msg) {
             ),
           ]),
           html.p([], [
-            text("Hosted gateways are on the waitlist. "),
+            text(
+              "Every plan includes a shared hosted gateway. Dedicated gateways on Pro aren't ready yet. ",
+            ),
             html.a([attribute.href("/docs#limits")], [
               text("Full plan details are in the docs."),
             ]),

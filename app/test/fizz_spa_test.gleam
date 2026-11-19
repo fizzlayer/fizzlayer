@@ -381,13 +381,12 @@ pub fn rules_use_plain_names_test() {
   string.contains(html, ">Deny<") |> should.be_false
 }
 
-pub fn landing_keeps_waitlist_and_agent_hooks_test() {
+pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   let html = element.to_document_string(landing.page())
   assert string.contains(html, "src=\"/webmcp.js\"")
-  assert string.contains(html, "id=\"beta-form\"")
-  assert string.contains(html, "id=\"beta-email\"")
-  assert string.contains(html, "id=\"beta-company\"")
-  assert string.contains(html, "id=\"beta-status\"")
+  assert !string.contains(html, "waitlist")
+  assert !string.contains(html, "gateway-beta.js")
+  assert string.contains(html, "Set one up")
   assert string.contains(html, "href=\"/fizz.css\"")
 }
 
