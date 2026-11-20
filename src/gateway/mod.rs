@@ -399,21 +399,18 @@ async fn server_tools(
     )?;
     let auth_kind = source["auth_kind"].as_str().unwrap_or("none");
     let key = if auth_kind == "key" {
-        let encoded = source["ciphertext"].as_str().ok_or_else(|| {
+        // The fleet config leaves this server out for the same reason, so say
+        // that the rest of the gateway still serves and how to fix this one.
+        let left_out = || {
             ApiError::new(
                 503,
                 "missing_secret",
-                "A stored MCP credential could not be read.",
+                "This server's stored key could not be read, so the gateway leaves it out and serves its other servers. Remove it and add it again with its key.",
             )
-        })?;
-        let plain = crypto::open(&backend.secret_key()?, encoded)?;
-        Some(String::from_utf8(plain).map_err(|_| {
-            ApiError::new(
-                503,
-                "missing_secret",
-                "A stored MCP credential could not be read.",
-            )
-        })?)
+        };
+        let encoded = source["ciphertext"].as_str().ok_or_else(left_out)?;
+        let plain = crypto::open(&backend.secret_key()?, encoded).map_err(|_| left_out())?;
+        Some(String::from_utf8(plain).map_err(|_| left_out())?)
     } else {
         None
     };
@@ -830,14 +827,28 @@ async fn fleet_config(
         )
         .into_response();
     };
+    let all_servers: Vec<&Value> = rows
+        .iter()
+        .filter_map(|row| row["servers"].as_array())
+        .flatten()
+        .collect();
+    let key = match key_for(backend, &all_servers) {
+        Ok(key) => key,
+        Err(error) => return error.into_response(),
+    };
     let mut specs = Vec::new();
     for row in rows {
-        match spec_from_source(backend, row, origin) {
+        match spec_from_source(backend, row, key.as_ref(), origin) {
             Ok(spec) => specs.push(spec),
-            Err(_) => {
-                // One tenant that cannot be rendered is left off this document.
-                // The last good file still serves everyone until a valid render.
-                continue;
+            Err(error) => {
+                // A gateway that cannot be rendered at all is left off this
+                // document. Its servers are handled one by one above, so this
+                // is only a broken gateway row.
+                eprintln!(
+                    "fizz-gateway: left gateway {} out of the fleet config: {}",
+                    row["gateway_id"].as_str().unwrap_or("?"),
+                    error.code()
+                );
             }
         }
     }
@@ -863,82 +874,22 @@ async fn fleet_config(
 fn spec_from_source(
     backend: &impl Backend,
     source: &Value,
+    key: Option<&[u8; 32]>,
     origin: &str,
 ) -> Result<GatewaySpec, ApiError> {
-    let key = if source["servers"].as_array().is_some_and(|servers| {
-        servers
-            .iter()
-            .any(|server| server["ciphertext"].is_string())
-    }) {
-        Some(backend.secret_key()?)
-    } else {
-        None
-    };
     let gateway_id = uuid_value(&source["gateway_id"])?;
     let workspace_id = uuid_value(&source["workspace_id"])?;
     let gateway_mode = Mode::parse(source["mode"].as_str().unwrap_or(""))
         .ok_or_else(|| ApiError::new(400, "invalid_request", "Gateway mode is not usable."))?;
     let listen_port = u16::try_from(source["listen_port"].as_u64().unwrap_or(0))
         .map_err(|_| ApiError::new(400, "invalid_request", "Gateway listen port is not usable."))?;
-    let mut servers = Vec::new();
-    for server in source["servers"].as_array().ok_or_else(unavailable)? {
-        let transport =
-            Transport::parse(server["transport"].as_str().unwrap_or("")).ok_or_else(|| {
-                ApiError::new(400, "invalid_request", "Server transport is not usable.")
-            })?;
-        let auth_kind = server["auth_kind"].as_str().unwrap_or("none").to_string();
-        let credential = if auth_kind == "key" {
-            let encoded = server["ciphertext"].as_str().ok_or_else(|| {
-                ApiError::new(
-                    503,
-                    "missing_secret",
-                    "A stored MCP credential could not be read.",
-                )
-            })?;
-            let key = key.as_ref().ok_or_else(|| {
-                ApiError::new(
-                    503,
-                    "encryption_unavailable",
-                    "Storing an MCP credential needs GATEWAY_SECRET_KEY on the server.",
-                )
-            })?;
-            let plain = crypto::open(key, encoded)?;
-            Some(String::from_utf8(plain).map_err(|_| {
-                ApiError::new(
-                    503,
-                    "missing_secret",
-                    "A stored MCP credential could not be read.",
-                )
-            })?)
-        } else {
-            None
-        };
-        let args = server["args"]
-            .as_array()
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default();
-        if transport == Transport::Stdio {
-            return Err(ApiError::new(
-                400,
-                "stdio_shared",
-                "A shared gateway does not run stdio servers.",
-            ));
-        }
-        servers.push(ServerSpec {
-            name: server["name"].as_str().unwrap_or("").to_string(),
-            transport,
-            url_or_cmd: server["url"].as_str().unwrap_or("").to_string(),
-            command_args: args,
-            auth_kind,
-            credential,
-        });
-    }
+    let servers = server_specs(
+        &gateway_id,
+        source["servers"].as_array().ok_or_else(unavailable)?,
+        CredentialMode::Embed,
+        key,
+        true,
+    );
     if gateway_mode != Mode::Shared {
         return Err(ApiError::new(
             400,
@@ -962,6 +913,107 @@ fn spec_from_source(
         requests_per_minute: u32::try_from(source["requests_per_minute"].as_u64().unwrap_or(30))
             .unwrap_or(30),
     })
+}
+
+/// The servers of one gateway's config. A server that cannot be rendered, for
+/// example because its stored key does not decrypt, is left out and logged, so
+/// one bad server cannot take the rest of its gateway offline. The log line has
+/// the gateway, the server name, and the error code, never a credential.
+fn server_specs(
+    gateway_id: &Uuid,
+    servers: &[Value],
+    mode: CredentialMode,
+    key: Option<&[u8; 32]>,
+    shared: bool,
+) -> Vec<ServerSpec> {
+    servers
+        .iter()
+        .filter_map(|server| match server_spec(server, mode, key, shared) {
+            Ok(spec) => Some(spec),
+            Err(error) => {
+                eprintln!(
+                    "fizz-gateway: left server {} out of gateway {gateway_id}: {}",
+                    server["name"].as_str().unwrap_or("?"),
+                    error.code()
+                );
+                None
+            }
+        })
+        .collect()
+}
+
+fn server_spec(
+    server: &Value,
+    mode: CredentialMode,
+    key: Option<&[u8; 32]>,
+    shared: bool,
+) -> Result<ServerSpec, ApiError> {
+    let transport = Transport::parse(server["transport"].as_str().unwrap_or(""))
+        .ok_or_else(|| ApiError::new(400, "invalid_request", "Server transport is not usable."))?;
+    if shared && transport == Transport::Stdio {
+        return Err(ApiError::new(
+            400,
+            "stdio_shared",
+            "A shared gateway does not run stdio servers.",
+        ));
+    }
+    let auth_kind = server["auth_kind"].as_str().unwrap_or("none").to_string();
+    let credential = if mode == CredentialMode::Embed && auth_kind == "key" {
+        let encoded = server["ciphertext"]
+            .as_str()
+            .ok_or_else(unreadable_secret)?;
+        let key = key.ok_or_else(|| {
+            ApiError::new(
+                503,
+                "encryption_unavailable",
+                "Storing an MCP credential needs GATEWAY_SECRET_KEY on the server.",
+            )
+        })?;
+        let plain = crypto::open(key, encoded)?;
+        Some(String::from_utf8(plain).map_err(|_| unreadable_secret())?)
+    } else {
+        None
+    };
+    let command_args = server["args"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(ServerSpec {
+        name: server["name"].as_str().unwrap_or("").to_string(),
+        transport,
+        url_or_cmd: server["url"].as_str().unwrap_or("").to_string(),
+        command_args,
+        auth_kind,
+        credential,
+    })
+}
+
+fn unreadable_secret() -> ApiError {
+    ApiError::new(
+        503,
+        "missing_secret",
+        "A stored MCP credential could not be read.",
+    )
+}
+
+/// The decryption key, when any of `servers` stores one. A missing or bad
+/// `GATEWAY_SECRET_KEY` fails the whole document instead of dropping every
+/// keyed server, so agents keep serving their last good config.
+fn key_for(backend: &impl Backend, servers: &[&Value]) -> Result<Option<[u8; 32]>, ApiError> {
+    if servers
+        .iter()
+        .any(|server| server["ciphertext"].is_string())
+    {
+        backend.secret_key().map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 async fn fleet_status(backend: &impl Backend, body: &Value) -> Response<ResponseBody> {
@@ -1022,58 +1074,13 @@ fn render(
         .ok_or_else(|| ApiError::new(400, "invalid_request", "Gateway mode is not usable."))?;
     let listen_port = u16::try_from(source["listen_port"].as_u64().unwrap_or(0))
         .map_err(|_| ApiError::new(400, "invalid_request", "Gateway listen port is not usable."))?;
-    let mut servers = Vec::new();
-    for server in source["servers"].as_array().ok_or_else(unavailable)? {
-        let transport =
-            Transport::parse(server["transport"].as_str().unwrap_or("")).ok_or_else(|| {
-                ApiError::new(400, "invalid_request", "Server transport is not usable.")
-            })?;
-        let auth_kind = server["auth_kind"].as_str().unwrap_or("none").to_string();
-        let credential = if mode == CredentialMode::Embed && auth_kind == "key" {
-            let encoded = server["ciphertext"].as_str().ok_or_else(|| {
-                ApiError::new(
-                    503,
-                    "missing_secret",
-                    "A stored MCP credential could not be read.",
-                )
-            })?;
-            let key = key.ok_or_else(|| {
-                ApiError::new(
-                    503,
-                    "encryption_unavailable",
-                    "Storing an MCP credential needs GATEWAY_SECRET_KEY on the server.",
-                )
-            })?;
-            let plain = crypto::open(key, encoded)?;
-            Some(String::from_utf8(plain).map_err(|_| {
-                ApiError::new(
-                    503,
-                    "missing_secret",
-                    "A stored MCP credential could not be read.",
-                )
-            })?)
-        } else {
-            None
-        };
-        let args = server["args"]
-            .as_array()
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default();
-        servers.push(ServerSpec {
-            name: server["name"].as_str().unwrap_or("").to_string(),
-            transport,
-            url_or_cmd: server["url"].as_str().unwrap_or("").to_string(),
-            command_args: args,
-            auth_kind,
-            credential,
-        });
-    }
+    let servers = server_specs(
+        &gateway_id,
+        source["servers"].as_array().ok_or_else(unavailable)?,
+        mode,
+        key,
+        false,
+    );
     let spec = GatewaySpec {
         gateway_id,
         workspace_id,
@@ -2055,5 +2062,53 @@ mod tests {
         assert!(yaml.contains("name: linear"));
         assert!(!yaml.contains("stdio"));
         assert!(!yaml.contains("uvx"));
+    }
+
+    #[tokio::test]
+    async fn a_server_whose_key_does_not_decrypt_leaves_the_rest_of_its_gateway_serving() {
+        let (backend, _) = harness();
+        let fleet = backend.fleet_token().unwrap();
+        let (status, _, created) = call(
+            &backend,
+            "POST",
+            "/api/gateway/gateways",
+            Some("user-a"),
+            Some(json!({"name": "home"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{created}");
+        let gateway = created["gateway"]["id"].as_str().unwrap().to_string();
+        let url = created["gateway"]["public_url"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        for body in [
+            json!({"name": "docs", "url": "https://docs.example/mcp"}),
+            json!({"name": "search", "url": "https://search.example/mcp", "api_key": "0123abcd-4567-89ef-0123-456789abcdef"}),
+        ] {
+            let (status, _, added) = call(
+                &backend,
+                "POST",
+                &format!("/api/gateway/gateways/{gateway}/servers"),
+                Some("user-a"),
+                Some(body),
+            )
+            .await;
+            assert_eq!(status, 200, "{added}");
+        }
+        backend.corrupt_secret(&gateway, "search");
+        let (status, _, fleet_body) = call(
+            &backend,
+            "GET",
+            "/api/gateway/agent/fleet",
+            Some(&fleet),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{fleet_body}");
+        let yaml = text_of(&fleet_body);
+        assert!(yaml.contains(&url), "the gateway was dropped:\n{yaml}");
+        assert!(yaml.contains("name: docs"));
+        assert!(!yaml.contains("name: search"));
     }
 }
