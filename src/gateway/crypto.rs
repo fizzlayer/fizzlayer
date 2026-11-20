@@ -120,7 +120,14 @@ pub fn seal(key: &[u8; 32], plaintext: &[u8]) -> Result<String, ApiError> {
 }
 
 pub fn open(key: &[u8; 32], encoded: &str) -> Result<Vec<u8>, ApiError> {
-    let bytes = STANDARD.decode(encoded.trim()).map_err(|_| unreadable())?;
+    // The ciphertext comes back from Postgres `encode(..., 'base64')`, which
+    // breaks lines every 76 characters. Any key longer than 28 bytes crosses
+    // that, so line breaks are dropped before decoding.
+    let compact: String = encoded
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace())
+        .collect();
+    let bytes = STANDARD.decode(compact).map_err(|_| unreadable())?;
     if bytes.len() < 1 + NONCE_LEN + 16 || bytes[0] != 1 {
         return Err(unreadable());
     }
@@ -222,6 +229,20 @@ mod tests {
         let mut other = key;
         other[0] ^= 1;
         assert!(open(&other, &sealed).is_err());
+    }
+
+    #[test]
+    fn opens_base64_that_postgres_wrapped_onto_several_lines() {
+        let key = [7u8; 32];
+        // A 36-character key, like an Exa API key, seals to 89 base64
+        // characters, past Postgres's 76-character line length.
+        let plain = b"0123abcd-4567-89ef-0123-456789abcdef";
+        let sealed = seal(&key, plain).unwrap();
+        assert!(sealed.len() > 76);
+        let wrapped = format!("{}\n{}", &sealed[..76], &sealed[76..]);
+        assert_eq!(open(&key, &wrapped).unwrap(), plain);
+        let crlf = format!("{}\r\n{}\n", &sealed[..40], &sealed[40..]);
+        assert_eq!(open(&key, &crlf).unwrap(), plain);
     }
 
     #[test]
