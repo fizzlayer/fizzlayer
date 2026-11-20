@@ -32,7 +32,7 @@ Confirmed against `crates/agentgateway/src/mcp/guardrails/client.rs` and `mod.rs
 
 Stripping a tool is possible. fizz-guard returns `mutated` with the same result object and that tool removed from `tools`. It does not reshape the tools it keeps.
 
-`tools/list` is a fanout method. The response hook runs once on the merged client-facing result, not once per backend. `service_names` lists every backend in that fanout. With one backend (the usual generated config, `prefixMode: never`), names are unprefixed and that single name is the server. With several backends, agentgateway prefixes names as `{server}_{tool}` unless `prefixMode` is `never`. Request-phase mutations on list methods are discarded; list filtering has to be a response.
+`tools/list` is a fanout method. The response hook runs once on the merged client-facing result, not once per backend. `service_names` lists every backend in that fanout. The generated config sets `prefixMode: conditional`, agentgateway's default. With one backend, names are unprefixed and that single name is the server. With several backends, agentgateway names each tool `{server}_{tool}`, and fizz-guard takes the longest matching `{server}_` prefix as the server. Do not use `never`: with several backends the names carry no server, so the guard cannot pin them and hides every tool. Request-phase mutations on list methods are discarded; list filtering has to be a response.
 
 `tools/call` runs in the upstream's own namespace: the guard sees `echo`, not `server_echo`, and exactly one `service_names` entry. A call is denied unless that server's pin is `approved` and the approved hash still matches the last list.
 

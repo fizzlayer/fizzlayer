@@ -241,9 +241,9 @@ pub struct Attributed {
 }
 
 /// One backend: the listed name is that backend's tool. Several backends: a
-/// `{server}_` prefix (longest match) is the multiplexed name agentgateway adds.
-/// With `prefixMode: never` and more than one backend the name is not prefixed,
-/// so the server is left empty and the caller cannot record a pin for it.
+/// `{server}_` prefix (longest match) is the multiplexed name agentgateway adds
+/// under the generated `prefixMode: conditional`. A name with no known prefix
+/// leaves the server empty, and the caller cannot record a pin for it.
 pub fn attribute_tool(services: &[String], client_name: &str) -> Attributed {
     if let [only] = services {
         return Attributed {
