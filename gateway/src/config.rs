@@ -148,7 +148,11 @@ pub fn render_yaml(spec: &GatewaySpec) -> GatewayResult<String> {
         mcp: McpRoot {
             port: spec.listen_port,
             stateful_mode: "stateless".to_string(),
-            prefix_mode: "never".to_string(),
+            // With several servers, agentgateway names each tool
+            // `{server}_{tool}`. fizz-guard reads that prefix to pin the tool
+            // to its server. `never` left the names bare, so with more than one
+            // server the guard could not attribute a tool and hid every one.
+            prefix_mode: "conditional".to_string(),
             policies: Policies {
                 cors: Cors {
                     allow_origins: vec!["*".to_string()],
@@ -381,7 +385,7 @@ fn fleet_route(spec: &GatewaySpec, path: &str) -> GatewayResult<FleetRoute> {
         backends: vec![FleetBackend {
             mcp: Some(McpBackend {
                 stateful_mode: "stateless".to_string(),
-                prefix_mode: "never".to_string(),
+                prefix_mode: "conditional".to_string(),
                 targets,
             }),
         }],
@@ -907,7 +911,7 @@ mod tests {
             Some("127.0.0.1:15000")
         );
         assert_eq!(value["mcp"]["statefulMode"].as_str(), Some("stateless"));
-        assert_eq!(value["mcp"]["prefixMode"].as_str(), Some("never"));
+        assert_eq!(value["mcp"]["prefixMode"].as_str(), Some("conditional"));
         assert_eq!(value["mcp"]["port"].as_u64(), Some(3000));
         assert_eq!(
             value["mcp"]["policies"]["jwtAuth"]["issuer"].as_str(),
@@ -1058,6 +1062,12 @@ mod tests {
         let routes = value["binds"][0]["listeners"][0]["routes"]
             .as_array()
             .unwrap();
+        for route in &routes[1..] {
+            assert_eq!(
+                route["backends"][0]["mcp"]["prefixMode"].as_str(),
+                Some("conditional")
+            );
+        }
         assert_eq!(routes[0]["matches"][0]["path"]["exact"], "/health");
         assert_eq!(
             routes[1]["matches"][0]["path"]["exact"],
