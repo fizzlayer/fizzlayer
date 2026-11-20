@@ -98,6 +98,10 @@ pub type Model {
     channel: String,
     token_name: String,
     minted: String,
+    /// The client and name the shown token was created for. Its setup only
+    /// shows while that client is picked.
+    minted_for: String,
+    minted_name: String,
     audience: String,
     registration: String,
     /// Tools per server id, filled as soon as servers load or one is added.
@@ -139,6 +143,7 @@ pub type Msg {
   Decide(id: String, status: String)
   RefreshApprovals
   MintToken
+  TokenNameEdited(String)
   RevokeToken(String)
   RotateRegistration
   AskDelete
@@ -198,8 +203,10 @@ pub fn empty() -> Model {
     tool_name: "",
     effect: "approve",
     channel: "log",
-    token_name: "Cursor",
+    token_name: "",
     minted: "",
+    minted_for: "",
+    minted_name: "",
     audience: "",
     registration: "",
     tools: dict.new(),
@@ -258,6 +265,9 @@ pub fn on_route(model: Model, route: Route) -> #(Model, Effect(Msg)) {
                 False -> ""
               },
               minted: "",
+              minted_for: "",
+              minted_name: "",
+              token_name: "",
             ),
             effect.batch([load_context(), load_details(id)]),
           )
@@ -279,11 +289,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
     ToolEdited(name) -> edited(Model(..model, tool_name: name))
     EffectEdited(effect_name) -> edited(Model(..model, effect: effect_name))
     ChannelEdited(channel) -> edited(Model(..model, channel: channel))
-    ClientPicked(key) -> #(
-      Model(..model, client: key, token_name: client_label(key)),
-      effect.none(),
-      "",
-    )
+    ClientPicked(key) -> #(Model(..model, client: key), effect.none(), "")
     LoadTools(server) -> #(
       Model(..model, tools: dict.insert(model.tools, server, ToolsLoading)),
       load_tools(model.id, server),
@@ -382,6 +388,11 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
       "",
     )
     MintToken -> mint(model)
+    TokenNameEdited(name) -> #(
+      Model(..model, token_name: name),
+      effect.none(),
+      "",
+    )
     RevokeToken(id) ->
       send_empty(model, "DELETE", token_url(model.id, id), "revoke")
     RotateRegistration ->
@@ -975,6 +986,9 @@ fn wrote_ok(
                 ..model,
                 busy: False,
                 minted: token,
+                minted_for: model.client,
+                minted_name: string.trim(model.token_name),
+                token_name: "",
                 audience: audience,
                 notice: Good("Copy this token now. It is not shown again."),
                 upgrade: "",
@@ -2603,27 +2617,15 @@ fn connect_tab(model: Model) -> Element(Msg) {
       },
       [],
       [
-        case model.client, api.client_token_ok(model.minted) {
+        case
+          model.client,
+          api.client_token_ok(model.minted) && model.minted_for == model.client
+        {
           "chatgpt", _ -> chatgpt_note()
-          _, False ->
-            html.div([], [
-              ui.muted(
-                "Each app gets its own client token. It is shown once, and you can revoke it below without touching the others.",
-              ),
-              ui.actions([
-                ui.button(
-                  ui.Primary,
-                  [
-                    attribute.type_("button"),
-                    attribute.disabled(model.busy),
-                    event.on_click(MintToken),
-                  ],
-                  ui.with_icon("key", "Create a token for " <> label),
-                ),
-              ]),
-            ])
+          _, False -> token_form(model, label)
           key, True ->
             html.div([], [
+              ui.muted("Using the token named " <> model.minted_name <> "."),
               ui.setup_steps(client_steps(key, url, model.minted, hosted)),
               ui.muted(
                 "This token is shown once. Copy the setup now, or create another token later.",
@@ -2637,6 +2639,36 @@ fn connect_tab(model: Model) -> Element(Msg) {
         [] -> ui.muted("No client tokens yet.")
         rows -> ui.item_list(list.map(rows, token_row))
       },
+    ]),
+  ])
+}
+
+/// Name a new client token, then create it.
+fn token_form(model: Model, label: String) -> Element(Msg) {
+  html.form([event.on_submit(fn(_) { MintToken })], [
+    ui.muted(
+      "Each app gets its own client token. It is shown once, and you can revoke it below without touching the others.",
+    ),
+    field(
+      "Token name",
+      "token-name",
+      model.token_name,
+      case model.client {
+        "other" -> "My MCP client"
+        _ -> label <> " on my laptop"
+      },
+      False,
+      TokenNameEdited,
+    ),
+    ui.actions([
+      ui.button(
+        ui.Primary,
+        [
+          attribute.type_("submit"),
+          attribute.disabled(model.busy || string.trim(model.token_name) == ""),
+        ],
+        ui.with_icon("key", "Create token"),
+      ),
     ]),
   ])
 }
@@ -3098,6 +3130,8 @@ pub fn preview(name: String) -> Model {
       public_url: "https://gw.fizzlayer.com/w/" <> id <> "/mcp",
       registration: "fizz_reg_" <> string.repeat("ab", 32),
       minted: "eyJhbGciOiJub25lIn0.eyJzdWIiOiJleGFtcGxlIn0.e30",
+      minted_for: "claude-code",
+      minted_name: "Claude Code on laptop",
       audience: "https://gw.fizzlayer.com/w/" <> id <> "/mcp",
       gateways: [
         api.GatewayRow(
