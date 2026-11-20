@@ -68,6 +68,10 @@ async fn run() -> GatewayResult<()> {
         ));
     }
     expect_pong(&http, &gateway, &client_jwt).await?;
+    // The control plane writes the server row when a server is added. The
+    // guard needs it to attribute `extra_echo` and pin it.
+    db.insert_server(spec.gateway_id, "extra", "http://sample-extra:8081/mcp")
+        .await?;
     control_post(&http, &control, &registration, "/test/add-server").await?;
     let added = wait_tools(&http, &gateway, &client_jwt, "echo", true, 40).await?;
     if !has_tool(&added, "ping") {
@@ -182,13 +186,22 @@ async fn tools(client: &reqwest::Client, gateway: &str, token: &str) -> GatewayR
 }
 
 fn has_tool(names: &[String], needle: &str) -> bool {
+    listed_name(names, needle).is_some()
+}
+
+/// The name a client calls: bare with one server, `{server}_{tool}` with several.
+fn listed_name(names: &[String], needle: &str) -> Option<String> {
     let prefixed = format!("_{needle}");
     names
         .iter()
-        .any(|name| name == needle || name.ends_with(&prefixed))
+        .find(|name| name.as_str() == needle || name.ends_with(&prefixed))
+        .cloned()
 }
 
 async fn expect_pong(client: &reqwest::Client, gateway: &str, token: &str) -> GatewayResult<()> {
+    let names = tools(client, gateway, token).await?;
+    let name =
+        listed_name(&names, "ping").ok_or_else(|| GatewayError::message("ping was not listed"))?;
     let body = post_raw(
         client,
         gateway,
@@ -197,7 +210,7 @@ async fn expect_pong(client: &reqwest::Client, gateway: &str, token: &str) -> Ga
             "jsonrpc": "2.0",
             "id": 3,
             "method": "tools/call",
-            "params": {"name": "ping", "arguments": {}}
+            "params": {"name": name, "arguments": {}}
         }),
     )
     .await?;
