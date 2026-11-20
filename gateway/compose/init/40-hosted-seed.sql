@@ -51,6 +51,14 @@ insert into gateway.servers (id, gateway_id, name, transport, url_or_cmd, auth_k
     '55555555-5555-4555-8555-555555555557',
     '77777777-7777-4777-8777-777777777777',
     'sample', 'http', 'http://sample-mcp:8080/mcp', 'none'
+  ),
+  -- The mock control plane adds `extra` to gateway A's config during the probe.
+  -- The real control plane writes this row when a server is added; the guard
+  -- needs it to attribute `extra_echo` once tool names are prefixed.
+  (
+    '55555555-5555-4555-8555-555555555558',
+    '22222222-2222-4222-8222-222222222222',
+    'extra', 'http', 'http://sample-extra:8081/mcp', 'none'
   );
 
 insert into gateway.policies (gateway_id, server_id, tool_name, effect, notify_channel) values

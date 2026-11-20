@@ -68,10 +68,6 @@ async fn run() -> GatewayResult<()> {
         ));
     }
     expect_pong(&http, &gateway, &client_jwt).await?;
-    // The control plane writes the server row when a server is added. The
-    // guard needs it to attribute `extra_echo` and pin it.
-    db.insert_server(spec.gateway_id, "extra", "http://sample-extra:8081/mcp")
-        .await?;
     control_post(&http, &control, &registration, "/test/add-server").await?;
     let added = wait_tools(&http, &gateway, &client_jwt, "echo", true, 40).await?;
     if !has_tool(&added, "ping") {
