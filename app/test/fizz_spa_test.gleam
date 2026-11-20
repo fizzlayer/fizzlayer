@@ -660,9 +660,10 @@ pub fn cursor_link_holds_the_server_config_test() {
 
 pub fn connect_tab_fills_the_picked_client_test() {
   let base = gateway.preview("client-hosted")
+  // Each case shows setup filled with a token made for the picked app.
   let pick = fn(key) {
     let #(model, _, _) = gateway.update(base, gateway.ClientPicked(key))
-    element.to_string(gateway.view(model))
+    element.to_string(gateway.view(gateway.Model(..model, minted_for: key)))
   }
   string.contains(pick("cursor"), "cursor://anysphere.cursor-deeplink")
   |> should.be_true
@@ -671,6 +672,37 @@ pub fn connect_tab_fills_the_picked_client_test() {
   let chatgpt = pick("chatgpt")
   string.contains(chatgpt, "cannot connect to it yet") |> should.be_true
   string.contains(chatgpt, "eyJhbGciOiJub25lIn0") |> should.be_false
-  let #(picked, _, _) = gateway.update(base, gateway.ClientPicked("codex"))
-  picked.token_name |> should.equal("Codex")
+}
+
+pub fn tokens_are_named_by_the_user_and_kept_with_their_app_test() {
+  let base = gateway.preview("client-hosted")
+  // Picking an app does not name the token.
+  let #(picked, _, _) = gateway.update(base, gateway.ClientPicked("claude"))
+  picked.token_name |> should.equal("")
+  // The token was made for Claude Code, so Claude asks for a new, named one
+  // instead of showing that token.
+  let html = element.to_string(gateway.view(picked))
+  string.contains(html, "Token name") |> should.be_true
+  string.contains(html, "Claude on my laptop") |> should.be_true
+  string.contains(html, "eyJhbGciOiJub25lIn0") |> should.be_false
+  // Back on Claude Code, its token and name show again.
+  let #(back, _, _) =
+    gateway.update(picked, gateway.ClientPicked("claude-code"))
+  let html = element.to_string(gateway.view(back))
+  string.contains(html, "Claude Code on laptop") |> should.be_true
+  string.contains(html, "eyJhbGciOiJub25lIn0") |> should.be_true
+  // The name typed is the one sent, and the created token is kept with it.
+  let #(named, _, _) =
+    gateway.update(picked, gateway.TokenNameEdited("  Work Mac  "))
+  let #(minted, _, _) =
+    gateway.update(
+      gateway.Model(..named, minted: "", busy: True),
+      gateway.Wrote("mint", #(
+        200,
+        "{\"token\":{\"token\":\"eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.e30\",\"audience\":\"https://gw.fizzlayer.com/w/x/mcp\"}}",
+      )),
+    )
+  minted.minted_for |> should.equal("claude")
+  minted.minted_name |> should.equal("Work Mac")
+  minted.token_name |> should.equal("")
 }
