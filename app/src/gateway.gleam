@@ -7,6 +7,7 @@
 //// upstream key in the add-server sheet until submit. Other tabs do not read
 //// those fields.
 
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
 import gleam/string
@@ -47,6 +48,13 @@ pub type Sheet {
   Closed
   Custom
   FromCatalog(catalog.Entry)
+}
+
+/// A server's tools, asked of the server through the API.
+pub type Tools {
+  ToolsLoading
+  ToolsLoaded(List(api.Tool))
+  ToolsFailed(String)
 }
 
 /// Registry search, separate from the featured list.
@@ -92,8 +100,10 @@ pub type Model {
     minted: String,
     audience: String,
     registration: String,
-    discovered: List(String),
-    probe_note: String,
+    /// Tools per server id, filled as soon as servers load or one is added.
+    tools: Dict(String, Tools),
+    /// The MCP client picked on Connect.
+    client: String,
     notice: Note,
     upgrade: String,
     confirm_delete: Bool,
@@ -117,7 +127,7 @@ pub type Msg {
   ToolEdited(String)
   EffectEdited(String)
   ChannelEdited(String)
-  TokenNameEdited(String)
+  ClientPicked(String)
   ServerPicked(String)
   RulesFor(String)
   SubmitGateway
@@ -153,7 +163,8 @@ pub type Msg {
   TokensLoaded(String, #(Int, String))
   RegistryLoaded(Bool, #(Int, String))
   Wrote(String, #(Int, String))
-  ProbeLoaded(#(Bool, String))
+  LoadTools(String)
+  ToolsAnswered(String, String, #(Int, String))
   HostedLoaded(#(Int, String))
   Copied(#(Bool, String))
 }
@@ -191,8 +202,8 @@ pub fn empty() -> Model {
     minted: "",
     audience: "",
     registration: "",
-    discovered: [],
-    probe_note: "",
+    tools: dict.new(),
+    client: "claude-code",
     notice: Quiet,
     upgrade: "",
     confirm_delete: False,
@@ -241,8 +252,7 @@ pub fn on_route(model: Model, route: Route) -> #(Model, Effect(Msg)) {
               approvals: [],
               tokens: [],
               server_pick: "",
-              discovered: [],
-              probe_note: "",
+              tools: dict.new(),
               registration: case same {
                 True -> model.registration
                 False -> ""
@@ -269,7 +279,16 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
     ToolEdited(name) -> edited(Model(..model, tool_name: name))
     EffectEdited(effect_name) -> edited(Model(..model, effect: effect_name))
     ChannelEdited(channel) -> edited(Model(..model, channel: channel))
-    TokenNameEdited(name) -> edited(Model(..model, token_name: name))
+    ClientPicked(key) -> #(
+      Model(..model, client: key, token_name: client_label(key)),
+      effect.none(),
+      "",
+    )
+    LoadTools(server) -> #(
+      Model(..model, tools: dict.insert(model.tools, server, ToolsLoading)),
+      load_tools(model.id, server),
+      "",
+    )
     QueryEdited(query) -> #(Model(..model, query: query), effect.none(), "")
     ServerPicked(id) -> #(Model(..model, server_pick: id), effect.none(), "")
     RulesFor(id) -> #(
@@ -375,8 +394,24 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
       send_empty(model, "DELETE", server_url(model.id, id), "remove")
     Copy(value) -> #(model, copy(value), "")
     ContextLoaded(#(status, body)) -> context_loaded(model, status, body)
-    ServersLoaded(id, #(status, body)) ->
-      rows_loaded(model, id, status, body, api.servers_of, remember_servers)
+    ServersLoaded(id, #(status, body)) -> {
+      let #(next, effects, path) =
+        rows_loaded(model, id, status, body, api.servers_of, remember_servers)
+      let #(next, more) = ask_for_tools(next)
+      #(next, effect.batch([effects, more]), path)
+    }
+    ToolsAnswered(gateway, server, #(status, body)) ->
+      case gateway == model.id {
+        False -> #(model, effect.none(), "")
+        True -> #(
+          Model(
+            ..model,
+            tools: dict.insert(model.tools, server, tools_state(status, body)),
+          ),
+          effect.none(),
+          "",
+        )
+      }
     PoliciesLoaded(id, #(status, body)) ->
       rows_loaded(model, id, status, body, api.policies_of, fn(next, rows) {
         Model(..next, policies: rows)
@@ -400,16 +435,6 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
     RegistryLoaded(append, #(status, body)) ->
       registry_loaded(model, append, status, body)
     Wrote(kind, #(status, body)) -> wrote(model, kind, status, body)
-    ProbeLoaded(#(True, body)) -> #(probe_ok(model, body), effect.none(), "")
-    ProbeLoaded(#(False, _)) -> #(
-      Model(
-        ..model,
-        probe_note: "The gateway lists this server's tools the first time an agent connects. Until then, name a tool below or set the default rule.",
-        discovered: [],
-      ),
-      effect.none(),
-      "",
-    )
     HostedLoaded(#(status, body)) -> #(
       Model(..model, hosted: case api.hosted_available(status, body) {
         True -> Up
@@ -647,7 +672,7 @@ fn submit_server(model: Model) -> #(Model, Effect(Msg), String) {
                   notice: Quiet,
                   upgrade: "",
                 ),
-                post_then_probe(
+                post(
                   servers_url(model.id),
                   api.server_body(
                     model.server_name,
@@ -656,9 +681,7 @@ fn submit_server(model: Model) -> #(Model, Effect(Msg), String) {
                     kind,
                     key,
                   ),
-                  url,
-                  kind,
-                  key,
+                  "server",
                 ),
                 "",
               )
@@ -876,21 +899,37 @@ fn wrote_ok(
           )
         }
       }
-    "server" -> #(
-      Model(
-        ..model,
-        busy: False,
-        api_key: "",
-        sheet: Closed,
-        probe_note: "",
-        upgrade: "",
-        notice: Good(
-          "Server added. Its tools are blocked until you set a rule for them.",
+    "server" -> {
+      // Ask the new server for its tools right away, so they show before any
+      // agent connects. New servers allow every tool, so policies reload too.
+      let #(tools, ask) = case api.added_server_of(body) {
+        Ok(server) -> #(
+          dict.insert(model.tools, server.id, ToolsLoading),
+          load_tools(model.id, server.id),
+        )
+        Error(_) -> #(model.tools, effect.none())
+      }
+      #(
+        Model(
+          ..model,
+          busy: False,
+          api_key: "",
+          sheet: Closed,
+          tools: tools,
+          upgrade: "",
+          notice: Good(
+            "Server added. Every tool on it is allowed. Narrow that in Rules.",
+          ),
         ),
-      ),
-      effect.batch([load_servers(model.id), load_pins(model.id)]),
-      "",
-    )
+        effect.batch([
+          load_servers(model.id),
+          load_policies(model.id),
+          load_pins(model.id),
+          ask,
+        ]),
+        "",
+      )
+    }
     "policy" -> #(
       Model(
         ..model,
@@ -999,18 +1038,35 @@ fn wrote_ok(
   }
 }
 
-fn probe_ok(model: Model, body: String) -> Model {
-  let names = case api.tool_names(body) {
-    Ok(found) -> list.filter(found, api.tool_name_ok)
-    Error(_) -> []
-  }
-  let note = case names {
-    [] ->
-      "That server returned no tools. Name the ones you want to rule, or come back after the gateway has listed them."
+/// Ask for the tools of every server whose tools are not known yet.
+fn ask_for_tools(model: Model) -> #(Model, Effect(Msg)) {
+  let missing =
+    list.filter(model.servers, fn(row) { !dict.has_key(model.tools, row.id) })
+  #(
+    Model(
+      ..model,
+      tools: list.fold(missing, model.tools, fn(acc, row) {
+        dict.insert(acc, row.id, ToolsLoading)
+      }),
+    ),
+    effect.batch(list.map(missing, fn(row) { load_tools(model.id, row.id) })),
+  )
+}
+
+fn tools_state(status: Int, body: String) -> Tools {
+  case status {
+    200 ->
+      case api.tools_of(body) {
+        Ok(tools) -> ToolsLoaded(tools)
+        Error(_) -> ToolsFailed("The tool list was not readable.")
+      }
+    0 -> ToolsFailed("Could not reach Fizzlayer. Check your connection.")
     _ ->
-      "These names came from the server just now. Tools without a rule are blocked."
+      ToolsFailed(api.error_message(
+        body,
+        "The server's tools could not be listed.",
+      ))
   }
-  Model(..model, discovered: names, probe_note: note)
 }
 
 fn post_json(
@@ -1147,23 +1203,9 @@ fn method_send(
   browser.send(method, path, body, fn(pair) { dispatch(Wrote(kind, pair)) })
 }
 
-fn post_then_probe(
-  path: String,
-  body: String,
-  url: String,
-  kind: String,
-  key: String,
-) -> Effect(Msg) {
-  use dispatch <- effect.from
-  browser.send("POST", path, body, fn(pair) {
-    dispatch(Wrote("server", pair))
-    case pair {
-      #(200, _) ->
-        browser.probe_tools(url, kind, key, fn(result) {
-          dispatch(ProbeLoaded(result))
-        })
-      _ -> Nil
-    }
+fn load_tools(gateway: String, server: String) -> Effect(Msg) {
+  get(server_url(gateway, server) <> "/tools", fn(pair) {
+    ToolsAnswered(gateway, server, pair)
   })
 }
 
@@ -1661,7 +1703,7 @@ fn servers_tab(model: Model) -> Element(Msg) {
       [],
       [
         ui.muted(
-          "Pick one from the official MCP Registry, or search all of it. Every tool on a new server is blocked until you set a rule.",
+          "Pick one from the official MCP Registry, or search all of it. Its tools show up as soon as it is added, and every one is allowed until you narrow it in Rules.",
         ),
         ui.search_bar(
           [event.on_submit(fn(_) { SearchRegistry })],
@@ -1704,6 +1746,64 @@ fn servers_tab(model: Model) -> Element(Msg) {
 }
 
 fn server_row(model: Model, row: api.ServerRow) -> Element(Msg) {
+  html.div([], [server_summary(model, row), server_tools(model, row)])
+}
+
+/// What the server listed: its tools, a spinner while asking, or the reason it
+/// could not be asked, with a retry.
+fn server_tools(model: Model, row: api.ServerRow) -> Element(Msg) {
+  case dict.get(model.tools, row.id) {
+    Error(_) -> element.none()
+    Ok(ToolsLoading) ->
+      ui.server_tools(
+        [
+          ui.icon_classes("fa-solid fa-spinner fa-spin"),
+          text(" Asking " <> row.name <> " for its tools…"),
+        ],
+        [],
+      )
+    Ok(ToolsFailed(message)) ->
+      ui.server_tools([ui.icon("triangle-exclamation"), text(" " <> message)], [
+        ui.button(
+          ui.Quiet,
+          [attribute.type_("button"), event.on_click(LoadTools(row.id))],
+          ui.with_icon("rotate", "Try again"),
+        ),
+      ])
+    Ok(ToolsLoaded([])) ->
+      ui.server_tools([text("The server listed no tools.")], [])
+    Ok(ToolsLoaded(tools)) -> {
+      let count = list.length(tools)
+      let summary =
+        int.to_string(count)
+        <> case count {
+          1 -> " tool"
+          _ -> " tools"
+        }
+        <> " · "
+        <> default_rule_label(model, row.id)
+      let chips =
+        ui.tool_chips(
+          list.map(tools, fn(tool) { #(tool.name, tool.description) }),
+        )
+      ui.server_tools([], [ui.disclosure(summary, count <= 12, [chips])])
+    }
+  }
+}
+
+/// What the server's `*` rule does, in the words of the rule switch.
+fn default_rule_label(model: Model, server_id: String) -> String {
+  case
+    list.find(model.policies, fn(row) {
+      row.tool_name == "*" && row.server_id == server_id
+    })
+  {
+    Ok(row) -> rule_label(row.effect) <> " by default"
+    Error(_) -> "no default rule, so unlisted tools are blocked"
+  }
+}
+
+fn server_summary(model: Model, row: api.ServerRow) -> Element(Msg) {
   ui.item_row(
     server_icon(row.url),
     row.name,
@@ -2021,7 +2121,7 @@ fn rules_tab(model: Model) -> Element(Msg) {
     ui.panel_head(
       "list-check",
       "Rules for each tool",
-      "Allow runs the tool. Block stops it. Ask first holds each call until you approve it, then the agent tries again. Tools without a rule are blocked.",
+      "Allow runs the tool. Block stops it. Ask first holds each call until you approve it, then the agent tries again. A new server starts with every tool allowed.",
       [],
     ),
     case model.servers {
@@ -2051,9 +2151,23 @@ fn rules_tab(model: Model) -> Element(Msg) {
             }),
           ),
           channel_field(model),
-          case model.probe_note {
-            "" -> element.none()
-            note -> ui.muted(note)
+          case dict.get(model.tools, model.server_pick) {
+            Ok(ToolsLoading) -> ui.muted("Asking the server for its tools…")
+            Ok(ToolsFailed(message)) ->
+              html.div([], [
+                ui.notice_text(ui.Caution, message),
+                ui.actions([
+                  ui.button(
+                    ui.Quiet,
+                    [
+                      attribute.type_("button"),
+                      event.on_click(LoadTools(model.server_pick)),
+                    ],
+                    ui.with_icon("rotate", "Try again"),
+                  ),
+                ]),
+              ])
+            _ -> element.none()
           },
           ui.item_list([
             tool_row(model, "*"),
@@ -2062,7 +2176,7 @@ fn rules_tab(model: Model) -> Element(Msg) {
           case tool_names(model) {
             [] ->
               ui.muted(
-                "No tool names yet. They show up after an agent first connects. You can also type one below.",
+                "The server has not listed any tools. You can still type a tool name below.",
               )
             _ -> element.none()
           },
@@ -2116,7 +2230,13 @@ fn tool_row(model: Model, name: String) -> Element(Msg) {
       _ -> "fa-solid fa-wrench"
     },
     title,
-    [text(policy_label(model, name))],
+    [
+      text(policy_label(model, name)),
+      case tool_description(model, name) {
+        "" -> element.none()
+        description -> html.p([], [text(description)])
+      },
+    ],
     [
       ui.rule_switch("Rule for " <> title, [
         rule_option(model, name, "allow", "check"),
@@ -2178,10 +2298,26 @@ fn policy_label(model: Model, tool: String) -> String {
         _ -> rule_label(row.effect)
       }
     Error(_) ->
-      case tool {
-        "*" -> "No default yet, so tools without a rule are blocked"
-        _ -> "No rule yet"
+      case tool, current_policy(model, "*") {
+        "*", _ -> "No default yet, so tools without a rule are blocked"
+        _, Ok(default) -> rule_label(default.effect) <> ", from Every tool"
+        _, Error(_) -> "No rule yet, so it is blocked"
       }
+  }
+}
+
+/// The tools the picked server listed, if it has answered.
+fn listed_tools(model: Model) -> List(api.Tool) {
+  case dict.get(model.tools, model.server_pick) {
+    Ok(ToolsLoaded(tools)) -> tools
+    _ -> []
+  }
+}
+
+fn tool_description(model: Model, name: String) -> String {
+  case list.find(listed_tools(model), fn(tool) { tool.name == name }) {
+    Ok(tool) -> tool.description
+    Error(_) -> ""
   }
 }
 
@@ -2194,7 +2330,7 @@ fn tool_names(model: Model) -> List(String) {
   }
   unique(
     list.flatten([
-      model.discovered,
+      list.map(listed_tools(model), fn(tool) { tool.name }),
       list.filter_map(model.pins, fn(row) {
         case server == "" || row.server_name == server {
           True -> Ok(row.tool_name)
@@ -2428,11 +2564,12 @@ fn connect_tab(model: Model) -> Element(Msg) {
       current_mode(model),
       current_public_url(model),
     )
+  let label = client_label(model.client)
   html.div([attribute.id("step-client")], [
     ui.panel_head(
       "plug",
       "Connect an agent",
-      "Give each agent its own client token. Revoke one without touching the others.",
+      "Pick the app your agent runs in. Fizzlayer makes a token for it and fills in the setup.",
       [],
     ),
     case hosted {
@@ -2444,36 +2581,199 @@ fn connect_tab(model: Model) -> Element(Msg) {
         ])
       False -> ui.block("Run it yourself", [], [self_host(model)])
     },
-    ui.block("Client token", [], [
-      html.form([event.on_submit(fn(_) { MintToken })], [
-        field(
-          "Token name",
-          "token-name",
-          model.token_name,
-          "Cursor",
-          False,
-          TokenNameEdited,
-        ),
-        ui.actions([
-          ui.button(
-            ui.Primary,
-            [attribute.type_("submit"), attribute.disabled(model.busy)],
-            ui.with_icon("key", "Mint a client token"),
-          ),
-        ]),
-      ]),
-      case api.client_token_ok(model.minted) {
-        False ->
-          ui.muted("Mint a token to fill the snippets. It is shown once.")
-        True -> snippets(url, model.minted)
-      },
+    ui.block("Pick your app", [], [
+      ui.client_picker(
+        "MCP clients",
+        list.map(client_keys, fn(key) {
+          let #(icon, detail) = client_meta(key)
+          ui.ClientChoice(
+            icon: icon,
+            label: client_label(key),
+            detail: detail,
+            current: key == model.client,
+            on_pick: event.on_click(ClientPicked(key)),
+          )
+        }),
+      ),
     ]),
+    ui.block(
+      case model.client {
+        "other" -> "Add Fizzlayer to any MCP client"
+        _ -> "Add Fizzlayer to " <> label
+      },
+      [],
+      [
+        case model.client, api.client_token_ok(model.minted) {
+          "chatgpt", _ -> chatgpt_note()
+          _, False ->
+            html.div([], [
+              ui.muted(
+                "Each app gets its own client token. It is shown once, and you can revoke it below without touching the others.",
+              ),
+              ui.actions([
+                ui.button(
+                  ui.Primary,
+                  [
+                    attribute.type_("button"),
+                    attribute.disabled(model.busy),
+                    event.on_click(MintToken),
+                  ],
+                  ui.with_icon("key", "Create a token for " <> label),
+                ),
+              ]),
+            ])
+          key, True ->
+            html.div([], [
+              ui.setup_steps(client_steps(key, url, model.minted, hosted)),
+              ui.muted(
+                "This token is shown once. Copy the setup now, or create another token later.",
+              ),
+            ])
+        },
+      ],
+    ),
     ui.block("Tokens", [], [
       case model.tokens {
         [] -> ui.muted("No client tokens yet.")
         rows -> ui.item_list(list.map(rows, token_row))
       },
     ]),
+  ])
+}
+
+const client_keys = [
+  "claude-code", "claude", "chatgpt", "cursor", "vscode", "codex", "gemini",
+  "hermes", "other",
+]
+
+fn client_label(key: String) -> String {
+  case key {
+    "claude-code" -> "Claude Code"
+    "claude" -> "Claude"
+    "chatgpt" -> "ChatGPT"
+    "cursor" -> "Cursor"
+    "vscode" -> "VS Code"
+    "codex" -> "Codex"
+    "gemini" -> "Gemini CLI"
+    "hermes" -> "Hermes Agent"
+    _ -> "Any MCP client"
+  }
+}
+
+/// Icon classes and the one-line hint under each client.
+fn client_meta(key: String) -> #(String, String) {
+  case key {
+    "claude-code" -> #("fa-solid fa-terminal", "One command")
+    "claude" -> #("fa-solid fa-comments", "Web, desktop and mobile")
+    "chatgpt" -> #("fa-solid fa-message", "Not yet")
+    "cursor" -> #("fa-solid fa-i-cursor", "One-click install")
+    "vscode" -> #("fa-solid fa-code", "mcp.json")
+    "codex" -> #("fa-solid fa-laptop-code", "One command")
+    "gemini" -> #("fa-brands fa-google", "One command")
+    "hermes" -> #("fa-solid fa-feather-pointed", "config.yaml")
+    _ -> #("fa-solid fa-plug", "URL and header")
+  }
+}
+
+/// The steps for one client, filled with the gateway URL and a fresh token.
+fn client_steps(
+  key: String,
+  url: String,
+  token: String,
+  hosted: Bool,
+) -> List(#(String, List(Element(Msg)))) {
+  case key {
+    "claude-code" -> [
+      #("Run this in a terminal.", [
+        snippet("Terminal", clients.claude_code(url, token)),
+      ]),
+      #(
+        "In Claude Code, run /mcp. The fizzlayer server lists your gateway's tools.",
+        [],
+      ),
+    ]
+    "claude" -> [
+      #(
+        "In Claude, open Settings, then Connectors, then Add custom connector.",
+        [
+          case hosted {
+            True -> element.none()
+            False ->
+              ui.muted(
+                "Claude connects from Anthropic's servers, so it needs a public gateway URL, not 127.0.0.1.",
+              )
+          },
+        ],
+      ),
+      #("Name it Fizzlayer and paste this URL.", [
+        ui.copy_line(url, [copy_button(url)]),
+      ]),
+      #("Under Request headers, add Authorization with this value.", [
+        ui.copy_line(clients.bearer(token), [copy_button(clients.bearer(token))]),
+      ]),
+      #(
+        "Save, then turn the connector on in a chat. It works in Claude on the web, desktop and mobile.",
+        [],
+      ),
+    ]
+    "cursor" -> [
+      #("Install it in one click. Cursor asks before it adds the server.", [
+        ui.actions([
+          ui.link_button(
+            ui.Primary,
+            clients.cursor_link(url, token),
+            ui.with_icon("arrow-up-right-from-square", "Add to Cursor"),
+          ),
+        ]),
+      ]),
+      #("Or add it to ~/.cursor/mcp.json by hand.", [
+        snippet("mcp.json", clients.cursor(url, token)),
+      ]),
+    ]
+    "vscode" -> [
+      #(
+        "Add this to .vscode/mcp.json in a project, or to the file MCP: Open User Configuration opens.",
+        [snippet("mcp.json", clients.vscode(url, token))],
+      ),
+      #("Start fizzlayer from the MCP servers list in VS Code.", []),
+    ]
+    "codex" -> [
+      #(
+        "Run this in a terminal. Codex reads the token from FIZZLAYER_TOKEN, so add the export line to your shell profile too.",
+        [snippet("Terminal", clients.codex(url, token))],
+      ),
+    ]
+    "gemini" -> [
+      #("Run this in a terminal.", [
+        snippet("Terminal", clients.gemini(url, token)),
+      ]),
+      #("In Gemini CLI, run /mcp to check that fizzlayer is connected.", []),
+    ]
+    "hermes" -> [
+      #("Add this to ~/.hermes/config.yaml.", [
+        snippet("config.yaml", clients.hermes(url, token)),
+      ]),
+      #("In a Hermes chat, run /reload-mcp.", []),
+    ]
+    _ -> [
+      #(
+        "Use streamable HTTP with this URL and header. Any MCP client that can send a header works.",
+        [snippet("Connection", clients.generic(url, token))],
+      ),
+    ]
+  }
+}
+
+fn chatgpt_note() -> Element(Msg) {
+  html.div([], [
+    html.p([], [
+      text(
+        "ChatGPT's connector form signs in with OAuth or with nothing. It has no place for the token a Fizzlayer gateway checks, so ChatGPT cannot connect to it yet.",
+      ),
+    ]),
+    ui.muted(
+      "Codex, OpenAI's coding agent, can connect today. Pick Codex above.",
+    ),
   ])
 }
 
@@ -2540,15 +2840,6 @@ fn registration_box(model: Model) -> Element(Msg) {
         copy_button(model.registration),
       ])
   }
-}
-
-fn snippets(url: String, token: String) -> Element(Msg) {
-  html.div([], [
-    snippet("Claude Code", clients.claude_code(url, token)),
-    snippet("Claude Desktop", clients.claude_desktop(url, token)),
-    snippet("Cursor", clients.cursor(url, token)),
-    snippet("Any HTTP MCP client", clients.generic(url, token)),
-  ])
 }
 
 fn snippet(title: String, body: String) -> Element(Msg) {
@@ -2830,8 +3121,24 @@ pub fn preview(name: String) -> Model {
         ),
       ],
       server_pick: "22222222-2222-4222-8222-222222222222",
-      discovered: ["ping", "create_issue", "move_funds"],
+      tools: dict.from_list([
+        #(
+          "22222222-2222-4222-8222-222222222222",
+          ToolsLoaded([
+            api.Tool("ping", "Checks that the server answers."),
+            api.Tool("create_issue", "Opens an issue in a repository."),
+            api.Tool("move_funds", "Moves money between accounts."),
+          ]),
+        ),
+      ]),
       policies: [
+        api.PolicyRow(
+          id: "33333333-3333-4333-8333-333333333334",
+          server_id: "22222222-2222-4222-8222-222222222222",
+          tool_name: "*",
+          effect: "allow",
+          notify_channel: "log",
+        ),
         api.PolicyRow(
           id: "33333333-3333-4333-8333-333333333333",
           server_id: "22222222-2222-4222-8222-222222222222",
@@ -2880,7 +3187,6 @@ pub fn preview(name: String) -> Model {
       ],
       server_name: "github",
       server_url: "https://api.githubcopilot.com/mcp/",
-      probe_note: "These names came from the server just now. Tools without a rule are blocked.",
     )
   let quiet = Model(..base, registration: "", minted: "", api_key: "")
   case name {

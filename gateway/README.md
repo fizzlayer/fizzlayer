@@ -58,7 +58,7 @@ The published port is `localhost:3000`. Tokens minted for this compose file use 
 
 Two ways to run the data plane. Do not run both writers against the same `config.yaml`. `fizz-config watch` and `fizz-agent` would overwrite each other.
 
-**Standalone.** Hand-edit `config.yaml`, or let `fizz-config` render it from a Postgres you operate. The compose file above is this mode. `fizz-guard` reads policies, pins, approvals, and client-token revocation from that database on each call. `DATABASE_URL=memory://` keeps those rows in the process and drops them on exit. Nothing in standalone calls the Fizzlayer API.
+**Standalone.** Hand-edit `config.yaml`, or let `fizz-config` render it from a Postgres you operate. The compose file above is this mode. `fizz-guard` reads policies, pins, approvals, and client-token revocation from that database on each call. If its database connection closes (a pooler restart or an idle timeout), the guard opens a new one on the next call; the call that saw the drop still fails closed. `DATABASE_URL=memory://` keeps those rows in the process and drops them on exit. Nothing in standalone calls the Fizzlayer API.
 
 **Linked.** `fizz-agent` sits next to agentgateway and `fizz-guard`. It needs the control-plane origin and a registration token (`fizz_reg_…`, shown once when the gateway is created or rotated):
 
@@ -134,7 +134,9 @@ This directory does not add `gateway` to the Data API schemas in `supabase/confi
 
 ## Policies
 
-`gateway.gateways.unreviewed_tools` is `hide` or `show` (default `hide`). A tool the guard has not seen is stored with `status = unreviewed`. `hide` removes it from `tools/list`. `show` leaves it listed. Either way, `tools/call` is denied until the pin is approved.
+A server added through the control plane starts open: `ctl_add_server` writes an `allow` rule for `*`, and `gateway.servers.trust_new_tools` defaults to true, so the guard pins each tool as `approved` the first time it is listed. Servers that existed before that column keep `trust_new_tools = false`, and so do the compose seeds, because the probes test the review flow.
+
+On a server with `trust_new_tools = false`, a tool the guard has not seen is stored with `status = unreviewed`. `gateway.gateways.unreviewed_tools` is `hide` or `show` (default `hide`). `hide` removes it from `tools/list`. `show` leaves it listed. Either way, `tools/call` is denied until the pin is approved.
 
 An approved pin stores `sha256` of the canonical JSON `{"description","inputSchema","name"}`. If a later `tools/list` has a different hash, the tool is removed from that list, `status` becomes `changed`, and `gateway.pin_alerts` gets one open row. The description preview on that row is untrusted text from the MCP server, cut to 200 characters. `tools/call` stays denied until the observed hash is approved.
 
@@ -180,6 +182,7 @@ The Rust API on Vercel exposes the control plane under `/api/gateway/*`. It does
 | PATCH | `/api/gateway/gateways/{id}` | Set `unreviewed_tools` to `hide` or `show` on `gateway.gateways`. |
 | GET, POST | `/api/gateway/gateways/{id}/servers` | List servers, or add one. `url` is http(s). `api_key` is stored encrypted and is never returned. `transport: stdio` with `command` and `args` is only for a dedicated or self-hosted gateway on a plan that includes stdio. |
 | DELETE | `/api/gateway/gateways/{id}/servers/{server_id}` | Remove a server. |
+| GET | `/api/gateway/gateways/{id}/servers/{server_id}/tools` | Run `initialize` and `tools/list` against the server now, with its stored key. Owner or admin. Public addresses only. |
 | GET, PUT | `/api/gateway/gateways/{id}/policies` | List rules, or upsert one: `server_id` (optional), `tool_name` (`*` or one tool), `effect` (`allow`, `deny`, `approve`), and optional `notify_channel` (`log`, `webhook`, `phone`). |
 | DELETE | `/api/gateway/gateways/{id}/policies/{policy_id}` | Remove a rule. |
 | GET | `/api/gateway/gateways/{id}/pins` | List `gateway.tool_pins` for this gateway. |

@@ -6,6 +6,7 @@
 //! the only response that contains decrypted upstream credentials.
 
 mod crypto;
+mod discover;
 mod limits;
 #[cfg(test)]
 mod memory;
@@ -163,6 +164,7 @@ async fn dispatch(
             false,
         )?)),
         ("POST", Route::Servers(id)) => add_server(backend, user, &id, &body).await,
+        ("GET", Route::ServerTools(id, server)) => server_tools(backend, user, &id, &server).await,
         ("DELETE", Route::Server(id, server)) => Ok(json_ok(map_db(
             backend
                 .call(
@@ -375,6 +377,53 @@ async fn add_server(
         backend.call(Some(user), "add_server", payload).await?,
         false,
     )?))
+}
+
+/// The tools a server offers right now, asked of the server itself. Needs
+/// write access, because the API decrypts the stored key to make the call.
+async fn server_tools(
+    backend: &impl Backend,
+    user: Uuid,
+    gateway: &str,
+    server: &str,
+) -> Result<Response<ResponseBody>, ApiError> {
+    let source = map_db(
+        backend
+            .call(
+                Some(user),
+                "server_source",
+                json!({"gateway_id": gateway, "server_id": server}),
+            )
+            .await?,
+        false,
+    )?;
+    let auth_kind = source["auth_kind"].as_str().unwrap_or("none");
+    let key = if auth_kind == "key" {
+        let encoded = source["ciphertext"].as_str().ok_or_else(|| {
+            ApiError::new(
+                503,
+                "missing_secret",
+                "A stored MCP credential could not be read.",
+            )
+        })?;
+        let plain = crypto::open(&backend.secret_key()?, encoded)?;
+        Some(String::from_utf8(plain).map_err(|_| {
+            ApiError::new(
+                503,
+                "missing_secret",
+                "A stored MCP credential could not be read.",
+            )
+        })?)
+    } else {
+        None
+    };
+    let upstream = discover::Upstream {
+        url: source["url"].as_str().unwrap_or(""),
+        transport: source["transport"].as_str().unwrap_or(""),
+        auth_kind,
+        key: key.as_deref(),
+    };
+    Ok(json_ok(discover::list_tools(&upstream).await?))
 }
 
 async fn set_policy(
@@ -1287,6 +1336,7 @@ enum Route {
     Servers(String),
     Server(String, String),
     Policies(String),
+    ServerTools(String, String),
     Policy(String, String),
     Pins(String),
     PinApprove(String),
@@ -1319,6 +1369,9 @@ fn parse_route(path: &str) -> Option<Route> {
         ["gateways", id, "servers"] if valid_uuid(id) => Some(Route::Servers((*id).to_string())),
         ["gateways", id, "servers", server] if valid_uuid(id) && valid_uuid(server) => {
             Some(Route::Server((*id).to_string(), (*server).to_string()))
+        }
+        ["gateways", id, "servers", server, "tools"] if valid_uuid(id) && valid_uuid(server) => {
+            Some(Route::ServerTools((*id).to_string(), (*server).to_string()))
         }
         ["gateways", id, "policies"] if valid_uuid(id) => Some(Route::Policies((*id).to_string())),
         ["gateways", id, "policies", policy] if valid_uuid(id) && valid_uuid(policy) => {
@@ -1494,6 +1547,57 @@ mod tests {
         )
         .await;
         assert_eq!(status, 405);
+    }
+
+    #[tokio::test]
+    async fn new_servers_allow_every_tool_and_list_tools_for_writers_only() {
+        let (backend, _) = harness();
+        backend.add_member("user-a", "user-c", "member");
+        let (_, _, created) = call(
+            &backend,
+            "POST",
+            "/api/gateway/gateways",
+            Some("user-a"),
+            Some(json!({"name": "home"})),
+        )
+        .await;
+        let gateway = created["gateway"]["id"].as_str().unwrap().to_string();
+        let (status, _, server) = call(
+            &backend,
+            "POST",
+            &format!("/api/gateway/gateways/{gateway}/servers"),
+            Some("user-a"),
+            Some(json!({"name": "local", "url": "http://127.0.0.1:9/mcp"})),
+        )
+        .await;
+        assert_eq!(status, 200, "{server}");
+        assert_eq!(server["server"]["trust_new_tools"], true);
+        let server_id = server["server"]["id"].as_str().unwrap().to_string();
+        let (status, _, policies) = call(
+            &backend,
+            "GET",
+            &format!("/api/gateway/gateways/{gateway}/policies"),
+            Some("user-a"),
+            None,
+        )
+        .await;
+        assert_eq!(status, 200, "{policies}");
+        let rules = policies["policies"].as_array().unwrap();
+        assert_eq!(rules.len(), 1, "{policies}");
+        assert_eq!(rules[0]["tool_name"], "*");
+        assert_eq!(rules[0]["effect"], "allow");
+        assert_eq!(rules[0]["server_id"], server_id.as_str());
+
+        let tools = format!("/api/gateway/gateways/{gateway}/servers/{server_id}/tools");
+        assert!(parse_route(tools.trim_start_matches("/api/gateway/")).is_some());
+        let (status, _, body) = call(&backend, "GET", &tools, Some("user-c"), None).await;
+        assert_eq!(status, 403, "{body}");
+        let (status, _, body) = call(&backend, "GET", &tools, None, None).await;
+        assert_eq!(status, 401, "{body}");
+        // A loopback URL is refused before any request is made.
+        let (status, _, body) = call(&backend, "GET", &tools, Some("user-a"), None).await;
+        assert_eq!(status, 400, "{body}");
+        assert_eq!(body["error"]["code"], "upstream_blocked", "{body}");
     }
 
     #[tokio::test]

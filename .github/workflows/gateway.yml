@@ -12,6 +12,8 @@ on:
       - supabase/migrations/20261118000000_phone_approval_calls.sql
       - supabase/migrations/20261118000100_gateway_agent.sql
       - supabase/migrations/20261118000200_hosted_gateway.sql
+      - supabase/migrations/20261119000000_gateway_trust_new_tools.sql
+      - supabase/migrations/20261119000100_gateway_open_new_servers.sql
       - supabase/tests/gateway_rls.sql
       - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml
@@ -26,6 +28,8 @@ on:
       - supabase/migrations/20261118000000_phone_approval_calls.sql
       - supabase/migrations/20261118000100_gateway_agent.sql
       - supabase/migrations/20261118000200_hosted_gateway.sql
+      - supabase/migrations/20261119000000_gateway_trust_new_tools.sql
+      - supabase/migrations/20261119000100_gateway_open_new_servers.sql
       - supabase/tests/gateway_rls.sql
       - gateway/compose/phone-cap-test.sh
       - .github/workflows/gateway.yml

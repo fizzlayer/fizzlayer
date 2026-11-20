@@ -56,7 +56,31 @@ pub fn review_pin(
     observed: &str,
     show_unreviewed: bool,
 ) -> PinDecision {
+    review_pin_for(existing, observed, show_unreviewed, false)
+}
+
+/// [`review_pin`] for a server that trusts new tools. A tool seen for the first
+/// time, or still unreviewed, is pinned as approved: it is listed and can be
+/// called. A description that changes after that is still held and alerted,
+/// exactly as on any other server.
+pub fn review_pin_for(
+    existing: Option<&PinRecord>,
+    observed: &str,
+    show_unreviewed: bool,
+    trust_new: bool,
+) -> PinDecision {
     match existing {
+        None
+        | Some(PinRecord {
+            status: PinStatus::Unreviewed,
+            ..
+        }) if trust_new => PinDecision {
+            pin_sha256: observed.to_string(),
+            observed_sha256: observed.to_string(),
+            status: PinStatus::Approved,
+            alert: false,
+            show: true,
+        },
         None => PinDecision {
             pin_sha256: observed.to_string(),
             observed_sha256: observed.to_string(),
@@ -403,5 +427,36 @@ mod tests {
         assert!(sql.contains("billing_unreachable"));
         assert!(sql.contains("enable row level security"));
         assert!(!sql.contains("20261114000400_"));
+    }
+
+    #[test]
+    fn trusted_servers_approve_new_tools_and_still_hold_changes() {
+        let fresh = review_pin_for(None, "abc", false, true);
+        assert_eq!(fresh.status, PinStatus::Approved);
+        assert!(fresh.show && !fresh.alert);
+        let record = PinRecord {
+            pin_sha256: fresh.pin_sha256.clone(),
+            observed_sha256: fresh.observed_sha256.clone(),
+            status: fresh.status,
+        };
+        assert!(!pin_blocks_call(Some(&record)));
+
+        let unreviewed = PinRecord {
+            pin_sha256: "abc".to_string(),
+            observed_sha256: "abc".to_string(),
+            status: PinStatus::Unreviewed,
+        };
+        assert_eq!(
+            review_pin_for(Some(&unreviewed), "abc", false, true).status,
+            PinStatus::Approved
+        );
+
+        let changed = review_pin_for(Some(&record), "def", false, true);
+        assert_eq!(changed.status, PinStatus::Changed);
+        assert!(!changed.show && changed.alert);
+
+        let strict = review_pin_for(None, "abc", false, false);
+        assert_eq!(strict.status, PinStatus::Unreviewed);
+        assert!(!strict.show);
     }
 }
