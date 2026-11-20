@@ -366,6 +366,28 @@ impl Db {
         Ok(())
     }
 
+    /// Records an HTTP server the way the control plane does when one is
+    /// added, so the guard can pin its tools. The probes use it; the app adds
+    /// servers through `gateway.ctl_add_server`.
+    pub async fn insert_server(
+        &self,
+        gateway_id: Uuid,
+        name: &str,
+        url: &str,
+    ) -> GatewayResult<()> {
+        let client = self.client().await?;
+        client
+            .execute(
+                "insert into gateway.servers (gateway_id, name, transport, url_or_cmd, auth_kind)
+                 values ($1, $2, 'http', $3, 'none')
+                 on conflict (gateway_id, name) do nothing",
+                &[&gateway_id, &name, &url],
+            )
+            .await
+            .map_err(GatewayError::database)?;
+        Ok(())
+    }
+
     pub async fn user_for_gateway(&self, gateway_id: Uuid) -> GatewayResult<(Uuid, Uuid, String)> {
         let client = self.client().await?;
         let row = client
