@@ -188,6 +188,19 @@ impl Memory {
         );
     }
 
+    /// Replaces a server's stored key with bytes that do not decrypt, the way
+    /// a key sealed under another GATEWAY_SECRET_KEY would look.
+    pub fn corrupt_secret(&self, gateway: &str, server: &str) {
+        let mut state = self.state.lock().expect("memory");
+        let gateway = Uuid::parse_str(gateway).expect("gateway id");
+        let row = state
+            .servers
+            .values_mut()
+            .find(|row| row.gateway == gateway && row.name == server)
+            .expect("server");
+        row.ciphertext = Some(format!("AQ{}", "A".repeat(60)));
+    }
+
     pub fn seed_approval(&self, gateway: &str, tool: &str) -> String {
         let mut state = self.state.lock().expect("memory");
         let gateway = Uuid::parse_str(gateway).expect("gateway id");
