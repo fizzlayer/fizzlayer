@@ -69,6 +69,11 @@ impl ApiError {
 
     /// `Retry-After` in seconds. The value is a static header, the same way
     /// the rate-limit responses have always sent `60`.
+    #[cfg(test)]
+    pub(crate) fn code(&self) -> &'static str {
+        self.code
+    }
+
     pub fn retry_after(mut self, seconds: &'static str) -> Self {
         self.retry_after = Some(seconds);
         self

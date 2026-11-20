@@ -15,6 +15,8 @@ import clients
 import config
 import fizz_spa
 import gateway
+import gleam/dict
+import gleam/uri
 import openapi_routes
 import prerender
 import rewrites
@@ -382,7 +384,7 @@ pub fn every_gateway_route_is_in_openapi_test() {
   let assert Ok(rust) = simplifile.read("../src/gateway/mod.rs")
   let assert Ok(spec) = simplifile.read("../public/openapi.json")
   let paths = openapi_routes.paths_from_rust(rust)
-  list.length(paths) |> should.equal(23)
+  list.length(paths) |> should.equal(24)
   list.each(paths, fn(path) {
     string.contains(spec, "\"" <> path <> "\"") |> should.be_true
   })
@@ -536,4 +538,139 @@ pub fn sign_in_replies_move_the_form_along_test() {
       )),
     )
   let assert signin.CheckEmail(_, "resend") = unconfirmed.mode
+}
+
+pub fn servers_show_their_tools_and_default_rule_test() {
+  let html = element.to_string(gateway.view(gateway.preview("servers")))
+  string.contains(html, "create_issue") |> should.be_true
+  string.contains(html, "3 tools · Allow by default") |> should.be_true
+  string.contains(html, "every one is allowed") |> should.be_true
+}
+
+pub fn tools_are_asked_for_when_servers_load_test() {
+  let server = "22222222-2222-4222-8222-222222222222"
+  let model = gateway.Model(..gateway.preview("servers"), tools: dict.new())
+  let body =
+    "{\"servers\":[{\"id\":\""
+    <> server
+    <> "\",\"name\":\"github\",\"url\":\"https://api.githubcopilot.com/mcp/\",\"transport\":\"http\",\"auth_kind\":\"key\",\"has_secret\":true}]}"
+  let #(loading, _, _) =
+    gateway.update(model, gateway.ServersLoaded(model.id, #(200, body)))
+  dict.get(loading.tools, server) |> should.equal(Ok(gateway.ToolsLoading))
+
+  let answer =
+    "{\"tools\":[{\"name\":\"search\",\"description\":\"Finds things.\"}]}"
+  let #(loaded, _, _) =
+    gateway.update(
+      loading,
+      gateway.ToolsAnswered(model.id, server, #(200, answer)),
+    )
+  dict.get(loaded.tools, server)
+  |> should.equal(
+    Ok(gateway.ToolsLoaded([api.Tool("search", "Finds things.")])),
+  )
+
+  // An answer for a gateway that is no longer open changes nothing.
+  let #(other, _, _) =
+    gateway.update(
+      loading,
+      gateway.ToolsAnswered("33333333-3333-4333-8333-333333333333", server, #(
+        200,
+        answer,
+      )),
+    )
+  dict.get(other.tools, server) |> should.equal(Ok(gateway.ToolsLoading))
+
+  let refused =
+    "{\"error\":{\"code\":\"upstream_auth\",\"message\":\"The MCP server refused the credential.\"}}"
+  let #(failed, _, _) =
+    gateway.update(
+      loading,
+      gateway.ToolsAnswered(model.id, server, #(502, refused)),
+    )
+  dict.get(failed.tools, server)
+  |> should.equal(
+    Ok(gateway.ToolsFailed("The MCP server refused the credential.")),
+  )
+  let html =
+    element.to_string(gateway.view(
+      gateway.Model(..failed, screen: gateway.Page(route.Servers)),
+    ))
+  string.contains(html, "refused the credential") |> should.be_true
+  string.contains(html, "Try again") |> should.be_true
+}
+
+pub fn adding_a_server_asks_it_for_tools_test() {
+  let model =
+    gateway.Model(..gateway.preview("servers"), tools: dict.new(), busy: True)
+  let body =
+    "{\"server\":{\"id\":\"77777777-7777-4777-8777-777777777777\",\"name\":\"docs\",\"url\":\"https://docs.mcp.cloudflare.com/mcp\",\"transport\":\"http\",\"auth_kind\":\"none\",\"has_secret\":false,\"trust_new_tools\":true}}"
+  let #(next, _, path) =
+    gateway.update(model, gateway.Wrote("server", #(200, body)))
+  path |> should.equal("")
+  next.busy |> should.be_false
+  dict.get(next.tools, "77777777-7777-4777-8777-777777777777")
+  |> should.equal(Ok(gateway.ToolsLoading))
+}
+
+pub fn every_client_setup_carries_the_url_and_token_test() {
+  let url =
+    "https://gw.fizzlayer.com/w/11111111-1111-4111-8111-111111111111/mcp"
+  let token = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJleGFtcGxlIn0.e30"
+  list.each(
+    [
+      clients.claude_code(url, token),
+      clients.cursor(url, token),
+      clients.vscode(url, token),
+      clients.codex(url, token),
+      clients.gemini(url, token),
+      clients.hermes(url, token),
+      clients.generic(url, token),
+    ],
+    fn(setup) {
+      string.contains(setup, url) |> should.be_true
+      string.contains(setup, token) |> should.be_true
+    },
+  )
+  // Codex reads the token from the environment, not from config.toml.
+  let assert Ok(#(export, add)) =
+    string.split_once(clients.codex(url, token), "\n")
+  string.contains(export, token) |> should.be_true
+  string.contains(add, token) |> should.be_false
+  string.contains(add, "--bearer-token-env-var FIZZLAYER_TOKEN")
+  |> should.be_true
+  clients.bearer(token) |> should.equal("Bearer " <> token)
+}
+
+pub fn cursor_link_holds_the_server_config_test() {
+  let link = clients.cursor_link("https://gw.example.com/mcp", "tok")
+  let assert Ok(#(_, encoded)) = string.split_once(link, "&config=")
+  string.starts_with(
+    link,
+    "cursor://anysphere.cursor-deeplink/mcp/install?name=fizzlayer&config=",
+  )
+  |> should.be_true
+  let assert Ok(base64) = uri.percent_decode(encoded)
+  let assert Ok(bits) = bit_array.base64_decode(base64)
+  bit_array.to_string(bits)
+  |> should.equal(Ok(
+    "{\"url\":\"https://gw.example.com/mcp\",\"headers\":{\"Authorization\":\"Bearer tok\"}}",
+  ))
+}
+
+pub fn connect_tab_fills_the_picked_client_test() {
+  let base = gateway.preview("client-hosted")
+  let pick = fn(key) {
+    let #(model, _, _) = gateway.update(base, gateway.ClientPicked(key))
+    element.to_string(gateway.view(model))
+  }
+  string.contains(pick("cursor"), "cursor://anysphere.cursor-deeplink")
+  |> should.be_true
+  string.contains(pick("hermes"), "mcp_servers:") |> should.be_true
+  string.contains(pick("claude"), "Request headers") |> should.be_true
+  let chatgpt = pick("chatgpt")
+  string.contains(chatgpt, "cannot connect to it yet") |> should.be_true
+  string.contains(chatgpt, "eyJhbGciOiJub25lIn0") |> should.be_false
+  let #(picked, _, _) = gateway.update(base, gateway.ClientPicked("codex"))
+  picked.token_name |> should.equal("Codex")
 }

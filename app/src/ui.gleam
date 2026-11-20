@@ -1023,3 +1023,111 @@ fn int_min(a: Int, b: Int) -> Int {
     False -> b
   }
 }
+
+// Tools and clients ----------------------------------------------------------------
+
+/// The tools a server listed, as compact chips. The description is the
+/// chip's tooltip and stays readable by screen readers.
+pub fn tool_chips(tools: List(#(String, String))) -> Element(msg) {
+  html.ul(
+    [attribute.class("tool-chips")],
+    list.map(tools, fn(tool) {
+      let #(name, description) = tool
+      html.li([attribute.class("tool-chip"), attribute.title(description)], [
+        icon_classes("fa-solid fa-wrench"),
+        html.code([], [text(name)]),
+        case description {
+          "" -> element.none()
+          _ ->
+            html.span([attribute.class("visually-hidden")], [text(description)])
+        },
+      ])
+    }),
+  )
+}
+
+/// The tool area under one server: a heading line and what follows.
+pub fn server_tools(
+  summary: List(Element(msg)),
+  children: List(Element(msg)),
+) -> Element(msg) {
+  html.div([attribute.class("server-tools")], [
+    html.p([attribute.class("server-tools-summary")], summary),
+    ..children
+  ])
+}
+
+/// A native disclosure, for lists that are long when open.
+pub fn disclosure(
+  summary: String,
+  open: Bool,
+  children: List(Element(msg)),
+) -> Element(msg) {
+  html.details([attribute.class("disclosure"), attribute.open(open)], [
+    html.summary([attribute.class("disclosure-summary")], [
+      icon("chevron-right"),
+      text(summary),
+    ]),
+    ..children
+  ])
+}
+
+pub type ClientChoice(msg) {
+  ClientChoice(
+    icon: String,
+    label: String,
+    detail: String,
+    current: Bool,
+    on_pick: Attribute(msg),
+  )
+}
+
+/// A grid of MCP clients to set up. The picked one is pressed.
+pub fn client_picker(
+  label: String,
+  items: List(ClientChoice(msg)),
+) -> Element(msg) {
+  html.div(
+    [
+      attribute.class("client-picker"),
+      attribute.role("group"),
+      attribute.aria_label(label),
+    ],
+    list.index_map(items, fn(item, index) {
+      html.button(
+        [
+          attribute.class("client-option"),
+          attribute.type_("button"),
+          attribute.aria_pressed(case item.current {
+            True -> "true"
+            False -> "false"
+          }),
+          attribute.style("--i", int.to_string(int_min(index, 12))),
+          item.on_pick,
+        ],
+        [
+          html.span([attribute.class("client-icon")], [icon_classes(item.icon)]),
+          html.span([attribute.class("client-text")], [
+            html.strong([], [text(item.label)]),
+            html.span([attribute.class("client-detail")], [text(item.detail)]),
+          ]),
+        ],
+      )
+    }),
+  )
+}
+
+/// Numbered setup steps. Each step is a short line and optional content
+/// under it, such as a snippet.
+pub fn setup_steps(items: List(#(String, List(Element(msg))))) -> Element(msg) {
+  html.ol(
+    [attribute.class("setup-steps")],
+    list.map(items, fn(item) {
+      let #(title, children) = item
+      html.li([attribute.class("setup-step")], [
+        html.p([attribute.class("setup-step-title")], [text(title)]),
+        ..children
+      ])
+    }),
+  )
+}

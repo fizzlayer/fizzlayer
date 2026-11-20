@@ -11,16 +11,6 @@ pub fn send(
   done(#(0, "HTTP is only available in the browser"))
 }
 
-@external(javascript, "./http_ffi.mjs", "probe_tools")
-pub fn probe_tools(
-  _url: String,
-  _auth_kind: String,
-  _api_key: String,
-  done: fn(#(Bool, String)) -> Nil,
-) -> Nil {
-  done(#(False, "Tool listing is only available in the browser"))
-}
-
 @external(javascript, "./http_ffi.mjs", "hosted_probe")
 pub fn hosted_probe(done: fn(#(Int, String)) -> Nil) -> Nil {
   done(#(404, ""))

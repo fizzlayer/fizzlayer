@@ -182,6 +182,11 @@ pub type ServerRow {
   )
 }
 
+/// One tool from `GET .../servers/<id>/tools`, asked of the server itself.
+pub type Tool {
+  Tool(name: String, description: String)
+}
+
 pub type PolicyRow {
   PolicyRow(
     id: String,
@@ -378,6 +383,15 @@ pub fn minted_of(body: String) -> Result(#(String, String), Nil) {
   ok_or_nil(json.parse(body, minted_decoder()))
 }
 
+/// The server in a `POST .../servers` answer.
+pub fn added_server_of(body: String) -> Result(ServerRow, Nil) {
+  ok_or_nil(json.parse(body, decode.at(["server"], server_decoder())))
+}
+
+pub fn tools_of(body: String) -> Result(List(Tool), Nil) {
+  ok_or_nil(json.parse(body, field_list("tools", tool_decoder())))
+}
+
 pub fn servers_of(body: String) -> Result(List(ServerRow), Nil) {
   ok_or_nil(json.parse(body, field_list("servers", server_decoder())))
 }
@@ -400,10 +414,6 @@ pub fn approvals_of(body: String) -> Result(List(ApprovalRow), Nil) {
 
 pub fn tokens_of(body: String) -> Result(List(TokenRow), Nil) {
   ok_or_nil(json.parse(body, field_list("tokens", token_decoder())))
-}
-
-pub fn tool_names(body: String) -> Result(List(String), Nil) {
-  ok_or_nil(json.parse(body, decode.list(decode.string)))
 }
 
 fn ok_or_nil(value: Result(a, b)) -> Result(a, Nil) {
@@ -559,6 +569,12 @@ fn minted_decoder() -> decode.Decoder(#(String, String)) {
   use token <- decode.subfield(["token", "token"], decode.string)
   use audience <- decode.subfield(["token", "audience"], decode.string)
   decode.success(#(token, audience))
+}
+
+fn tool_decoder() -> decode.Decoder(Tool) {
+  use name <- decode.field("name", decode.string)
+  use description <- decode.optional_field("description", "", decode.string)
+  decode.success(Tool(name:, description:))
 }
 
 fn server_decoder() -> decode.Decoder(ServerRow) {

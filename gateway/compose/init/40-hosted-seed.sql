@@ -58,3 +58,8 @@ insert into gateway.policies (gateway_id, server_id, tool_name, effect, notify_c
   ('22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555555', 'admin_reset', 'deny', 'log'),
   ('33333333-3333-4333-8333-333333333333', '55555555-5555-4555-8555-555555555556', 'ping', 'deny', 'log'),
   ('77777777-7777-4777-8777-777777777777', '55555555-5555-4555-8555-555555555557', 'ping', 'allow', 'log');
+
+-- The probes check the review flow (unreviewed, approved, changed), so the
+-- sample servers keep the strict pinning that servers had before
+-- trust_new_tools. New servers added through the API trust first sightings.
+update gateway.servers set trust_new_tools = false;

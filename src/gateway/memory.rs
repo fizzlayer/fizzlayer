@@ -40,6 +40,7 @@ struct ServerRow {
     auth_kind: String,
     ciphertext: Option<String>,
     enabled: bool,
+    trust_new_tools: bool,
     order: u64,
 }
 
@@ -286,6 +287,7 @@ impl State {
             "delete_gateway" => self.delete_gateway(user, payload),
             "list_servers" => self.list_servers(user, payload),
             "add_server" => self.add_server(user, payload),
+            "server_source" => self.server_source(user, payload),
             "remove_server" => self.remove_server(user, payload),
             "list_policies" => self.list_policies(user, payload),
             "set_policy" => self.set_policy(user, payload),
@@ -536,11 +538,43 @@ impl State {
                 auth_kind: auth_kind.to_string(),
                 ciphertext,
                 enabled: true,
+                trust_new_tools: true,
                 order,
+            },
+        );
+        // Same as ctl_add_server: a new server starts with every tool allowed.
+        self.policies.insert(
+            Uuid::new_v4(),
+            PolicyRow {
+                gateway: gateway_id,
+                server: Some(id),
+                tool: "*".to_string(),
+                effect: "allow".to_string(),
+                notify_channel: "log".to_string(),
             },
         );
         self.bump(gateway_id);
         json!({"server": server_json(&id, &self.servers[&id])})
+    }
+
+    fn server_source(&mut self, user: Option<Uuid>, payload: &Value) -> Value {
+        let Some((gateway_id, _)) = self.write_gateway(user, payload) else {
+            return self.read_error(user, payload);
+        };
+        let server = payload["server_id"]
+            .as_str()
+            .and_then(|id| Uuid::parse_str(id).ok());
+        match server.and_then(|id| self.servers.get(&id)) {
+            Some(row) if row.gateway == gateway_id => json!({
+                "name": row.name,
+                "transport": row.transport,
+                "url": row.url,
+                "auth_kind": row.auth_kind,
+                "ciphertext": row.ciphertext,
+                "key_id": row.ciphertext.as_ref().map(|_| crate::gateway::crypto::KEY_ID),
+            }),
+            _ => json!({"error": "not_found"}),
+        }
     }
 
     fn remove_server(&mut self, user: Option<Uuid>, payload: &Value) -> Value {
@@ -1160,6 +1194,7 @@ fn server_json(id: &Uuid, server: &ServerRow) -> Value {
         "auth_kind": server.auth_kind,
         "has_secret": server.ciphertext.is_some(),
         "enabled": server.enabled,
+        "trust_new_tools": server.trust_new_tools,
     })
 }
 

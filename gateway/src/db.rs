@@ -742,6 +742,15 @@ async fn apply_sight(
     if sight.server.is_empty() {
         return Ok(show_unreviewed);
     }
+    let trust_new: bool = transaction
+        .query_opt(
+            "select trust_new_tools from gateway.servers where gateway_id = $1 and name = $2",
+            &[&gateway_id, &sight.server],
+        )
+        .await
+        .map_err(GatewayError::database)?
+        .map(|row| row.get("trust_new_tools"))
+        .unwrap_or(false);
     let row = transaction
         .query_opt(
             "select p.pin_sha256, p.observed_sha256, p.status
@@ -756,14 +765,15 @@ async fn apply_sight(
         None => None,
         Some(row) => Some(pin_from_row(row)?),
     };
-    let decision = toolpin::review_pin(existing.as_ref(), &sight.hash, show_unreviewed);
+    let decision =
+        toolpin::review_pin_for(existing.as_ref(), &sight.hash, show_unreviewed, trust_new);
     let status = decision.status.as_str();
     if existing.is_none() {
         let inserted = transaction
             .execute(
                 "insert into gateway.tool_pins
                    (server_id, tool_name, pin_sha256, observed_sha256, status, approved_at)
-                 select s.id, $3, $4, $5, $6, null
+                 select s.id, $3, $4, $5, $6, case when $6 = 'approved' then now() end
                  from gateway.servers s
                  where s.gateway_id = $1 and s.name = $2",
                 &[

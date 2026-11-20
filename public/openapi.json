@@ -1505,6 +1505,92 @@
         }
       }
     },
+    "/api/gateway/gateways/{id}/servers/{server_id}/tools": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GatewayId"
+        },
+        {
+          "$ref": "#/components/parameters/ServerId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Gateway"
+        ],
+        "operationId": "listGatewayServerTools",
+        "summary": "List an MCP server's tools",
+        "description": "Runs initialize and tools/list against the upstream server from the API, with its stored credential, so the tools are known before any agent connects. Needs owner or admin access. The server URL must resolve only to public addresses. Servers with auth_kind passthrough answer 409.",
+        "security": [
+          {
+            "supabaseAccess": []
+          },
+          {
+            "supabaseCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tools the server listed. Names are valid tool names. Descriptions are cut to 300 characters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "maxItems": 300,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "description"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tools"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The URL does not resolve to a public address (upstream_blocked), or the transport cannot be listed."
+          },
+          "401": {
+            "$ref": "#/components/responses/GatewaySignIn"
+          },
+          "403": {
+            "$ref": "#/components/responses/GatewayForbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/GatewayMissing"
+          },
+          "409": {
+            "description": "The server uses each agent's own token (passthrough), so the API cannot list it."
+          },
+          "429": {
+            "$ref": "#/components/responses/GatewayRateLimited"
+          },
+          "502": {
+            "description": "The MCP server refused the credential, did not answer, or did not answer as MCP."
+          },
+          "503": {
+            "$ref": "#/components/responses/GatewayUnavailable"
+          }
+        }
+      }
+    },
     "/api/gateway/gateways/{id}/policies": {
       "parameters": [
         {

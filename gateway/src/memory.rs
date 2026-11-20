@@ -2,7 +2,7 @@
 //! to disk, and it starts empty, so tool calls are denied until pins and
 //! policies exist. Compose and hosted gateways use Postgres instead.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
@@ -50,6 +50,7 @@ struct PhoneRow {
 struct State {
     gateways: HashMap<Uuid, GatewayRow>,
     servers: HashMap<(Uuid, String), Uuid>,
+    trusted: HashSet<Uuid>,
     tokens: HashMap<(Uuid, String), SystemTime>,
     policies: HashMap<Uuid, Vec<PolicyRule>>,
     pins: HashMap<(Uuid, String), PinRecord>,
@@ -75,6 +76,7 @@ impl MemoryDb {
             inner: Mutex::new(State {
                 gateways: HashMap::new(),
                 servers: HashMap::new(),
+                trusted: HashSet::new(),
                 tokens: HashMap::new(),
                 policies: HashMap::new(),
                 pins: HashMap::new(),
@@ -113,6 +115,15 @@ impl MemoryDb {
             state
                 .servers
                 .insert((gateway_id, name.to_string()), Uuid::new_v4());
+        }
+    }
+
+    /// A server whose new tools are approved when first seen.
+    pub fn insert_trusted_server(&self, gateway_id: Uuid, name: &str) {
+        if let Ok(mut state) = self.lock() {
+            let id = Uuid::new_v4();
+            state.servers.insert((gateway_id, name.to_string()), id);
+            state.trusted.insert(id);
         }
     }
 
@@ -290,7 +301,12 @@ impl MemoryDb {
             };
             let key = (server_id, sight.tool.clone());
             let existing = state.pins.get(&key).cloned();
-            let decision = toolpin::review_pin(existing.as_ref(), &sight.hash, show_unreviewed);
+            let decision = toolpin::review_pin_for(
+                existing.as_ref(),
+                &sight.hash,
+                show_unreviewed,
+                state.trusted.contains(&server_id),
+            );
             if decision.alert {
                 let open = state.alerts.iter().any(|alert| {
                     !alert.acknowledged

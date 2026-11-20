@@ -13,6 +13,7 @@ services:
       - ./init/00-local-prereqs.sql:/docker-entrypoint-initdb.d/00-local-prereqs.sql:ro
       - ../../supabase/migrations/20261114000000_gateway.sql:/docker-entrypoint-initdb.d/10-gateway.sql:ro
       - ../../supabase/migrations/20261114000300_gateway_policies.sql:/docker-entrypoint-initdb.d/11-gateway-policies.sql:ro
+      - ../../supabase/migrations/20261119000000_gateway_trust_new_tools.sql:/docker-entrypoint-initdb.d/13-gateway-trust.sql:ro
       - ../../supabase/migrations/20261118000000_phone_approval_calls.sql:/docker-entrypoint-initdb.d/12-phone-approvals.sql:ro
       - ./init/20-runtime-login.sh:/docker-entrypoint-initdb.d/20-runtime-login.sh:ro
       - ./init/30-seed.sql:/docker-entrypoint-initdb.d/30-seed.sql:ro
