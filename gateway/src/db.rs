@@ -1,7 +1,7 @@
 //! Server-side queries. fizz-guard, fizz-agent, and fizz-config connect as
 //! `gateway_runtime` (or the Supabase service role). Browser roles are not used here.
 
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 use tokio_postgres::Client;
 use uuid::Uuid;
 
@@ -11,7 +11,11 @@ use crate::notify::{self, PhoneBudget};
 use crate::policy::{ApprovalHit, Effect, NotifyChannel, PolicyRule};
 use crate::toolpin::{self, PinRecord, PinStatus};
 
+/// One Postgres connection, opened again when it closes. fizz-guard runs for
+/// days, and a pooler restart or an idle timeout would otherwise leave every
+/// later query failing until the process restarts.
 pub struct Db {
+    url: String,
     client: Mutex<Client>,
 }
 
@@ -22,8 +26,30 @@ impl Db {
     /// the certificate. `verify-ca` and `verify-full` check it.
     pub async fn connect(url: &str) -> GatewayResult<Self> {
         Ok(Self {
+            url: url.to_string(),
             client: Mutex::new(crate::pg_tls::connect(url).await?),
         })
+    }
+
+    /// The connection, reopened first if it has closed. The query that saw
+    /// the connection drop still fails. The next one reconnects.
+    async fn client(&self) -> GatewayResult<MutexGuard<'_, Client>> {
+        let mut client = self.client.lock().await;
+        if client.is_closed() {
+            *client = crate::pg_tls::reconnect(&self.url).await?;
+            eprintln!("fizz-gateway: database reconnected");
+        }
+        Ok(client)
+    }
+
+    /// A round trip to the database, for the readiness check.
+    pub async fn ping(&self) -> GatewayResult<()> {
+        self.client()
+            .await?
+            .simple_query("select 1")
+            .await
+            .map(|_| ())
+            .map_err(GatewayError::database)
     }
 
     pub async fn load_gateway(
@@ -32,7 +58,7 @@ impl Db {
         guard_host: &str,
         jwks_file: &str,
     ) -> GatewayResult<GatewaySpec> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let rows = match gateway_id {
             Some(id) => {
                 client
@@ -105,7 +131,7 @@ impl Db {
     }
 
     pub async fn gateway_workspace(&self, gateway_id: Uuid) -> GatewayResult<Option<Uuid>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select workspace_id from gateway.gateways where id = $1 and status = 'active'",
@@ -117,7 +143,7 @@ impl Db {
     }
 
     pub async fn gateway_audience(&self, gateway_id: Uuid) -> GatewayResult<Option<String>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select public_url from gateway.gateways where id = $1 and status = 'active'",
@@ -132,7 +158,7 @@ impl Db {
     /// migration has no `gateway.tool_quota`; that is treated as no cap so
     /// self-host compose keeps working. Any other error fails closed.
     pub async fn tool_quota(&self, gateway_id: Uuid) -> GatewayResult<ToolQuota> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select allowed, used, cap from gateway.tool_quota($1)",
@@ -160,7 +186,7 @@ impl Db {
     }
 
     pub async fn token_active(&self, gateway_id: Uuid, jti: &str) -> GatewayResult<bool> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select (revoked_at is null and expires_at > now()) as active
@@ -173,7 +199,7 @@ impl Db {
     }
 
     pub async fn policies(&self, gateway_id: Uuid) -> GatewayResult<Vec<PolicyRule>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let rows = client
             .query(
                 "select s.name as server_name, p.tool_name, p.effect, p.notify_channel
@@ -207,7 +233,7 @@ impl Db {
         tool: &str,
         args_hash: &str,
     ) -> GatewayResult<ApprovalHit> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let approved = client
             .query_opt(
                 "select id from gateway.approvals
@@ -238,7 +264,7 @@ impl Db {
     }
 
     pub async fn open_approval(&self, approval: &NewApproval<'_>) -> GatewayResult<Uuid> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let ttl = approval.ttl_secs.clamp(60, 24 * 60 * 60) as f64;
         let row = client
             .query_one(
@@ -264,7 +290,7 @@ impl Db {
     }
 
     pub async fn consume_approval(&self, id: Uuid) -> GatewayResult<bool> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let updated = client
             .execute(
                 "update gateway.approvals set status = 'consumed'
@@ -277,7 +303,7 @@ impl Db {
     }
 
     pub async fn record_audit(&self, audit: &AuditWrite) -> GatewayResult<()> {
-        let mut client = self.client.lock().await;
+        let mut client = self.client().await?;
         let transaction = client.transaction().await.map_err(GatewayError::database)?;
         transaction
             .execute(
@@ -327,7 +353,7 @@ impl Db {
         jti: Uuid,
         ttl_secs: u64,
     ) -> GatewayResult<()> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let ttl = ttl_secs.min(60 * 60 * 24 * 30) as f64;
         client
             .execute(
@@ -341,7 +367,7 @@ impl Db {
     }
 
     pub async fn user_for_gateway(&self, gateway_id: Uuid) -> GatewayResult<(Uuid, Uuid, String)> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_one(
                 "select workspace_id, user_id, public_url from gateway.client_subject($1)",
@@ -357,7 +383,7 @@ impl Db {
     }
 
     pub async fn audit_decisions(&self, gateway_id: Uuid) -> GatewayResult<Vec<(String, String)>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let rows = client
             .query(
                 "select tool_name, decision from gateway.audit_log
@@ -377,7 +403,7 @@ impl Db {
         gateway_id: Uuid,
         tool: &str,
     ) -> GatewayResult<Option<String>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select status from gateway.approvals
@@ -395,7 +421,7 @@ impl Db {
         gateway_id: Uuid,
         tool: &str,
     ) -> GatewayResult<Option<(Uuid, String)>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select id, status from gateway.approvals
@@ -414,7 +440,7 @@ impl Db {
         workspace_id: Uuid,
         sights: &[ToolSight],
     ) -> GatewayResult<Vec<bool>> {
-        let mut client = self.client.lock().await;
+        let mut client = self.client().await?;
         let transaction = client.transaction().await.map_err(GatewayError::database)?;
         let show_unreviewed = transaction
             .query_one(
@@ -448,7 +474,7 @@ impl Db {
         server: &str,
         tool: &str,
     ) -> GatewayResult<Option<PinRecord>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select p.pin_sha256, p.observed_sha256, p.status
@@ -466,7 +492,13 @@ impl Db {
     }
 
     pub async fn phone_budget(&self, workspace_id: Uuid) -> PhoneBudget {
-        let client = self.client.lock().await;
+        let client = match self.client().await {
+            Ok(client) => client,
+            Err(err) => {
+                eprintln!("fizz-guard: phone budget unavailable: {err}");
+                return PhoneBudget::unreachable();
+            }
+        };
         let row = match client
             .query_one(
                 "select gateway.phone_approval_budget($1)::text as budget",
@@ -495,7 +527,13 @@ impl Db {
         workspace_id: Uuid,
         approval_id: Uuid,
     ) -> notify::PhoneReserve {
-        let client = self.client.lock().await;
+        let client = match self.client().await {
+            Ok(client) => client,
+            Err(err) => {
+                eprintln!("fizz-guard: phone approval was not reserved: {err}");
+                return notify::PhoneReserve::skipped("billing_unreachable");
+            }
+        };
         let row = match client
             .query_one(
                 "select gateway.reserve_phone_approval_call($1, $2)::text as reserved",
@@ -528,7 +566,7 @@ impl Db {
         if !matches!(status, "stubbed" | "skipped") {
             return Err(GatewayError::message("phone attempt was rejected"));
         }
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         client
             .execute(
                 "insert into gateway.phone_calls (workspace_id, approval_id, status)
@@ -541,7 +579,7 @@ impl Db {
     }
 
     pub async fn list_pending(&self) -> GatewayResult<Vec<PendingApproval>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let rows = client
             .query(
                 "select id, gateway_id, server_name, tool_name, args_preview,
@@ -570,7 +608,7 @@ impl Db {
         if !matches!(status, "approved" | "denied") {
             return Err(GatewayError::message("approval decision was rejected"));
         }
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let updated = client
             .execute(
                 "update gateway.approvals set status = $2
@@ -583,7 +621,7 @@ impl Db {
     }
 
     pub async fn list_alerts(&self) -> GatewayResult<Vec<PinAlert>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let rows = client
             .query(
                 "select s.gateway_id, s.name as server_name, a.tool_name, a.description_preview,
@@ -617,7 +655,7 @@ impl Db {
         if !toolpin::tool_name_ok(tool) {
             return Err(GatewayError::message("pin was rejected"));
         }
-        let mut client = self.client.lock().await;
+        let mut client = self.client().await?;
         let transaction = client.transaction().await.map_err(GatewayError::database)?;
         let updated = transaction
             .execute(
@@ -655,7 +693,7 @@ impl Db {
         gateway_id: Uuid,
         tool: &str,
     ) -> GatewayResult<Option<String>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select a.kind
@@ -675,7 +713,7 @@ impl Db {
         gateway_id: Uuid,
         tool: &str,
     ) -> GatewayResult<Option<String>> {
-        let client = self.client.lock().await;
+        let client = self.client().await?;
         let row = client
             .query_opt(
                 "select c.status

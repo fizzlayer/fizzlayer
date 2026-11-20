@@ -45,36 +45,57 @@ struct Prepared {
     mode: SslChoice,
 }
 
+/// Connect at startup. Retries for about 30 seconds so a database that is
+/// still booting (local compose) does not fail the process.
 pub(crate) async fn connect(url: &str) -> GatewayResult<Client> {
+    connect_with(url, 30).await
+}
+
+/// Reconnect after the connection closed. Two tries, because a caller is
+/// waiting on the answer.
+pub(crate) async fn reconnect(url: &str) -> GatewayResult<Client> {
+    connect_with(url, 2).await
+}
+
+async fn connect_with(url: &str, attempts: u32) -> GatewayResult<Client> {
     let prepared = prepare(url)?;
     let mut config = prepared.config;
     config.connect_timeout(Duration::from_secs(5));
+    // Poolers and NAT drop idle TCP connections without a FIN. Keepalives
+    // let the socket notice, so the client is marked closed and reconnects.
+    config.keepalives(true);
+    config.keepalives_idle(Duration::from_secs(30));
     match prepared.mode {
-        SslChoice::Disable => open(&config, tokio_postgres::NoTls).await,
+        SslChoice::Disable => open(&config, tokio_postgres::NoTls, attempts).await,
         mode => {
             let tls = MakeRustlsConnect::new(client_config(mode)?);
-            open(&config, tls).await
+            open(&config, tls, attempts).await
         }
     }
 }
 
-async fn open<T>(config: &tokio_postgres::Config, tls: T) -> GatewayResult<Client>
+async fn open<T>(config: &tokio_postgres::Config, tls: T, attempts: u32) -> GatewayResult<Client>
 where
     T: MakeTlsConnect<tokio_postgres::Socket> + Clone,
     T::Stream: Send + 'static,
 {
     let mut last = connect_error();
-    for attempt in 0..30 {
+    for attempt in 0..attempts {
         match config.connect(tls.clone()).await {
             Ok((client, connection)) => {
                 tokio::spawn(async move {
-                    let _ = connection.await;
+                    // The error names the cause (reset, timeout, server
+                    // shutdown), not the URL or the password.
+                    match connection.await {
+                        Ok(()) => eprintln!("fizz-gateway: database connection closed"),
+                        Err(err) => eprintln!("fizz-gateway: database connection closed: {err}"),
+                    }
                 });
                 return Ok(client);
             }
             Err(err) => {
                 last = GatewayError::database(err);
-                if attempt < 29 {
+                if attempt + 1 < attempts {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
