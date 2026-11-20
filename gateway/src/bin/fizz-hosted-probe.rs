@@ -167,14 +167,6 @@ async fn run() -> GatewayResult<()> {
         return Err(GatewayError::message("secret check echoed a credential"));
     }
 
-    // The control plane writes the server row when a server is added. The
-    // guard needs it to attribute `extra_echo` and pin it.
-    db.insert_server(
-        Uuid::parse_str(GATEWAY_A).expect("gateway id"),
-        "extra",
-        "http://sample-extra:8081/mcp",
-    )
-    .await?;
     client
         .post(format!(
             "{}/test/add-server",
