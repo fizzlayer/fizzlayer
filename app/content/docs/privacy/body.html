@@ -1,0 +1,136 @@
+        <div class="docs-legend" role="note" aria-labelledby="short-version">
+        <p class="docs-label" id="short-version">The short version</p>
+        <ul>
+          <li>We collect what you give Fizzlayer: your account details, your sensor readings, and the alerts you set up.</li>
+          <li>We use it only to run Fizzlayer. We do not sell your data or show you ads.</li>
+          <li>A few trusted services help us run Fizzlayer. They are listed below.</li>
+          <li>Email <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a> and we will delete your data.</li>
+        </ul>
+      </div>
+
+      <h2 id="who">Who we are</h2>
+      <p>Fizzlayer (<a href="https://fizzlayer.com">fizzlayer.com</a>) connects sensors and devices to AI agents. It is run by Nisarga P, an individual developer, referred to here as “we” or “us”. Fizz is the name of the AI agent and mascot inside Fizzlayer.</p>
+      <p>This policy covers the Fizzlayer website, app, API, MCP server, and the <code>fizz</code> command-line tool.</p>
+
+      <h2 id="collect">What we collect</h2>
+
+      <h3>When you contact sales</h3>
+      <ul>
+        <li>Your work email, your company name, and any note you write.</li>
+      </ul>
+
+      <h3>When you create an account</h3>
+      <ul>
+        <li><strong>With email:</strong> your email address and password. The password is stored only as a secure hash, never the password itself.</li>
+        <li><strong>With Google:</strong> your Google account ID, email address, name, and profile picture link. We use your email address to suggest your Fizzlayer username.</li>
+        <li><strong>With GitHub:</strong> your GitHub account ID, username, email address, name, and profile picture link. We use your email address to suggest your Fizzlayer username.</li>
+        <li><strong>Passkeys:</strong> if you add one, we store only its public key. Your fingerprint, face, or device PIN never leaves your device.</li>
+        <li>If you signed up with an invite code before sign-up opened, the code you used.</li>
+      </ul>
+
+      <h3>When you subscribe to a paid plan</h3>
+      <ul>
+        <li>Your plan, its status, and when it renews or ends, along with the Stripe customer and subscription IDs that link your account to Stripe.</li>
+        <li>Stripe collects your payment details, such as your card and billing address. We never see or store your full card number.</li>
+      </ul>
+
+      <h3>When you use Fizzlayer</h3>
+      <ul>
+        <li><strong>Sensor data:</strong> sensor names and types, and the readings your sensors and devices send.</li>
+        <li><strong>Alerts:</strong> the rules you create and when they trigger. If you pair a number for calls, we store that US phone number on your workspace. The pairing code is stored only as a hash, expires in about 10 minutes, and works once.</li>
+        <li><strong>Connected agents:</strong> the name you give each agent and what it is allowed to do. Agent tokens and sensor keys are stored only as hashes.</li>
+        <li><strong>Paired devices:</strong> the device name and platform shown during pairing.</li>
+      </ul>
+
+      <h3>When you pair a phone as a sensor</h3>
+      <p>A paired phone shares motion and orientation only while its Fizzlayer page is open. It can also share these, but only after you allow each one separately:</p>
+      <ul>
+        <li>Your location.</li>
+        <li>Short audio clips, which we store so you can play them back.</li>
+        <li>Voice transcripts.</li>
+      </ul>
+
+      <h3>When you talk to Fizzlayer</h3>
+      <ul>
+        <li><strong>Typed chat:</strong> your message and your recent readings go to an AI model so Fizzlayer can answer. We do not save chat history; it stays in your browser and is cleared when you sign out.</li>
+        <li><strong>Voice chat:</strong> your recording is sent for transcription and the reply from Fizz, our AI agent, is turned into speech. We do not save these recordings.</li>
+        <li><strong>Alert calls:</strong> the call speaks your alert. We turn off call recording.</li>
+      </ul>
+
+      <h3>Collected automatically</h3>
+      <ul>
+        <li><strong>IP address:</strong> used to stop abuse with rate limits. We store it only as a one-way hash, and delete it within about two days.</li>
+        <li><strong>Server logs:</strong> our hosting provider keeps standard request logs, such as IP address, browser type, and pages requested, for a short time.</li>
+        <li><strong>Page views:</strong> we count visits with Vercel Web Analytics, which records the page address (without anything after a <code>?</code> or <code>#</code>), the referring site, your country and region, and your browser, operating system, and device type. It uses no cookies. Visitors are told apart by a hash of the request that is discarded after 24 hours.</li>
+      </ul>
+      <p>We do not use advertising trackers.</p>
+
+      <h2 id="use">How we use it</h2>
+      <ul>
+        <li>To run Fizzlayer: show your dashboard, check your alerts, place alert calls, and answer your questions.</li>
+        <li>To keep Fizzlayer secure and stop abuse.</li>
+        <li>To reply to your sales inquiry, and to email you about important changes to Fizzlayer.</li>
+        <li>To fix problems and improve Fizzlayer.</li>
+      </ul>
+      <p>We <strong>do not sell</strong> your personal information, share it for advertising, or use it to train AI models.</p>
+
+      <h2 id="providers">Who helps us run Fizzlayer</h2>
+      <p>These services process data for us, only to provide their part of Fizzlayer:</p>
+      <ul>
+        <li><strong>Supabase:</strong> database and sign-in. Stores your account and sensor data.</li>
+        <li><strong>Vercel:</strong> hosts the website and API, counts page views with Vercel Web Analytics, and routes chat requests to AI model providers through Vercel AI Gateway.</li>
+        <li><strong>AI model providers</strong> (such as OpenAI), through Vercel AI Gateway: receive your chat messages and the readings needed to answer.</li>
+        <li><strong>ElevenLabs:</strong> turns voice recordings into text and Fizzlayer’s replies into speech.</li>
+        <li><strong>AgentPhone:</strong> places alert calls, and the pairing call that reads your code, to a number you asked us to call. Recording is off.</li>
+        <li><strong>Stripe:</strong> processes payments for paid plans and stores your payment details.</li>
+        <li><strong>Google:</strong> handles Google sign-in, and serves the pixel font used on our pages, which shares your IP address with Google.</li>
+        <li><strong>GitHub:</strong> handles GitHub sign-in, and hosts downloads of the <code>fizz</code> command-line tool.</li>
+      </ul>
+      <p>Each provider handles data under its own privacy policy. We may also share information if the law requires it, to protect people’s safety, or as part of a sale or transfer of Fizzlayer. If that happens, this policy will continue to apply to your data.</p>
+      <p><strong>AI agents you connect</strong> can read your sensor data with the token you gave them. What they do with it is governed by whoever runs that agent. You can revoke a token at any time on the Agents page.</p>
+
+      <h2 id="google">Google and GitHub sign-in</h2>
+      <p>If you sign in with Google, we receive only your basic profile: your Google account ID, email address, name, and profile picture link. We use it only to sign you in and to name your account. We do not access your Gmail, contacts, files, or any other Google data.</p>
+      <p>Fizzlayer’s use of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+      <p id="github">If you sign in with GitHub, we receive only your public profile and email address: your GitHub account ID, username, email address, name, and profile picture link. We use it only to sign you in and to name your account. We do not access your repositories, organizations, or any other GitHub data.</p>
+
+      <h2 id="cookies">Cookies</h2>
+      <p>Fizzlayer uses only the cookies it needs to work, and none for analytics:</p>
+      <ul>
+        <li><strong>fizz_session</strong> keeps you signed in for up to 12 hours.</li>
+        <li><strong>fizz_oauth</strong> protects Google and GitHub sign-in and lasts at most 10 minutes.</li>
+        <li><strong>fizz_supabase</strong> holds your sign-in for up to 1 hour after you sign in, so you can add a passkey.</li>
+      </ul>
+      <p>A paired phone also saves its device key in the browser’s local storage so it stays connected.</p>
+
+      <h2 id="retention">How long we keep it</h2>
+      <ul>
+        <li><strong>Account, sensors, readings, alerts, audio clips, and transcripts:</strong> until you delete them or ask us to delete your account. Removing a sensor deletes its readings, clips, and transcripts.</li>
+        <li><strong>Plan and billing status:</strong> with your account, until it is deleted. Stripe keeps its own payment records under its privacy policy.</li>
+        <li><strong>Sign-in sessions:</strong> 12 hours.</li>
+        <li><strong>Hashed IP addresses:</strong> about 2 days.</li>
+        <li><strong>Unused device pairing codes:</strong> 1 day.</li>
+        <li><strong>Sales inquiries, and emails from the former waitlist:</strong> until you ask us to remove them.</li>
+      </ul>
+
+      <h2 id="choices">Your choices and rights</h2>
+      <ul>
+        <li><strong>In the app:</strong> remove sensors, revoke paired phones and devices, delete alerts, and revoke agent tokens at any time.</li>
+        <li><strong>By email:</strong> ask for a copy of your data, a correction, or full deletion of your account at <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a>. We reply within 30 days.</li>
+        <li><strong>On your phone:</strong> turn off location, microphone, or motion access for Fizzlayer in your browser settings whenever you like.</li>
+      </ul>
+      <p>Depending on where you live, including California and the European Economic Area, you may have legal rights to access, correct, delete, or move your data, and to object to how we use it. We honor these requests for everyone, wherever you live. We will not treat you differently for using them.</p>
+      <p>Fizzlayer is run from the United States, so your data is processed there.</p>
+
+      <h2 id="security">Security</h2>
+      <p>We protect your data with encrypted connections. Passwords, session tokens, sensor keys, and agent tokens are stored only as hashes, and only our servers can reach the database. No system is perfectly secure, though. If a breach affects your data, we will tell you.</p>
+
+      <h2 id="children">Children</h2>
+      <p>Fizzlayer is not for children under 13, and we do not knowingly collect their data. If you think a child has given us information, email us and we will delete it.</p>
+
+      <h2 id="changes">Changes to this policy</h2>
+      <p>We will update the date at the top when this policy changes. For important changes, we will also tell you by email or in the app before they take effect.</p>
+
+      <h2 id="contact">Contact</h2>
+      <p>Questions or requests: <a href="mailto:privacy@fizzlayer.com">privacy@fizzlayer.com</a></p>
+      

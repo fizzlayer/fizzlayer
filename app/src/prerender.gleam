@@ -3,8 +3,9 @@
 //// Run from `app/` with `gleam run -m prerender`, after the SPA bundle is in
 //// `public/app`; `scripts/build-spa.sh` does both.
 ////
-//// Site pages (the landing, Gateway, Pricing, Self-host and docs pages, and
-//// `public/fizz.css`) are committed, and CI fails if they are out of date. App pages under `public/app` are build
+//// Site pages (the landing, Gateway, Pricing, Enterprise, Status, Changelog,
+//// Self-host, docs and legal pages, and `public/fizz.css`) are committed, and
+//// CI fails if they are out of date. App pages under `public/app` are build
 //// output. Each is the app's first render for that URL, so the bundle takes
 //// over the same markup instead of replacing a blank page.
 
@@ -14,11 +15,14 @@ import gleam/uri
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
+import site/changelog
 import site/docs
+import site/enterprise
 import site/gateway_page
 import site/landing
 import site/pricing
 import site/self_host
+import site/status_page
 
 @external(javascript, "./prerender_ffi.mjs", "write_file")
 fn write_file(path: String, contents: String) -> Nil
@@ -42,6 +46,9 @@ pub fn main() -> Nil {
   write_file("../public/gateway.html", render(gateway_page.page()))
   write_file("../public/pricing.html", render(pricing.page()))
   write_file("../public/self-host-chooser.html", render(self_host.page()))
+  write_file("../public/enterprise.html", render(enterprise.page()))
+  write_file("../public/status.html", render(status_page.page()))
+  write_file("../public/changelog.html", render(changelog.page()))
   list.each(docs.all, fn(doc) {
     let dir = "content/docs/" <> doc.slug <> "/"
     let html =
@@ -76,6 +83,8 @@ fn doc_file(slug: String) -> String {
   case slug {
     "gateway" -> "../public/gateway-docs.html"
     "sensors" -> "../public/docs.html"
+    "privacy" -> "../public/privacy.html"
+    "terms" -> "../public/terms.html"
     _ -> "../public/self-host.html"
   }
 }

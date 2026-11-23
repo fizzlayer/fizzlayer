@@ -84,6 +84,8 @@
     --duration: 200ms;
 
     --color-navy: #0a2540;
+    /* The background of the logo tile in fizz-logo.svg. */
+    --color-logo-bg: #0b1722;
 
     --header-height: 64px;
     --content-width: 44rem;
@@ -98,7 +100,7 @@
   .app-header, .card, .site-header, .site-menu-panel, .feature, .split-card,
   .band, .preview-card, .cta-panel, .plan-card, .faq-item, .docs-quick a,
   .docs-compare > section, .legal-body pre, .gw-card, .gw-side, .panel,
-  .empty, .sheet {
+  .empty, .sheet, .contact-card {
     --color-text: #ffffff;
     --color-body: #c6d3e0;
     --color-text-muted: #9fb2c5;
@@ -121,6 +123,13 @@
     --color-danger-border: rgb(255 172 163 / 0.32);
     --shadow: none;
     color: var(--color-body);
+  }
+
+  /* The top bars use the logo tile's colour, so the logo sits on them with no
+     visible edge. */
+  .app-header, .site-header, .site-menu-panel {
+    --color-surface: var(--color-logo-bg);
+    --color-subtle: #172b3d;
   }
 }
 
@@ -994,6 +1003,46 @@
   .docs-compare h3 { margin-top: 0; }
   .docs-compare ul { padding-left: 1.1rem; }
   @media (max-width: 700px) { .docs-quick, .docs-compare { grid-template-columns: 1fr; } }
+
+  /* A title beside a form: the two columns line up at the top. */
+  .hero-grid-top { align-items: start; }
+
+  /* Boxes inside a docs or legal article */
+  div.docs-legend, div.docs-note { margin: 0 0 20px; }
+  .docs-legend > :first-child, .docs-note > :first-child { margin-top: 0 !important; }
+  .docs-legend > :last-child, .docs-note > :last-child { margin-bottom: 0; }
+  .docs-warning .docs-label { color: inherit; }
+
+  /* Changelog */
+  .changelog h2 { margin-top: 40px; font-size: 1.375rem; }
+  .changelog > h2:first-child { margin-top: 0; }
+
+  /* Status */
+  .status-list { max-width: 48rem; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--color-border); }
+  .status-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 20px 0; border-bottom: 1px solid var(--color-border); }
+  .status-list strong { color: var(--color-text); font-weight: 600; }
+  .status-list p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 0.9375rem; }
+  .status-state { flex: none; display: inline-flex; padding: 3px 10px; border-radius: 999px; background: var(--color-subtle); color: var(--color-text-muted); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .status-state[data-state='operational'] { background: var(--color-success-bg); color: var(--color-success); }
+  .status-state[data-state='degraded'] { background: var(--color-warning-bg); color: var(--color-warning); }
+  .status-state[data-state='unavailable'] { background: var(--color-danger-bg); color: var(--color-danger); }
+  .status-checked { max-width: 48rem; margin: 16px 0 0; color: var(--color-text-muted); font-size: 0.875rem; }
+  .status-checked:empty { display: none; }
+
+  /* Contact form on a navy card */
+  .contact-card { padding: clamp(28px, 4vw, 40px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-lg); }
+  .contact-card h2 { margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.025em; }
+  .contact-card > p { margin: 8px 0 8px; }
+  .contact-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .contact-form .field-wide, .contact-actions, .form-status { grid-column: 1 / -1; }
+  .contact-form .input::placeholder { color: var(--color-text-muted); opacity: 0.8; }
+  .contact-form textarea.input { min-height: 96px; resize: vertical; }
+  .field-optional { color: var(--color-text-muted); font-weight: 400; }
+  .contact-actions { margin-top: var(--space-5); }
+  .form-status { margin: 16px 0 0; color: var(--color-success); font-size: 0.9375rem; }
+  .form-status:empty { display: none; }
+  .form-status.error { color: var(--color-danger); }
+  @media (max-width: 560px) { .contact-form { grid-template-columns: 1fr; } }
 
   /* Footer */
   .site-footer { margin-top: clamp(56px, 8vw, 96px); padding: 56px 0 40px; border-top: 1px solid var(--color-border); font-size: 0.9375rem; }

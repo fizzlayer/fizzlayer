@@ -1,4 +1,4 @@
-//// Docs pages. Their text lives in `app/content/docs/<slug>/` as HTML
+//// Docs and legal pages. Their text lives in `app/content/docs/<slug>/` as HTML
 //// (`lede.html`, `toc.html`, `body.html`); this module wraps it in the site
 //// layout. Technical detail belongs here, not on the product pages.
 
@@ -43,6 +43,24 @@ pub const all = [
     description: "Run the Fizzlayer Sensors stack on your own machine with Docker, and send readings over HTTPS, WebSocket and MQTT.",
     kicker: "Self-host",
     heading: "Run Fizzlayer Sensors with Docker",
+    scripts: ["/webmcp.js", "/docs.js", "/analytics.js"],
+  ),
+  Doc(
+    slug: "privacy",
+    path: "/privacy.html",
+    title: "Privacy Policy | Fizzlayer",
+    description: "What Fizzlayer collects, why, who helps us run it, and how to get your data deleted.",
+    kicker: "Legal · Version 3",
+    heading: "Privacy Policy",
+    scripts: ["/webmcp.js", "/docs.js", "/analytics.js"],
+  ),
+  Doc(
+    slug: "terms",
+    path: "/terms.html",
+    title: "Terms of Service | Fizzlayer",
+    description: "The rules for using Fizzlayer, in plain language.",
+    kicker: "Legal · Version 2",
+    heading: "Terms of Service",
     scripts: ["/webmcp.js", "/docs.js", "/analytics.js"],
   ),
 ]

@@ -31,7 +31,8 @@ pub fn document(meta: Meta, content: List(Element(msg))) -> Element(msg) {
         attribute.name("viewport"),
         attribute.content("width=device-width, initial-scale=1"),
       ]),
-      html.meta([attribute.name("theme-color"), attribute.content("#ffffff")]),
+      // The browser bar matches the site header, which matches the logo tile.
+      html.meta([attribute.name("theme-color"), attribute.content("#0b1722")]),
       html.title([], meta.title),
       html.meta([
         attribute.name("description"),
@@ -506,6 +507,30 @@ pub fn page_hero(
   ])
 }
 
+/// The top of a page with something beside the title, such as a form.
+pub fn page_hero_split(
+  kicker: String,
+  title: String,
+  sub: String,
+  actions: List(Element(msg)),
+  aside: Element(msg),
+) -> Element(msg) {
+  html.section([attribute.class("page-hero")], [
+    html.div([attribute.class("container hero-grid hero-grid-top")], [
+      html.div([], [
+        html.p([attribute.class("section-kicker")], [text(kicker)]),
+        html.h1([attribute.class("page-title")], [text(title)]),
+        html.p([attribute.class("hero-sub")], [text(sub)]),
+        case actions {
+          [] -> element.none()
+          _ -> html.div([attribute.class("hero-actions")], actions)
+        },
+      ]),
+      aside,
+    ]),
+  ])
+}
+
 /// Three cards in a row.
 pub fn feature_row(children: List(Element(msg))) -> Element(msg) {
   html.div([attribute.class("feature-grid feature-grid-3")], children)
@@ -683,6 +708,164 @@ pub fn docs(
       ),
     ]),
   ]
+}
+
+// Changelog --------------------------------------------------------------------
+
+/// Days, newest first. Each item is `#(date, changes)`.
+pub fn changelog(days: List(#(String, List(String)))) -> Element(msg) {
+  html.section([attribute.class("container")], [
+    html.article(
+      [attribute.class("prose changelog")],
+      list.flat_map(days, fn(day) {
+        [
+          html.h2([], [text(day.0)]),
+          html.ul(
+            [],
+            list.map(day.1, fn(change) { html.li([], [text(change)]) }),
+          ),
+        ]
+      }),
+    ),
+  ])
+}
+
+// Status -----------------------------------------------------------------------
+
+/// The list `public/status.js` fills in, with its first "Checking" row.
+/// `status.js` finds it and the line under it by id.
+pub fn status_list(checking: String) -> Element(msg) {
+  html.section([attribute.class("container")], [
+    html.ul([attribute.class("status-list"), attribute.id("status-list")], [
+      html.li([], [
+        html.div([], [
+          html.strong([], [text("Checking")]),
+          html.p([], [text(checking)]),
+        ]),
+      ]),
+    ]),
+    html.p(
+      [
+        attribute.class("status-checked"),
+        attribute.id("status-checked"),
+        attribute.role("status"),
+      ],
+      [],
+    ),
+  ])
+}
+
+// Contact form -----------------------------------------------------------------
+
+/// The Enterprise contact form. `public/enterprise.js` finds the form, its
+/// fields and the status line by id and posts them to `/api/contact`.
+pub fn sales_form(title: String, intro: String) -> Element(msg) {
+  html.div([attribute.class("contact-card"), attribute.id("business")], [
+    html.h2([], [text(title)]),
+    html.p([], [text(intro)]),
+    html.form(
+      [
+        attribute.class("contact-form"),
+        attribute.id("business-form"),
+        attribute.attribute("novalidate", ""),
+      ],
+      [
+        field("business-email", "Work email", False, False, [
+          html.input([
+            attribute.class("input"),
+            attribute.id("business-email"),
+            attribute.name("email"),
+            attribute.type_("email"),
+            attribute.autocomplete("email"),
+            attribute.attribute("maxlength", "254"),
+            attribute.required(True),
+            attribute.placeholder("you@company.com"),
+          ]),
+        ]),
+        field("business-company", "Company", False, False, [
+          html.input([
+            attribute.class("input"),
+            attribute.id("business-company"),
+            attribute.name("company"),
+            attribute.type_("text"),
+            attribute.autocomplete("organization"),
+            attribute.attribute("maxlength", "120"),
+            attribute.required(True),
+            attribute.placeholder("Acme Logistics"),
+          ]),
+        ]),
+        field(
+          "business-interest",
+          "What would you like Fizz to watch?",
+          True,
+          True,
+          [
+            html.textarea(
+              [
+                attribute.class("input"),
+                attribute.id("business-interest"),
+                attribute.name("interest"),
+                attribute.attribute("maxlength", "500"),
+                attribute.rows(3),
+                attribute.placeholder(
+                  "e.g. Cold room temperatures across 3 warehouses",
+                ),
+              ],
+              "",
+            ),
+          ],
+        ),
+        html.div([attribute.class("contact-actions")], [
+          html.button(
+            [
+              attribute.class("button button-primary button-lg button-arrow"),
+              attribute.type_("submit"),
+            ],
+            [text("Contact sales ")],
+          ),
+        ]),
+        html.p(
+          [
+            attribute.class("form-status"),
+            attribute.id("business-status"),
+            attribute.role("status"),
+            attribute.attribute("aria-live", "polite"),
+          ],
+          [],
+        ),
+      ],
+    ),
+  ])
+}
+
+fn field(
+  id: String,
+  label: String,
+  optional: Bool,
+  wide: Bool,
+  control: List(Element(msg)),
+) -> Element(msg) {
+  html.div(
+    [
+      attribute.class(case wide {
+        True -> "field field-wide"
+        False -> "field"
+      }),
+    ],
+    [
+      html.label([attribute.class("field-label"), attribute.for(id)], [
+        text(label),
+        case optional {
+          True ->
+            html.span([attribute.class("field-optional")], [
+              text(" (optional)"),
+            ])
+          False -> element.none()
+        },
+      ]),
+      ..control
+    ],
+  )
 }
 
 /// Page-width content with no section spacing of its own.
