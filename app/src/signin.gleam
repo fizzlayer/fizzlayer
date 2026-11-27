@@ -9,7 +9,9 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
+import gleam/uri
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element, text}
@@ -116,6 +118,28 @@ pub fn init(creating: Bool, fragment: Option(String)) -> #(Model, Effect(Msg)) {
     )
   }
   #(model, effect.batch([first, load_providers()]))
+}
+
+/// Fills in the email the home page's sign-up form sent as `?email=`, then
+/// takes it out of the address bar. A missing or malformed address leaves
+/// the field empty.
+pub fn prefill(model: Model, query: Option(String)) -> #(Model, Effect(Msg)) {
+  let raw = route.query_value(option.unwrap(query, ""), "email")
+  // Forms encode a space as `+`, and a literal `+` as `%2B`.
+  let email =
+    raw
+    |> string.replace("+", " ")
+    |> uri.percent_decode
+    |> result.unwrap("")
+    |> string.trim
+  case raw, model.mode, api.valid_email(email) {
+    "", _, _ -> #(model, effect.none())
+    _, Create, True | _, SignIn, True -> #(
+      Model(..model, email:),
+      effect.from(fn(_) { clear_email() }),
+    )
+    _, _, _ -> #(model, effect.from(fn(_) { clear_email() }))
+  }
 }
 
 /// Unlocks the form after the app could not finish a sign-in.
@@ -626,6 +650,9 @@ fn providers_decoder() -> decode.Decoder(List(String)) {
 
 @external(javascript, "./auth_ffi.mjs", "clear_hash")
 fn clear_hash() -> Nil
+
+@external(javascript, "./auth_ffi.mjs", "clear_email")
+fn clear_email() -> Nil
 
 @external(javascript, "./auth_ffi.mjs", "passkeys_supported")
 fn passkeys_supported() -> Bool

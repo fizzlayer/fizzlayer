@@ -8,6 +8,16 @@ export function clear_hash() {
   window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
 }
 
+// Removes the ?email= the home page's sign-up form adds, so the address does
+// not stay in the address bar, the history entry or a copied link.
+export function clear_email() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('email')) return;
+  url.searchParams.delete('email');
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+}
+
 export function passkeys_supported() {
   return globalThis.window?.fizzPasskey?.supported === true;
 }

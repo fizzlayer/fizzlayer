@@ -468,8 +468,85 @@ pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   assert string.contains(html, "src=\"/webmcp.js\"")
   assert !string.contains(html, "waitlist")
   assert !string.contains(html, "gateway-beta.js")
-  assert string.contains(html, "Set one up")
+  assert string.contains(html, "Create a gateway")
   assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn landing_signs_up_from_the_page_test() {
+  let html = element.to_document_string(landing.page())
+  // The email form hands off to the create-account screen.
+  assert string.contains(
+    html,
+    "<form action=\"/app\" class=\"signup\" method=\"get\">",
+  )
+  assert string.contains(html, "id=\"hero-email\" inputmode=\"email\"")
+  assert string.contains(html, "name=\"email\"")
+  assert string.contains(
+    html,
+    "<label class=\"visually-hidden\" for=\"hero-email\">Email</label>",
+  )
+  assert string.contains(html, "Create free account")
+  // Pro is offered next to the free plan.
+  assert string.contains(html, "href=\"/app?plan=pro\"")
+  assert string.contains(html, "href=\"/pricing\"")
+  assert string.contains(html, "$25")
+}
+
+pub fn landing_shows_catalog_server_logos_test() {
+  let html = element.to_document_string(landing.page())
+  assert string.contains(html, "aria-label=\"Servers in the catalog\"")
+  let featured = list.map(catalog.featured(), fn(entry) { entry.title })
+  list.each(
+    [
+      #("github", "GitHub"),
+      #("stripe", "Stripe"),
+      #("postman", "Postman"),
+      #("cloudflare", "Cloudflare Docs"),
+      #("neon", "Neon"),
+      #("posthog", "PostHog"),
+      #("huggingface", "Hugging Face"),
+    ],
+    fn(logo) {
+      // Only servers the catalog offers get a logo.
+      assert list.contains(featured, logo.1)
+      assert string.contains(html, "src=\"/logos/" <> logo.0 <> ".svg\"")
+      assert string.contains(html, "<span>" <> logo.1 <> "</span>")
+    },
+  )
+}
+
+pub fn landing_leaves_out_sensors_and_filler_test() {
+  let html = element.to_document_string(landing.page())
+  let main = case string.split_once(html, "<main id=\"main\">") {
+    Ok(#(_, rest)) ->
+      case string.split_once(rest, "</main>") {
+        Ok(#(main, _)) -> main
+        Error(_) -> rest
+      }
+    Error(_) -> html
+  }
+  assert !string.contains(main, "Sensors")
+  assert !string.contains(main, "/sensors")
+  list.each(
+    ["—", "seamless", "leverage", "unlock", "empower", "supercharge", "robust"],
+    fn(word) {
+      assert !string.contains(string.lowercase(main), word)
+    },
+  )
+}
+
+pub fn sign_up_email_comes_from_the_query_test() {
+  let #(create, _) = signin.init(True, None)
+  signin.prefill(create, Some("email=ada%40example.com&plan=pro")).0.email
+  |> should.equal("ada@example.com")
+  signin.prefill(create, Some("email=ada%2Bgw%40example.com")).0.email
+  |> should.equal("ada+gw@example.com")
+  signin.prefill(create, Some("email=not-an-email")).0.email
+  |> should.equal("")
+  signin.prefill(create, Some("plan=pro")).0.email
+  |> should.equal("")
+  signin.prefill(create, None).0.email
+  |> should.equal("")
 }
 
 pub fn sign_in_form_has_its_own_url_test() {
