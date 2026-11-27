@@ -24,17 +24,8 @@ export function assign(path) {
   if (globalThis.location) globalThis.location.assign(path);
 }
 
-export function continue_checkout(plan) {
-  if (plan !== "tinkerer" && plan !== "pro") return;
-  try {
-    sessionStorage.setItem("fizz.afterCheckout", "gateway");
-    sessionStorage.setItem("fizz.expectSignup", "1");
-  } catch {
-    /* sessionStorage can throw in private mode */
-  }
-  if (globalThis.location) {
-    globalThis.location.assign("/app.html?plan=" + encodeURIComponent(plan));
-  }
+export function replace(path) {
+  if (globalThis.location) globalThis.location.replace(path);
 }
 
 export function copy_text(value, done) {

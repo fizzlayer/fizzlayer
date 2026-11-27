@@ -26,8 +26,9 @@ pub fn assign(_path: String) -> Nil {
   Nil
 }
 
-@external(javascript, "./http_ffi.mjs", "continue_checkout")
-pub fn continue_checkout(_plan: String) -> Nil {
+/// Leave for `path` without keeping the current page in history.
+@external(javascript, "./http_ffi.mjs", "replace")
+pub fn replace(_path: String) -> Nil {
   Nil
 }
 

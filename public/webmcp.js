@@ -590,16 +590,16 @@
     },
     {
       name: 'start_checkout',
-      description: 'Upgrade to a paid plan. Opens Stripe Checkout in this tab; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.',
+      description: 'Upgrade to a paid plan. Opens the Fizzlayer checkout page in this tab, with the Stripe payment form on it; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.',
       inputSchema: { type: 'object', properties: { plan: { type: 'string', enum: ['tinkerer', 'pro'], description: 'Tinkerer ($10/month) or Pro ($25/month).' } }, required: ['plan'] },
       annotations: { consequentialHint: true },
       async execute({ plan }) {
         if (!['tinkerer', 'pro'].includes(plan)) throw new ToolError('Choose "tinkerer" or "pro". For Enterprise, call contact_sales.');
         const account = await api('/api/account');
         if (!account.billing_available) throw new ToolError('Paid plans are not available on this server.');
-        const result = await api('/api/billing', 'POST', { action: 'checkout', plan });
-        navigateSoon(result.url);
-        return text({ ok: true, checkout_url: result.url, message: 'Opening Stripe Checkout. Ask the person to enter their payment details and confirm; do not enter card details for them. They return to Settings afterward, and get_account shows the new plan.' });
+        const checkout = `/app/checkout?plan=${plan}&return=settings`;
+        navigateSoon(checkout);
+        return text({ ok: true, checkout_url: absolute(checkout), message: 'Opening checkout. Ask the person to enter their payment details in the Stripe form and confirm; do not enter card details for them. They return to Settings afterward, and get_account shows the new plan.' });
       },
     },
     {

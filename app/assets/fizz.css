@@ -240,6 +240,12 @@
   .card + .card { margin-top: var(--space-5); }
   @media (max-width: 720px) { .card { padding: var(--space-5); } }
 
+  /* /app/checkout. Stripe draws its form, light by default, in an iframe inside
+     .checkout-frame; the frame stays hidden until the form is there. */
+  .checkout { max-width: 1080px; margin-inline: auto; }
+  .checkout-frame { margin-top: var(--space-5); overflow: hidden; border-radius: var(--radius-md); background: #ffffff; }
+  .checkout-frame:empty { display: none; }
+
   .lead { color: var(--color-text-muted); }
   .muted { color: var(--color-text-muted); }
   .small { font-size: var(--text-sm); }

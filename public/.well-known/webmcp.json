@@ -685,7 +685,7 @@
     },
     {
       "name": "start_checkout",
-      "description": "Upgrade to a paid plan. Opens Stripe Checkout in this tab; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.",
+      "description": "Upgrade to a paid plan. Opens the Fizzlayer checkout page in this tab, with the Stripe payment form on it; the person enters their payment details there and confirms the purchase themselves. The plan updates within seconds of payment.",
       "inputSchema": {
         "type": "object",
         "properties": {

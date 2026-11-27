@@ -11,6 +11,7 @@ import modem
 
 import api
 import browser
+import checkout
 import config
 import gateway
 import route.{type Route}
@@ -40,6 +41,7 @@ pub type Model {
     token: String,
     account: Account,
     gate: gateway.Model,
+    checkout: checkout.Model,
   )
 }
 
@@ -55,6 +57,7 @@ pub type Msg {
   SupabaseSignedOut(#(Bool, String))
   SessionDeleted(#(Int, String))
   Gate(gateway.Msg)
+  CheckoutMsg(checkout.Msg)
 }
 
 pub fn main() -> Nil {
@@ -100,6 +103,7 @@ fn blank() -> Model {
     token: "",
     account: Booting,
     gate: gateway.empty(),
+    checkout: checkout.Unknown,
   )
 }
 
@@ -138,6 +142,7 @@ fn boot_uri(model: Model, uri: Uri) -> #(Model, Effect(Msg)) {
           signin: form,
           plan: wanted_plan(uri.query),
           notice: arrival_notice(uri.query),
+          checkout: checkout.init(uri.query),
         ),
         effect.batch([routing(), load_config(), form_effect]),
       )
@@ -168,11 +173,17 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           effect.none(),
         )
         parsed -> {
-          let model = Model(..model, route: parsed)
-          case model.account {
+          let left = case model.route {
+            route.Checkout -> checkout.leave()
+            _ -> effect.none()
+          }
+          let model =
+            Model(..model, route: parsed, checkout: checkout.init(uri.query))
+          let #(model, fx) = case model.account {
             SignedIn(_, _) -> follow(model, parsed)
             _ -> #(model, effect.none())
           }
+          #(model, effect.batch([left, fx]))
         }
       }
     // Sign-in runs on the server through /api/auth. The browser Supabase
@@ -278,6 +289,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       }
       #(Model(..model, gate:), effect.batch([effect.map(fx, Gate), nav]))
     }
+    CheckoutMsg(inner) ->
+      step_checkout(model, checkout.update(model.checkout, inner))
   }
 }
 
@@ -294,20 +307,42 @@ fn signed_in(
       account: SignedIn(username:, body:),
       notice: model.notice,
     )
-  case model.plan {
-    "tinkerer" | "pro" -> #(Model(..model, plan: ""), checkout(model.plan))
-    _ ->
-      case model.route {
-        // A signed-in visit lands on the gateway list.
-        route.SignIn -> #(model, push(route.gateways_path))
-        other -> follow(model, other)
-      }
+  case model.route, checkout.plan_named(model.plan) {
+    route.Checkout, _ -> follow(Model(..model, plan: ""), route.Checkout)
+    // A plan picked on the pricing page goes to checkout, then the gateways.
+    _, Ok(plan) -> #(
+      Model(..model, plan: ""),
+      modem.push(
+        route.checkout_path,
+        Some(checkout.query(plan, checkout.Gateways)),
+        None,
+      ),
+    )
+    // A signed-in visit lands on the gateway list.
+    route.SignIn, _ -> #(model, push(route.gateways_path))
+    other, _ -> follow(model, other)
   }
 }
 
 fn follow(model: Model, parsed: Route) -> #(Model, Effect(Msg)) {
-  let #(gate, fx) = gateway.on_route(model.gate, parsed)
-  #(Model(..model, gate:), effect.map(fx, Gate))
+  case parsed {
+    route.Checkout -> step_checkout(model, checkout.start(model.checkout))
+    _ -> {
+      let #(gate, fx) = gateway.on_route(model.gate, parsed)
+      #(Model(..model, gate:), effect.map(fx, Gate))
+    }
+  }
+}
+
+fn step_checkout(
+  model: Model,
+  step: #(checkout.Model, checkout.Command),
+) -> #(Model, Effect(Msg)) {
+  let #(next, command) = step
+  #(
+    Model(..model, checkout: next),
+    effect.map(checkout.run(command), CheckoutMsg),
+  )
 }
 
 fn problem(model: Model, message: String) -> Model {
@@ -389,11 +424,6 @@ fn post_link(token: String) -> Effect(Msg) {
   })
 }
 
-fn checkout(plan: String) -> Effect(Msg) {
-  use _dispatch <- effect.from
-  browser.continue_checkout(plan)
-}
-
 fn sign_out() -> Effect(Msg) {
   use dispatch <- effect.from
   browser.sign_out_local(fn(pair) { dispatch(SupabaseSignedOut(pair)) })
@@ -416,7 +446,7 @@ pub fn view(model: Model) -> Element(Msg) {
     _ -> True
   }
   let on_gateway = case model.route {
-    route.SignIn | route.NotFound(_) | route.Leave(_) -> False
+    route.SignIn | route.NotFound(_) | route.Leave(_) | route.Checkout -> False
     _ -> True
   }
   html.div([], [
@@ -480,6 +510,8 @@ fn screen(model: Model) -> Element(Msg) {
             ]),
           ])
       }
+    route.Checkout, SignedIn(_, _) ->
+      element.map(checkout.view(model.checkout), CheckoutMsg)
     _, SignedIn(_, _) ->
       html.div([], [
         notice(model.notice),

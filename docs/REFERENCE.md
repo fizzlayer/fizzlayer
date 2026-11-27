@@ -80,24 +80,25 @@ Run `supabase db query --linked --file supabase/tests/plan_limits.sql` to verify
 
 ### Billing with Stripe
 
-Sign-up itself does not ask for a plan. New accounts start on Hobbyist. When the Stripe variables are set, the next screen offers Hobbyist, Tinkerer, Pro, and an Enterprise contact link, and the dashboard has **Choose plan**. Settings offers **Upgrade** buttons for Tinkerer and Pro plus **Manage billing** once an account has a Stripe customer. A visit to `/app.html?plan=tinkerer` or `?plan=pro` opens Checkout as soon as the session exists, including after GitHub returns. Without the Stripe variables, that screen and **Choose plan** stay hidden and checkout is skipped. Either way, a new account then chooses sensor types, the same as before the plan screen. Returning from Checkout, including a cancelled payment, does too. Plans change only in the database until the webhook records a paid subscription.
+Sign-up itself does not ask for a plan. New accounts start on Hobbyist. When the Stripe variables are set, the next screen offers Hobbyist, Tinkerer, Pro, and an Enterprise contact link, and the dashboard has **Choose plan**. Settings offers **Upgrade** buttons for Tinkerer and Pro plus **Manage billing** once an account has a Stripe customer. Every upgrade goes to `/app/checkout?plan=tinkerer|pro&return=settings|app|gateway`, a page in the app that mounts Stripe's embedded Checkout form, so the payment happens on Fizzlayer. A visit to `/app.html?plan=tinkerer` or `?plan=pro` opens it as soon as the session exists, including after GitHub returns. Without the Stripe variables, that screen and **Choose plan** stay hidden and checkout is skipped. Either way, a new account then chooses sensor types, the same as before the plan screen. Returning from Checkout, including a cancelled payment, does too. Plans change only in the database until the webhook records a paid subscription.
 
 | Variable | Value |
 | --- | --- |
 | `STRIPE_SECRET_KEY` | Secret key (`sk_...`), or a restricted key with write access to Customers, Checkout Sessions, Customer portal, and read access to Subscriptions |
+| `STRIPE_PUBLISHABLE_KEY` | Publishable key (`pk_...`) for the checkout page. It must be the same mode, test or live, as the secret key, or billing counts as unconfigured |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret (`whsec_...`) of the webhook endpoint below |
 | `STRIPE_PRICE_TINKERER` | Price ID (`price_...`) of the monthly Tinkerer price |
 | `STRIPE_PRICE_PRO` | Price ID of the monthly Pro price |
 
-- `GET /api/billing` returns `{"available":true}` when the four Stripe variables are set, and `{"available":false}` otherwise. It does not require a session.
-- `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates a Stripe Checkout session; `{"action":"portal"}` opens the Stripe customer portal. Both return `{"url": ...}` for the browser to open and allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal. Optional `"return_to":"app"` sends Stripe back to `/app.html`; omitted or `"settings"` sends it to `/settings.html`. Any other value is `400 invalid_return`. Success and cancel add `?billing=success` or `?billing=cancelled`. Cancelling does not change the plan.
+- `GET /api/billing` returns `{"available":true}` when the five Stripe variables are set, and `{"available":false}` otherwise. It does not require a session.
+- `POST /api/billing` with `{"action":"checkout","plan":"tinkerer"}` (or `"pro"`) creates an embedded Checkout Session (`ui_mode=embedded_page`, API version `2026-09-30.endive`) and returns `{"client_secret": ..., "publishable_key": ...}` for the checkout page. `{"action":"portal"}` opens the Stripe customer portal and returns `{"url": ...}`. Both allow 20 requests per account per hour. Checkout creates one Stripe customer per account and refuses (`409 already_subscribed`) while a subscription is active, since plan changes go through the portal. Optional `"return_to"` names the page to come back to: `"app"` is `/app.html`, `"gateway"` is `/app/gateways`, and omitted or `"settings"` is `/settings.html`. Any other value is `400 invalid_return`. The checkout page goes there with `?billing=success` after payment or `?billing=cancelled` when the person cancels; Stripe uses the success URL itself only for a payment method that leaves the page. Cancelling does not change the plan. The page loads Stripe.js from js.stripe.com, which the Content Security Policy allows along with Stripe's frames and API.
 - `POST /api/stripe-webhook` receives Stripe events. Subscribe the endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`. Each event's signature and timestamp (5-minute tolerance) are verified; the handler then fetches the subscription from Stripe and stores its current state, so retried and out-of-order events are harmless. A failure answers `500` so Stripe retries.
 - `active`, `trialing`, and `past_due` subscriptions keep their plan; `past_due` keeps it while Stripe retries the payment. Any other status, or a price that matches neither variable, returns the account to Hobbyist. Enterprise accounts are never changed by webhooks.
 - In the Stripe customer portal settings, allow switching between the Tinkerer and Pro prices and cancelling. For local testing, use test-mode keys and prices with a local database so no real account or card is involved:
 
   ```sh
   stripe listen --forward-to localhost:3000/api/stripe-webhook   # in one terminal
-  STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... \
+  STRIPE_SECRET_KEY=sk_test_... STRIPE_PUBLISHABLE_KEY=pk_test_... STRIPE_WEBHOOK_SECRET=whsec_... \
   STRIPE_PRICE_TINKERER=price_... STRIPE_PRICE_PRO=price_... \
   scripts/dev.sh --local-db                                      # in another
   ```
@@ -262,7 +263,7 @@ The tools call the same same-origin JSON endpoints as the pages, with the browse
 Tools that change accounts, credentials, money, or data that can't be recovered carry `consequentialHint`, so browsers and agents can ask the person to confirm; read-only tools carry `readOnlyHint`; tools that return text written by people or devices carry `untrustedContentHint`. Some steps stay with the person by design:
 
 - **Accounts:** anyone can sign up, but email confirmation is still required. `create_account` asks the agent to use a password the person chose.
-- **Payments:** `start_checkout` creates a Stripe Checkout session for Tinkerer or Pro and opens it in the same tab. The person enters payment details on Stripe's page; the webhook updates the plan as usual. `open_billing_portal` opens the Stripe portal the same way.
+- **Payments:** `start_checkout` opens the checkout page for Tinkerer or Pro in the same tab. The person enters payment details in Stripe's form there; the webhook updates the plan as usual. `open_billing_portal` opens the Stripe portal the same way.
 - **Device presence:** passkeys, Google and GitHub sign-in, voice, and phone sensor permissions need the person at the device.
 
 WebMCP is in a Chrome origin trial. To test locally, enable `chrome://flags/#enable-webmcp-testing`, or launch Chromium with `--enable-features=WebMCP`, then list and run the tools from DevTools:

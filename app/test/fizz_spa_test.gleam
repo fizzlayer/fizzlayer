@@ -11,6 +11,7 @@ import simplifile
 
 import api
 import catalog
+import checkout
 import clients
 import config
 import fizz_spa
@@ -265,6 +266,7 @@ pub fn view_does_not_render_the_access_token_test() {
         body: "{\"username\":\"ada\"}",
       ),
       gate: gateway.preview("choose"),
+      checkout: checkout.Unknown,
     )
   let html = element.to_string(fizz_spa.view(model))
   string.contains(html, token) |> should.be_false

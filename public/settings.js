@@ -110,18 +110,19 @@
     return account;
   }
 
-  // Checkout and the billing portal are Stripe pages; the API answers with where to go.
-  async function openBilling(button, body) {
+  // Checkout is Fizzlayer's own page with Stripe's form on it, and comes back here with
+  // ?billing=. The billing portal is a Stripe page; the API answers with where to go.
+  for (const button of document.querySelectorAll('[data-plan]')) {
+    button.addEventListener('click', () => location.assign(`/app/checkout?plan=${button.dataset.plan}&return=settings`));
+  }
+  $('manage-billing').addEventListener('click', async () => {
+    const button = $('manage-billing');
     button.disabled = true;
     $('billing-message').textContent = '';
-    try { location.href = (await api('/api/billing', 'POST', body)).url; }
+    try { location.href = (await api('/api/billing', 'POST', { action: 'portal' })).url; }
     catch (error) { $('billing-message').textContent = error.message; button.disabled = false; }
-  }
-  for (const button of document.querySelectorAll('[data-plan]')) {
-    button.addEventListener('click', () => openBilling(button, { action: 'checkout', plan: button.dataset.plan }));
-  }
-  $('manage-billing').addEventListener('click', () => openBilling($('manage-billing'), { action: 'portal' }));
-  // Going Back from Stripe can restore this page exactly as it was left, mid-redirect with
+  });
+  // Going Back from the portal can restore this page exactly as it was left, mid-redirect with
   // its button disabled. Re-enable the buttons and reload the plan, which may have changed.
   addEventListener('pageshow', (event) => {
     if (!event.persisted) return;
