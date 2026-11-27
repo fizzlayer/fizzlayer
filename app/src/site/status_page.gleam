@@ -16,13 +16,14 @@ pub fn page() -> Element(msg) {
     [
       site.page_hero(
         "Status",
-        "Fizzlayer right now.",
+        "Is Fizzlayer up?",
         "This page asks the public API from your browser. It shows the answer it just received, including the alert scheduler. It does not keep an uptime history or promise an SLA.",
         [],
       ),
       site.status_list(
         "Asking /api/status, including the alert scheduler, and /api/stream.",
       ),
+      site.pro_callout(),
     ],
   )
 }

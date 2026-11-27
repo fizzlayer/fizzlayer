@@ -23,8 +23,13 @@ import prerender
 import rewrites
 import route
 import signin
+import site/changelog
+import site/enterprise
+import site/gateway_page
 import site/landing
 import site/pricing
+import site/self_host
+import site/status_page
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -471,6 +476,58 @@ pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   assert !string.contains(html, "gateway-beta.js")
   assert string.contains(html, "Set one up")
   assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn public_pages_end_with_the_pro_callout_test() {
+  [
+    enterprise.page(),
+    self_host.page(),
+    status_page.page(),
+    changelog.page(),
+  ]
+  |> list.each(fn(page) {
+    let html = element.to_document_string(page)
+    assert string.contains(html, "id=\"pro-callout-title\"")
+    assert string.contains(html, "href=\"/app?plan=pro\"")
+    assert string.contains(html, "href=\"/pricing\"")
+  })
+}
+
+pub fn gateway_page_closes_on_pro_test() {
+  let html = element.to_document_string(gateway_page.page())
+  assert !string.contains(html, "id=\"pro-callout-title\"")
+  assert string.contains(html, "href=\"/app?plan=pro\"")
+  assert string.contains(html, "Start free on Hobbyist")
+}
+
+pub fn public_copy_does_not_sell_sensors_test() {
+  let pages = [
+    pricing.page(),
+    enterprise.page(),
+    self_host.page(),
+    status_page.page(),
+    changelog.page(),
+  ]
+  list.each(pages, fn(page) {
+    let html = element.to_document_string(page)
+    assert !string.contains(html, "connected devices")
+    assert !string.contains(html, "Fizz credits")
+    assert !string.contains(html, "alerts from your sensors")
+  })
+  // The header and footer links are owned elsewhere; check the page body.
+  let assert Ok(#(_, main)) =
+    element.to_document_string(enterprise.page())
+    |> string.split_once("<main")
+  let assert Ok(#(main, _)) = string.split_once(main, "</main>")
+  assert !string.contains(string.lowercase(main), "sensor")
+  assert !string.contains(main, "Cold room")
+}
+
+pub fn pricing_recommends_pro_test() {
+  let html = element.to_document_string(pricing.page())
+  assert string.contains(html, "plan-card-featured")
+  assert string.contains(html, ">Recommended<")
+  assert string.contains(html, "href=\"/app?plan=pro\"")
 }
 
 pub fn site_header_marks_the_current_page_test() {
