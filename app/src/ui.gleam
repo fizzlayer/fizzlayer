@@ -144,6 +144,18 @@ pub fn notice_text(tone: Tone, message: String) -> Element(msg) {
   notice(tone, [], [html.p([], [text(message)])])
 }
 
+/// A turning ring with a visible label, for work the page is waiting on.
+/// Screen readers announce the label; the ring itself is decoration.
+pub fn spinner(label: String) -> Element(msg) {
+  html.div([attribute.class("spinner"), attribute.role("status")], [
+    html.span(
+      [attribute.class("spinner-ring"), attribute.aria_hidden(True)],
+      [],
+    ),
+    html.span([attribute.class("spinner-label")], [text(label)]),
+  ])
+}
+
 // Checkout -------------------------------------------------------------------
 
 /// The `/app/checkout` page. Stripe mounts its form into the element with
