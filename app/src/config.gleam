@@ -41,6 +41,21 @@ pub fn parse_config(text: String) -> Result(#(String, String), String) {
   }
 }
 
+/// Whether this server serves Sensors, the older device product. Only a
+/// self-hosted `fizz-serve` started with `FIZZ_SENSORS=1` answers `true`; it
+/// writes the field into `/app/config.json` itself. fizzlayer.com's file has no
+/// such field, so anything but a literal `true` means no.
+pub fn sensors_enabled(text: String) -> Bool {
+  let decoder = {
+    use sensors <- decode.optional_field("sensors", False, decode.bool)
+    decode.success(sensors)
+  }
+  case json.parse(text, decoder) {
+    Ok(sensors) -> sensors
+    Error(_) -> False
+  }
+}
+
 pub fn accept_url(url: String) -> Bool {
   case url {
     "https://" <> rest ->

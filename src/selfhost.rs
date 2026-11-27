@@ -94,6 +94,8 @@ FIZZ_STREAM_URL=http://localhost:8081
 FIZZ_MQTT_TCP_URL=mqtt://localhost:1883
 MQTT_TCP_PORT=1883
 FIZZ_STREAM_ORIGINS=http://localhost:8080
+# 1 turns on Sensors: the device dashboard, the /sensors pages, and their APIs.
+FIZZ_SENSORS=0
 MAILER_AUTOCONFIRM=true
 SMTP_ADMIN_EMAIL=admin@localhost
 SMTP_HOST=
@@ -199,6 +201,8 @@ mod tests {
         assert!(token.starts_with("eyJ"));
         assert_eq!(token.matches('.').count(), 2);
         verify(&secret, &token);
+        // Sensors stay off until the operator opts in.
+        assert_eq!(value(&text, "FIZZ_SENSORS"), "0");
         let again = init(&["--out".into(), path.to_str().unwrap().to_owned()]);
         assert!(again.unwrap_err().contains("--force"));
         let _ = fs::remove_dir_all(&dir);

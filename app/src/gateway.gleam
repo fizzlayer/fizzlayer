@@ -1378,14 +1378,7 @@ fn list_page(model: Model) -> Element(Msg) {
           "shield-halved",
           "Create your first gateway",
           "Point your agent at one gateway URL. Add the MCP servers it may use, choose what each tool can do, and approve risky calls before they run.",
-          [
-            new_button,
-            ui.link_button(
-              ui.Secondary,
-              "/sensors",
-              ui.with_icon("tower-broadcast", "Open Sensors"),
-            ),
-          ],
+          [new_button],
         )
       True, rows ->
         ui.gateway_grid(
@@ -2448,7 +2441,12 @@ fn channel_field(model: Model) -> Element(Msg) {
       ]),
     ),
     case api.phone_ok(model.plan) {
-      True -> ui.muted("Phone calls share the monthly cap with sensor alerts.")
+      True ->
+        ui.muted_content([
+          text("Fizzlayer calls the number you pair in "),
+          html.a([attribute.href("/settings.html#phones")], [text("Settings")]),
+          text(". Phone calls share the plan's monthly call cap."),
+        ])
       False ->
         ui.muted_content([
           text(
@@ -3060,10 +3058,7 @@ fn plan_card(plan: api.Plan) -> Element(Msg) {
         text("Tool calls this month: " <> api.cap_label(plan.tool_calls)),
       ]),
       html.li([], [
-        text(
-          "Phone calls this month, shared with sensor alerts: "
-          <> api.cap_label(plan.phone_calls),
-        ),
+        text("Phone calls this month: " <> api.cap_label(plan.phone_calls)),
       ]),
       html.li([], [text("Audit kept, days: " <> api.cap_label(plan.audit_days))]),
       html.li([], [

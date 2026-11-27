@@ -186,7 +186,7 @@
     showCall(
       'SIMULATED PAIRING CALL',
       `Fizzlayer is calling ${formatDemoPhone(phone)}.`,
-      `“This is Fizzlayer, calling to pair your phone. Your pairing code is: ${spoken}. I will repeat the code. Your pairing code is: ${spoken}. Enter this code in the dashboard. Goodbye.”`,
+      `“This is Fizzlayer, calling to pair your phone. Your pairing code is: ${spoken}. I will repeat the code. Your pairing code is: ${spoken}. Enter this code in Fizzlayer. Goodbye.”`,
       'Simulated pairing call. The real app places this call and does not show the code on screen.',
     );
     $('demo-code').focus();

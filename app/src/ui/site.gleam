@@ -86,9 +86,11 @@ fn named(name: String, value: String) -> Element(msg) {
 
 // Header and footer ------------------------------------------------------------
 
+// Sensors is not listed here or in the footer: these pages are committed and
+// shared by fizzlayer.com and self-hosted servers, and only a self-hosted
+// server with FIZZ_SENSORS=1 serves Sensors. The app header links to it there.
 const nav_items = [
   #("/gateway", "Gateway"),
-  #("/sensors", "Sensors"),
   #("/docs", "Docs"),
   #("/pricing", "Pricing"),
 ]
@@ -171,13 +173,11 @@ fn wordmark() -> Element(msg) {
 const footer_columns = [
   #("Product", [
     #("/gateway", "Gateway"),
-    #("/sensors", "Sensors"),
     #("/pricing", "Pricing"),
     #("/enterprise", "Enterprise"),
   ]),
   #("Developers", [
     #("/docs", "Gateway docs"),
-    #("/sensors/docs", "Sensors docs"),
     #("/self-host", "Self-host"),
     #("/status", "Status"),
     #("/changelog", "Changelog"),
