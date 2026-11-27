@@ -414,6 +414,28 @@
   .plan { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
   .plan h2 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
   .plan ul { margin: 0 0 var(--space-3); color: var(--color-text-muted); font-size: var(--text-sm); }
+  .plan-summary { margin: 0; color: var(--color-body); }
+
+  /* Upgrade offers. The tokens make it read on the white page and on navy
+     panels alike. Each row wraps its button under the text when narrow. */
+  .upsell { display: grid; gap: var(--space-3); max-width: var(--content-width); margin: var(--space-4) 0; padding: var(--space-4); border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); border-radius: var(--radius-md); background: var(--color-subtle); }
+  .upsell-offer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .upsell-offer + .upsell-offer { padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+  .upsell-text { flex: 1 1 16rem; margin: 0; color: var(--color-body); font-size: var(--text-sm); }
+  .upsell-text strong { color: var(--color-text); font-size: var(--text-base); }
+  .upsell-price { margin-left: var(--space-2); }
+  .upsell-reason { display: block; margin-top: 2px; }
+  .upsell .button { flex: none; }
+  /* A gateway page shows the side copy on wide screens and the copy under
+     the panel on narrow ones (see the 900px query below). */
+  .gw-side .upsell { margin: var(--space-4) 0 0; padding: var(--space-3); }
+  .gw-side .upsell .button { flex: 1 1 auto; }
+  .gw-upsell-under { display: none; }
+  .gw-upsell-under .upsell { margin: var(--space-3) 0 0; max-width: none; }
+  @media (max-width: 900px) {
+    .gw-upsell-side { display: none; }
+    .gw-upsell-under { display: block; }
+  }
 }
 
 @layer components {
@@ -917,6 +939,11 @@
   .band p { margin: 0; }
   .section-tight { padding-top: clamp(48px, 7vw, 80px); }
 
+  /* The Pro plan pitch near the end of a public page */
+  .pro-callout p { max-width: 44rem; }
+  .pro-callout-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+  @media (max-width: 560px) { .pro-callout { padding: 28px 24px; } }
+
   /* Closing call to action: a dark panel inside the white page. */
   .cta-panel { padding: clamp(48px, 7vw, 80px) clamp(28px, 6vw, 72px); border-radius: 24px; background: var(--color-surface); }
   .cta-panel h2 { margin: 0; font-size: clamp(2rem, 3.6vw, 2.875rem); font-weight: 600; line-height: 1.1; letter-spacing: -0.035em; max-width: 22ch; }
@@ -954,6 +981,7 @@
   .plan-card { display: flex; flex-direction: column; padding: 28px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
   .plan-card-featured { box-shadow: 0 0 0 2px var(--color-primary), var(--shadow-lg); }
   .plan-name { margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .plan-badge { display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px; background: var(--color-primary); color: #fff; font-size: 0.75rem; font-weight: 600; vertical-align: 2px; }
   .plan-tagline { margin: 4px 0 0; color: var(--color-text-muted); font-size: 0.9375rem; }
   .plan-price { margin: 20px 0 16px; color: var(--color-text); font-size: 2.5rem; font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
   .plan-price small { color: var(--color-text-muted); font-size: 0.9375rem; font-weight: 400; letter-spacing: 0; }

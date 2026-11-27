@@ -21,6 +21,7 @@ import lustre/event
 import api
 import browser
 import catalog
+import checkout
 import clients
 import route.{type Route, type Tab}
 import ui
@@ -75,6 +76,9 @@ pub type Model {
     loaded: Bool,
     busy: Bool,
     hosted: Hosted,
+    /// Whether paid checkout is configured here (`GET /api/billing`). Upgrade
+    /// offers only show when it is.
+    billing: Bool,
     role: String,
     plan: api.Plan,
     gateways: List(api.GatewayRow),
@@ -171,6 +175,9 @@ pub type Msg {
   LoadTools(String)
   ToolsAnswered(String, String, #(Int, String))
   HostedLoaded(#(Int, String))
+  BillingLoaded(#(Int, String))
+  OpenPortal
+  PortalOpened(#(Int, String))
   Copied(#(Bool, String))
 }
 
@@ -182,6 +189,7 @@ pub fn empty() -> Model {
     loaded: False,
     busy: False,
     hosted: Unknown,
+    billing: False,
     role: "owner",
     plan: api.hobbyist(),
     gateways: [],
@@ -454,6 +462,29 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg), String) {
       effect.none(),
       "",
     )
+    BillingLoaded(#(status, body)) -> #(
+      Model(..model, billing: api.billing_available(status, body)),
+      effect.none(),
+      "",
+    )
+    OpenPortal -> #(
+      Model(..model, busy: True, notice: Quiet),
+      open_portal(),
+      "",
+    )
+    PortalOpened(#(status, body)) ->
+      case checkout.portal_url(status, body) {
+        // Not left busy: going Back from Stripe can restore this page as is.
+        Ok(url) -> #(Model(..model, busy: False), leave_for(url), "")
+        Error(_) -> #(
+          bad(
+            model,
+            api.error_message(body, "Billing could not be opened. Try again."),
+          ),
+          effect.none(),
+          "",
+        )
+      }
     Copied(#(True, _)) -> #(
       Model(..model, notice: Good("Copied.")),
       effect.none(),
@@ -801,8 +832,9 @@ fn context_loaded(
               gateways: context.gateways,
               channel: channel,
             )
+          // Both are asked once, with the first gateway list.
           case model.hosted {
-            Unknown -> #(next, hosted(), "")
+            Unknown -> #(next, effect.batch([hosted(), billing()]), "")
             _ -> #(next, effect.none(), "")
           }
         }
@@ -1039,6 +1071,7 @@ fn wrote_ok(
         plan: model.plan,
         role: model.role,
         hosted: model.hosted,
+        billing: model.billing,
       ),
       effect.none(),
       route.gateways_path,
@@ -1161,6 +1194,28 @@ fn load_context() -> Effect(Msg) {
 fn hosted() -> Effect(Msg) {
   use dispatch <- effect.from
   browser.hosted_probe(fn(pair) { dispatch(HostedLoaded(pair)) })
+}
+
+fn open_portal() -> Effect(Msg) {
+  use dispatch <- effect.from
+  browser.send(
+    "POST",
+    "/api/billing",
+    checkout.portal_body(checkout.Gateways),
+    fn(pair) { dispatch(PortalOpened(pair)) },
+  )
+}
+
+fn leave_for(url: String) -> Effect(Msg) {
+  use _ <- effect.from
+  browser.assign(url)
+}
+
+fn billing() -> Effect(Msg) {
+  use dispatch <- effect.from
+  browser.send("GET", "/api/billing", "", fn(pair) {
+    dispatch(BillingLoaded(pair))
+  })
 }
 
 fn load_details(id: String) -> Effect(Msg) {
@@ -1341,18 +1396,21 @@ fn list_page(model: Model) -> Element(Msg) {
     },
     case model.loaded {
       True ->
-        ui.muted_content([
-          text(
-            model.plan.name
-            <> " plan: "
-            <> int.to_string(list.length(model.gateways))
-            <> " of "
-            <> api.cap_label(model.plan.gateway_limit)
-            <> " gateways, up to "
-            <> api.cap_label(model.plan.server_limit)
-            <> " MCP servers. ",
-          ),
-          html.a([attribute.href("/pricing")], [text("Plans and upgrades")]),
+        html.div([], [
+          ui.plan_summary([
+            text(
+              model.plan.name
+              <> " plan: "
+              <> int.to_string(list.length(model.gateways))
+              <> " of "
+              <> api.cap_label(model.plan.gateway_limit)
+              <> " gateways, up to "
+              <> api.cap_label(model.plan.server_limit)
+              <> " MCP servers. ",
+            ),
+            html.a([attribute.href("/pricing")], [text("Plans and upgrades")]),
+          ]),
+          ui.upsell(offers(model)),
         ])
       False -> element.none()
     },
@@ -1447,6 +1505,7 @@ fn create_page(model: Model) -> Element(Msg) {
       ]),
     ]),
     plan_card(model.plan),
+    ui.upsell(offers(model)),
   ])
 }
 
@@ -1514,6 +1573,7 @@ fn gateway_page(model: Model, tab: Tab) -> Element(Msg) {
         "Gateway sections",
         list.map(route.tabs, fn(item) { menu_item(model, item, tab) }),
       ),
+      ui.gateway_upsell(ui.InSide, offers(model)),
     ])
   html.div([attribute.id("gateway-" <> route.tab_slug(tab))], [
     ui.gateway_layout(
@@ -1539,6 +1599,7 @@ fn gateway_page(model: Model, tab: Tab) -> Element(Msg) {
         },
       ]),
     ),
+    ui.gateway_upsell(ui.UnderPanel, offers(model)),
     sheet_view(model),
   ])
 }
@@ -3015,6 +3076,58 @@ fn plan_card(plan: api.Plan) -> Element(Msg) {
     ]),
     html.a([attribute.href("/pricing")], [text("Plans and upgrades")]),
   ])
+}
+
+/// Checkout links for the plans above this one, with what each adds, while
+/// paid checkout is available.
+fn offers(model: Model) -> List(ui.Offer(Msg)) {
+  case model.billing {
+    False -> []
+    True ->
+      list.map(checkout.upgrades(model.plan.id), fn(upgrade) {
+        case upgrade {
+          checkout.Subscribe(plan) ->
+            offer(
+              model.plan,
+              plan,
+              "Upgrade to " <> checkout.plan_name(plan),
+              ui.GoTo(checkout.path(plan, checkout.Gateways)),
+            )
+          checkout.Switch(plan) ->
+            offer(
+              model.plan,
+              plan,
+              "Switch to " <> checkout.plan_name(plan),
+              ui.Send(OpenPortal, model.busy),
+            )
+        }
+      })
+  }
+}
+
+fn offer(
+  current: api.Plan,
+  plan: checkout.Plan,
+  button: String,
+  action: ui.OfferAction(Msg),
+) -> ui.Offer(Msg) {
+  let servers =
+    int.to_string(checkout.server_limit(plan))
+    <> " MCP servers instead of "
+    <> api.cap_label(current.server_limit)
+  let calls = int.to_string(checkout.phone_calls(plan))
+  ui.Offer(
+    name: checkout.plan_name(plan),
+    price: checkout.plan_price(plan),
+    reason: case plan {
+      checkout.Tinkerer ->
+        servers <> ", and " <> calls <> " phone calls a month for approvals."
+      checkout.Pro ->
+        servers <> ", " <> calls <> " phone calls a month, and stdio servers."
+    },
+    button: button,
+    action: action,
+  )
 }
 
 fn field(
