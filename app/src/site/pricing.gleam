@@ -18,8 +18,8 @@ pub fn page() -> Element(msg) {
     [
       site.page_hero(
         "Pricing",
-        "Start free. Upgrade when you need more.",
-        "Every plan covers Gateway and Sensors. Self-hosting is free.",
+        "Start on Hobbyist for free, and upgrade when you hit a limit.",
+        "Every plan covers Gateway and Sensors. We recommend Pro if you want approvals and alerts by phone. Self-hosting is free.",
         [],
       ),
       site.container([
@@ -56,7 +56,7 @@ pub fn page() -> Element(msg) {
           ),
           site.Plan(
             name: "Pro",
-            tagline: "For serious setups",
+            tagline: "For up to 3 people",
             price: "$25",
             period: "/ month",
             featured: True,
@@ -68,7 +68,7 @@ pub fn page() -> Element(msg) {
               "3 seats",
             ],
             href: "/app?plan=pro",
-            cta: "Get started",
+            cta: "Start Pro",
           ),
           site.Plan(
             name: "Enterprise",
@@ -117,9 +117,10 @@ pub fn page() -> Element(msg) {
       ]),
       site.cta(
         "Not sure which plan?",
-        "Start on Hobbyist. You can upgrade any time in Settings.",
+        "Pick Pro if you want approval and alert calls on your phone. It includes 100 calls a month and room for 25 MCP servers. Otherwise start on Hobbyist and upgrade in Settings later.",
         [
-          site.primary("/app", "Get started"),
+          site.primary("/app?plan=pro", "Start Pro"),
+          site.link_arrow("/app", "Start free on Hobbyist"),
           site.link_arrow("/enterprise", "Talk to us"),
         ],
       ),

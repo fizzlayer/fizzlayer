@@ -190,7 +190,9 @@ fn footer() -> Element(msg) {
         html.div([], [
           wordmark(),
           html.p([attribute.class("footer-tagline")], [
-            text("Control what your AI agents can do."),
+            text(
+              "Rules and approvals for your agents' tools, and alerts from your sensors.",
+            ),
           ]),
         ]),
         ..list.map(footer_columns, fn(column) {
@@ -470,6 +472,35 @@ pub fn band(title: String, body: String, link: Element(msg)) -> Element(msg) {
   ])
 }
 
+/// A short pitch for the Pro plan, near the end of a public page. The limits
+/// are the Pro column of `site/pricing.gleam` and must change with it.
+pub fn pro_callout() -> Element(msg) {
+  html.section(
+    [
+      attribute.class("container section-tight"),
+      attribute.attribute("aria-labelledby", "pro-callout-title"),
+    ],
+    [
+      html.div([attribute.class("band pro-callout")], [
+        html.div([], [
+          html.h2([attribute.id("pro-callout-title")], [
+            text("Fizzlayer Pro is $25 a month"),
+          ]),
+          html.p([], [
+            text(
+              "Hobbyist stops at 3 MCP servers and does not place phone calls. Pro allows 25 servers and 50 devices, includes 100 phone calls a month for alerts and approvals, and has 3 seats.",
+            ),
+          ]),
+        ]),
+        html.div([attribute.class("pro-callout-actions")], [
+          primary("/app?plan=pro", "Start Pro"),
+          link_arrow("/pricing", "Compare plans"),
+        ]),
+      ]),
+    ],
+  )
+}
+
 /// The dark closing panel.
 pub fn cta(
   title: String,
@@ -599,7 +630,16 @@ pub fn plans(cards: List(Plan)) -> Element(msg) {
           }),
         ],
         [
-          html.h2([attribute.class("plan-name")], [text(plan.name)]),
+          html.h2([attribute.class("plan-name")], [
+            text(plan.name),
+            case plan.featured {
+              True ->
+                html.span([attribute.class("plan-badge")], [
+                  text("Recommended"),
+                ])
+              False -> element.none()
+            },
+          ]),
           html.p([attribute.class("plan-tagline")], [text(plan.tagline)]),
           html.p([attribute.class("plan-price")], [
             text(plan.price),

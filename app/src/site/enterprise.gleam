@@ -18,7 +18,7 @@ pub fn page() -> Element(msg) {
       site.page_hero_split(
         "Enterprise",
         "Sensors for a site, and a gateway when you need one.",
-        "Cold storage, logistics, or the factory floor. Bring your signals into one workspace and get the right person on the phone when a threshold is crossed. Gateway limits on Enterprise are custom. This form does not start a dedicated gateway.",
+        "For sites such as cold storage, warehouses and factory floors. Your sensor readings go into one workspace, and Fizz phones the person you choose when a reading crosses a threshold. Gateway limits on Enterprise are custom. This form does not start a dedicated gateway.",
         [site.link_arrow("/pricing", "See the other plans")],
         site.sales_form(
           "Bring Fizzlayer to your team.",
@@ -28,16 +28,16 @@ pub fn page() -> Element(msg) {
       site.section("included", "Included", "What Enterprise adds.", "", [
         site.feature_row([
           site.feature_text(
-            "Control access, device by device.",
-            "Separate, revocable keys for your sensors and tokens for your agents.",
+            "A key for each device",
+            "Each sensor gets its own API key and each agent its own token. Revoking one leaves the others working.",
           ),
           site.feature_text(
-            "Start before install day.",
-            "Explore with simulated sensor streams while your hardware is on its way.",
+            "Sample data before install",
+            "Set up alerts and ask Fizz questions against simulated sensors while your hardware ships.",
           ),
           site.feature_text(
-            "Reach the right person.",
-            "Pair the number first. Fizz calls it when an alert fires. Phone calls are included with Enterprise, unlimited unless a contract sets a cap.",
+            "Phone calls by contract",
+            "Pair a number first. Fizz calls it when an alert fires. Phone calls are included with Enterprise, unlimited unless a contract sets a cap.",
           ),
         ]),
         site.notes([
@@ -48,6 +48,7 @@ pub fn page() -> Element(msg) {
           ]),
         ]),
       ]),
+      site.pro_callout(),
     ],
   )
 }

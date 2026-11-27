@@ -23,7 +23,13 @@ import prerender
 import rewrites
 import route
 import signin
+import site/changelog
+import site/enterprise
+import site/gateway_page
 import site/landing
+import site/pricing
+import site/self_host
+import site/status_page
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -470,6 +476,29 @@ pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   assert !string.contains(html, "gateway-beta.js")
   assert string.contains(html, "Set one up")
   assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn public_pages_end_with_the_pro_callout_test() {
+  [
+    gateway_page.page(),
+    enterprise.page(),
+    self_host.page(),
+    status_page.page(),
+    changelog.page(),
+  ]
+  |> list.each(fn(page) {
+    let html = element.to_document_string(page)
+    assert string.contains(html, "id=\"pro-callout-title\"")
+    assert string.contains(html, "href=\"/app?plan=pro\"")
+    assert string.contains(html, "href=\"/pricing\"")
+  })
+}
+
+pub fn pricing_recommends_pro_test() {
+  let html = element.to_document_string(pricing.page())
+  assert string.contains(html, "plan-card-featured")
+  assert string.contains(html, ">Recommended<")
+  assert string.contains(html, "href=\"/app?plan=pro\"")
 }
 
 pub fn sign_in_form_has_its_own_url_test() {

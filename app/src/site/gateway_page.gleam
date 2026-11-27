@@ -21,6 +21,7 @@ pub fn page() -> Element(msg) {
       safety(),
       landing.run_it(),
       questions(),
+      site.pro_callout(),
       site.cta(
         "Put your first server behind a rule.",
         "Self-host free with Docker, or set up your gateway in the app.",
@@ -65,7 +66,7 @@ fn problems() -> Element(msg) {
   site.section(
     "problems",
     "Why a gateway",
-    "Three ways a tool call goes wrong.",
+    "What goes wrong when an agent connects directly.",
     "",
     [
       site.feature_row([
@@ -98,15 +99,15 @@ fn how_it_works() -> Element(msg) {
         "Ask first stops the call and notifies you by phone call, webhook or log.",
       ),
       #(
-        "Approve, and it retries",
-        "The same call goes through once. A different call has to ask again.",
+        "The agent retries",
+        "After you approve, the agent sends the call again and it goes through once. A different call has to ask again.",
       ),
     ]),
   ])
 }
 
 fn safety() -> Element(msg) {
-  site.section("safety", "Security", "Clear about what it checks.", "", [
+  site.section("safety", "Security", "What it does and doesn't do.", "", [
     site.split([
       site.list_card("What Fizzlayer checks", [
         "The agent's signed token, and whether you revoked it",
@@ -124,7 +125,7 @@ fn safety() -> Element(msg) {
 }
 
 fn questions() -> Element(msg) {
-  site.section("faq", "Questions", "Short answers.", "", [
+  site.section("faq", "Questions", "Common questions.", "", [
     site.faq([
       #(
         "Can I point Claude or Cursor at a hosted gateway today?",
