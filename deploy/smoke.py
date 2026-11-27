@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Sign up, create a sensor, and ingest one reading over HTTP, WebSocket, and MQTT."""
+"""Sign up, create a sensor, and ingest one reading over HTTP, WebSocket, and MQTT.
+
+The API must run with FIZZ_SENSORS=1. Without it the sensor routes answer 404.
+"""
 
 import base64
 import json

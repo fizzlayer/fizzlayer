@@ -6,13 +6,27 @@
   if (!context?.registerTool) return;
 
   const origin = location.origin;
-  const PLANS = [
+  // Sensors tools register only on Sensors pages. fizzlayer.com does not serve those pages,
+  // and a self-hosted server serves them only with FIZZ_SENSORS=1, so anywhere else an agent
+  // gets the account, plan, and page tools and nothing about Sensors.
+  const SENSORS_PAGES = ['/app.html', '/sensors', '/sensors.html', '/sensors/agents', '/agents.html', '/sensors/docs', '/docs.html', '/sensors/self-host', '/self-host.html', '/demo.html', '/phone.html', '/ha.html'];
+  const onSensors = SENSORS_PAGES.includes(location.pathname.replace(/\/+$/, ''));
+  const SENSORS_TOOLS = new Set([
+    'start_with_sample_data', 'list_sensor_types', 'list_sensors', 'get_readings', 'add_sensor', 'update_sensor', 'remove_sensor',
+    'create_phone_link', 'disconnect_phones', 'get_device_setup', 'connect_home_assistant', 'list_home_assistant', 'revoke_home_assistant', 'pair_device',
+    'list_alerts', 'create_alert', 'set_alert_enabled', 'delete_alert', 'ask_fizz',
+    'list_agent_connections', 'create_agent_connection', 'revoke_agent_connection',
+  ]);
+  const ALL_PLANS = [
     { id: 'hobbyist', name: 'Hobbyist', price: 'Free', devices: 3, monthly_credits: 10, phone_calls: false },
     { id: 'tinkerer', name: 'Tinkerer', price: '$10/month', devices: 10, monthly_credits: 100, phone_calls: true },
     { id: 'pro', name: 'Pro', price: '$25/month', devices: 50, monthly_credits: 1000, phone_calls: true },
     { id: 'enterprise', name: 'Enterprise', price: 'Contact us', devices: 'Custom', monthly_credits: 'Custom', phone_calls: true },
   ];
-  const PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz. Phone-call alerts, phone approvals, and the call that pairs a number are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and approval calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts and does not place calls. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.';
+  // Devices and Fizz credits are Sensors limits.
+  const PLANS = onSensors ? ALL_PLANS : ALL_PLANS.map(({ devices, monthly_credits, ...plan }) => plan);
+  const SENSORS_PLAN_NOTE = 'Devices are API, phone, and paired Linux sensors; sample sensors do not count. One credit is one message to Fizz. ';
+  const PLAN_NOTE = (onSensors ? SENSORS_PLAN_NOTE : '') + 'Phone-call alerts, phone approvals, and the call that pairs a number are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap for alert calls and approval calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts and does not place calls. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.';
   const KINDS = {
     water: { label: 'Water', metric: 'flow_l_min', unit: 'L/min' },
     gas: { label: 'Gas', metric: 'concentration_ppm', unit: 'ppm' },
@@ -25,7 +39,9 @@
     custom: { label: 'Custom', metric: 'value', unit: '' },
   };
   const KIND_IDS = Object.keys(KINDS);
-  const PAGES = { home: '/', overview: '/app.html', sensors: '/sensors', agents: '/sensors/agents', settings: '/settings.html', pricing: '/pricing', status: '/status', enterprise: '/enterprise', demo: '/demo.html', docs: '/sensors/docs', gateway_docs: '/docs', self_host: '/self-host', sensors_self_host: '/sensors/self-host', privacy: '/privacy.html', terms: '/terms.html' };
+  const ALL_PAGES = { home: '/', app: '/app', overview: '/app.html', sensors: '/sensors', agents: '/sensors/agents', settings: '/settings.html', pricing: '/pricing', status: '/status', enterprise: '/enterprise', demo: '/demo.html', docs: '/sensors/docs', gateway_docs: '/docs', self_host: '/self-host', sensors_self_host: '/sensors/self-host', privacy: '/privacy.html', terms: '/terms.html' };
+  const SENSORS_PAGE_NAMES = ['overview', 'sensors', 'agents', 'demo', 'docs', 'sensors_self_host'];
+  const PAGES = Object.fromEntries(Object.entries(ALL_PAGES).filter(([name]) => onSensors || !SENSORS_PAGE_NAMES.includes(name)));
 
   class ToolError extends Error {}
 
@@ -86,7 +102,10 @@
       annotations: { readOnlyHint: true },
       async execute() {
         const me = await session();
-        const about = 'Fizzlayer is the secure connection layer for AI agents. Sensors and Fizz are available now at /sensors, and an account created here is a Sensors account. The MCP gateway can be run with Docker from the GitHub repository. fizzlayer.com does not host a gateway URL, and this app has no gateway screens. Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.';
+        const product = onSensors
+          ? 'Fizzlayer is the secure connection layer for AI agents. Sensors and Fizz are on this server at /sensors. Gateway setup is at /app.'
+          : 'Fizzlayer is the secure connection layer for AI agents. Fizzlayer Gateway puts per-tool rules and approvals in front of MCP servers. Gateway setup is at /app, and the docs are at /docs.';
+        const about = `${product} Phone-call alerts and phone approvals are on paid plans only. Tinkerer and Pro share one monthly call cap for those calls. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan, including Hobbyist, and the dashboard shows email only when mail is configured. On fizzlayer.com that choice is hidden.`;
         if (!me) {
           return text({
             about, signed_in: false, page: location.pathname,
@@ -99,12 +118,23 @@
             plans: PLANS, plan_note: PLAN_NOTE,
           });
         }
+        if (!onSensors) {
+          const account = await api('/api/account');
+          return text({
+            about, signed_in: true, username: me.username, email: account.email,
+            plan: account.plan, billing_available: account.billing_available,
+            next_steps: [
+              'Gateway setup is in the app: open_page with "app". There the person creates a gateway, adds MCP servers, and chooses what each tool may do.',
+              'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
+            ],
+          });
+        }
         const [account, inventory] = await Promise.all([api('/api/account'), api('/api/sensors')]);
         const sensors = inventory.sensors || [];
         const next = sensors.length ? [
           'list_sensors and get_readings show live data; ask_fizz answers questions about it.',
           'add_sensor connects a real device (API key or phone link) or a sample stream; pair_device claims a code from `fizz pair` on a Linux device.',
-          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in the dashboard, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
+          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in Settings, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
           'create_agent_connection issues an MCP token so an agent can reach this account from outside the browser.',
           'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
         ] : [
@@ -120,7 +150,7 @@
     },
     {
       name: 'list_plans',
-      description: 'Fizzlayer plans with price, device limit, monthly Fizz credits, and whether phone calls are included. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. Hobbyist ($0) includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured.',
+      description: `Fizzlayer plans with price, ${onSensors ? 'device limit, monthly Fizz credits, ' : ''}and whether phone calls are included. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. Hobbyist ($0) includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured.`,
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       async execute() { return text({ plans: PLANS, note: PLAN_NOTE }); },
@@ -159,7 +189,7 @@
         if (result.username) {
           changed('session');
           if (location.pathname === '/app.html') reloadSoon();
-          return text({ ok: true, signed_in: true, username: result.username, next: 'Call start_with_sample_data or add_sensor to finish setup.' });
+          return text({ ok: true, signed_in: true, username: result.username, next: onSensors ? 'Call start_with_sample_data or add_sensor to finish setup.' : 'Call open_page with "app" to set up a gateway.' });
         }
         return text({ ok: true, signed_in: false, confirm_email: true, next: `Ask the person to open the confirmation link sent to ${email} (check spam), then call sign_in. resend_confirmation resends it.` });
       },
@@ -206,7 +236,7 @@
       async execute() {
         await api('/api/session', 'DELETE');
         changed('session');
-        navigateSoon('/app.html');
+        navigateSoon(onSensors ? '/app.html' : '/app');
         return text({ ok: true, message: 'Signed out.' });
       },
     },
@@ -437,7 +467,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in Settings, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -450,7 +480,7 @@
           silence_minutes: { type: 'integer', minimum: 1, maximum: 10080, default: 10, description: 'Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor.' },
           notify_recovery: { type: 'boolean', default: false, description: 'Silence alerts. Also notify when readings resume.' },
           channels: { type: 'array', items: { type: 'string', enum: ['dashboard', 'phone', 'email', 'webhook'] }, description: 'Where to notify. Default is the dashboard. phone is a paid call on Tinkerer and Pro, which share one monthly call cap. email is hidden until mail is configured. webhook is on every plan, including Hobbyist, and needs webhook_url.' },
-          call_phone: { type: 'string', description: 'US number when phone is a channel. The owner must already have paired it under Phones. Pairing is owner-only.' },
+          call_phone: { type: 'string', description: 'US number when phone is a channel. The owner must already have paired it in Settings. Pairing is owner-only.' },
           webhook_url: { type: 'string', description: 'Public https URL for the webhook channel.' },
           webhook_secret: { type: 'string', description: 'Optional per-alert HMAC secret, 16 to 128 characters. Omit to use the account secret.' },
         },
@@ -617,7 +647,9 @@
     // ---------- Navigation ----------
     {
       name: 'open_page',
-      description: 'Show a Fizzlayer page to the person: home, overview (dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (documentation), self-host (Docker), privacy, or terms.',
+      description: onSensors
+        ? 'Show a Fizzlayer page to the person: home, app (Gateway setup), overview (Sensors dashboard), sensors, agents, settings, pricing, status, enterprise, demo, docs (Sensors documentation), gateway_docs, self_host (Docker), sensors_self_host, privacy, or terms.'
+        : 'Show a Fizzlayer page to the person: home, app (Gateway setup), settings, pricing, status, enterprise, gateway_docs (documentation), self_host (Docker), privacy, or terms.',
       inputSchema: { type: 'object', properties: { page: { type: 'string', enum: Object.keys(PAGES) } }, required: ['page'] },
       annotations: { readOnlyHint: true },
       async execute({ page }) {
@@ -629,7 +661,7 @@
     },
   ];
 
-  for (const tool of tools) {
+  for (const tool of tools.filter(({ name }) => onSensors || !SENSORS_TOOLS.has(name))) {
     const execute = tool.execute;
     // Browsers hide a thrown error's message from the agent, so failures are returned as
     // results the agent can read and act on.

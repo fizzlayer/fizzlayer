@@ -29,10 +29,18 @@ pub fn page() -> Element(msg) {
           site.split_card(
             "Sensors",
             "Run the website, API and device connections for your sensors with Docker Compose.",
-            [site.link_arrow("/sensors/self-host", "Sensors guide")],
+            // /sensors pages are not served on fizzlayer.com, so this goes to
+            // the guide in the repository, which covers the FIZZ_SENSORS opt-in.
+            [
+              site.link_arrow(
+                "https://github.com/fizzlayer/fizzlayer/blob/main/docs/SELF_HOSTING.md#sensors-are-opt-in",
+                "Sensors guide",
+              ),
+            ],
           ),
         ]),
       ]),
+      site.pro_callout(),
     ],
   )
 }

@@ -232,7 +232,7 @@ fn plans() -> Element(msg) {
           featured: True,
           points: [
             "25 MCP servers",
-            "100 phone calls a month for approvals and alerts",
+            "100 phone calls a month for approvals",
             "3 seats",
           ],
           href: "/app?plan=pro",

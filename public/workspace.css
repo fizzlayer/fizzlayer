@@ -115,6 +115,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
 .sample-notice { display: flex; align-items: center; gap: 9px; margin: -4px 0 20px; padding: 10px 14px; border: 1px solid #dcebf1; background: #eff7fa; color: #5c7c8e; border-radius: 6px; font-size: 14px; }
 .sample-notice .ui-icon { width: 14px; height: 14px; }
 .sample-notice a { margin-left: auto; white-space: nowrap; font-weight: 500; }
+/* Upgrade offers from upsell.js. Each row wraps its button under the text when narrow. */
+.plan-upsell { display: grid; gap: 12px; margin: 0 0 20px; padding: 14px 16px; border: 1px solid #dcebf1; border-left: 3px solid #17394e; border-radius: 6px; background: #fff; }
+.settings-panel .plan-upsell { margin: 16px 0 0; background: #f8fafc; }
+.plan-upsell[hidden] { display: none; }
+.plan-upsell-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.plan-upsell-offer + .plan-upsell-offer { padding-top: 12px; border-top: 1px solid #e6edf1; }
+.plan-upsell-offer p { flex: 1 1 16rem; margin: 0; color: #3d5266; font-size: 14px; line-height: 1.6; }
+.plan-upsell-offer strong { color: var(--ink); font-size: 15px; font-weight: 600; }
+.plan-upsell-price { margin-left: 8px; }
+.plan-upsell-reason { display: block; }
+.plan-upsell-offer .secondary { flex: none; }
+.plan-upsell-message { margin: 0; color: #b42318; font-size: 14px; }
+.plan-upsell-message:empty { display: none; }
 .dashboard-grid { grid-template-columns: minmax(0, 1fr) minmax(290px, .54fr); gap: 21px; }
 .dashboard-main { gap: 22px; }
 .dash-panel { min-width: 0; padding: 23px; border: 1px solid var(--line); background: white; border-radius: 10px; box-shadow: 0 2px 4px #142b3c02; }

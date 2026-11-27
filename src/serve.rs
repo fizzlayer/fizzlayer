@@ -33,13 +33,14 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("PORT").unwrap_or_else(|_| "8080".into());
     let addr: SocketAddr = format!("0.0.0.0:{port}").parse()?;
     let listener = TcpListener::bind(addr).await?;
-    eprintln!("fizz-serve listening on {addr}");
+    let sensors = Sensors::from_env();
+    eprintln!("fizz-serve listening on {addr}, {}", sensors.describe());
     tokio::spawn(cron_loop());
     loop {
         let (stream, _) = listener.accept().await?;
         tokio::spawn(async move {
             let io = TokioIo::new(stream);
-            let service = service_fn(handle);
+            let service = service_fn(move |request| handle(request, sensors));
             if let Err(error) = http1::Builder::new().serve_connection(io, service).await {
                 eprintln!("fizz-serve connection: {error}");
             }
@@ -63,7 +64,44 @@ async fn cron_loop() {
     }
 }
 
-async fn handle(request: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+/// Sensors is the older device product: the dashboard at `/app.html`, the
+/// `/sensors` pages, and the device and agent APIs behind them. fizzlayer.com
+/// does not offer it (`vercel.json` sends those pages away). A self-hosted
+/// server shows it only when `FIZZ_SENSORS` turns it on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sensors {
+    Hidden,
+    Shown,
+}
+
+impl Sensors {
+    pub fn from_env() -> Self {
+        Self::parse(env::var("FIZZ_SENSORS").ok().as_deref())
+    }
+
+    /// `1`, `true`, `yes`, and `on` turn Sensors on. Anything else, or unset, leaves them off.
+    pub fn parse(value: Option<&str>) -> Self {
+        let on = value.is_some_and(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        });
+        if on { Self::Shown } else { Self::Hidden }
+    }
+
+    fn describe(self) -> &'static str {
+        match self {
+            Self::Hidden => "Sensors off (FIZZ_SENSORS=1 turns them on)",
+            Self::Shown => "Sensors on",
+        }
+    }
+}
+
+async fn handle(
+    request: Request<Incoming>,
+    sensors: Sensors,
+) -> Result<Response<Full<Bytes>>, Infallible> {
     let https = request
         .headers()
         .get("x-forwarded-proto")
@@ -73,21 +111,33 @@ async fn handle(request: Request<Incoming>) -> Result<Response<Full<Bytes>>, Inf
     let response = if path == "/auth/v1" || path.starts_with("/auth/v1/") {
         proxy_auth(request).await
     } else if path == "/api/waitlist" || path.starts_with("/api/") {
-        freeze(api(request).await).await
-    } else if let Some(location) = redirect_target(&path, request.uri().query()) {
-        redirect(location)
+        freeze(api(request, sensors).await).await
+    } else if let Some((status, location)) = redirect_for(&path, request.uri().query(), sensors) {
+        redirect(status, location)
+    } else if path == "/app/config.json" {
+        spa_config(&public_dir(), sensors)
     } else {
         static_file(&path).await
     };
     Ok(with_security(response, https))
 }
 
-async fn api(request: Request<Incoming>) -> vercel_runtime::Response<ResponseBody> {
+async fn api(
+    request: Request<Incoming>,
+    sensors: Sensors,
+) -> vercel_runtime::Response<ResponseBody> {
     if let Err(failure) = security::guard_request(&request) {
         return failure.into_response();
     }
     let path = request.uri().path();
     let method = request.method().clone();
+    if sensors == Sensors::Hidden && sensors_api(path) {
+        return customer::error(
+            404,
+            "sensors_off",
+            "Sensors are off on this server. Set FIZZ_SENSORS=1 to turn them on.",
+        );
+    }
     if path == "/api/gateway" || path.starts_with("/api/gateway/") {
         return gateway::handle(request).await;
     }
@@ -283,7 +333,66 @@ async fn proxy_auth(request: Request<Incoming>) -> Response<Full<Bytes>> {
     out
 }
 
-/// Permanent redirects for URLs that moved. Query strings are added by `redirect_target`.
+/// API routes that only Sensors use. With Sensors off they answer 404, so a
+/// server that never opted in takes no readings and issues no device or agent
+/// keys. Sign-in, account, billing, phones, status, cron, contact, and
+/// `/api/gateway` stay on because the Gateway app and Settings use them.
+/// `/api/stream` stays on: it only reports whether live sockets are set up,
+/// and the status page reads it.
+pub fn sensors_api(path: &str) -> bool {
+    matches!(
+        path,
+        "/api/agents"
+            | "/api/alerts"
+            | "/api/chat"
+            | "/api/devices"
+            | "/api/ingest"
+            | "/api/mcp"
+            | "/api/phone"
+            | "/api/readings"
+            | "/api/sensors"
+            | "/api/setup"
+            | "/api/voice"
+    )
+}
+
+/// Where a Sensors page sends the browser while Sensors are hidden. Dashboard
+/// pages go to the app, where the same account signs in. The rest go to the
+/// site. `vercel.json` has the same redirects for fizzlayer.com.
+pub fn hidden_sensors_path(path: &str) -> Option<&'static str> {
+    let path = path.trim_end_matches('/');
+    match path {
+        "/app.html" | "/demo.html" | "/phone.html" | "/ha.html" => Some("/app"),
+        "/self-host.html" => Some("/self-host"),
+        "/sensors.html" | "/docs.html" | "/agents.html" => Some("/"),
+        _ if path == "/sensors/self-host" || path.starts_with("/sensors/self-host/") => {
+            Some("/self-host")
+        }
+        _ if path == "/sensors" || path.starts_with("/sensors/") => Some("/"),
+        _ => None,
+    }
+}
+
+/// The redirect for `path`, if it has one. Hidden Sensors pages answer 307, so
+/// a browser does not cache it past the day Sensors are turned on. Pages that
+/// moved answer 301. The query string is kept.
+pub fn redirect_for(
+    path: &str,
+    query: Option<&str>,
+    sensors: Sensors,
+) -> Option<(StatusCode, String)> {
+    let (status, dest) = match (sensors, hidden_sensors_path(path)) {
+        (Sensors::Hidden, Some(dest)) => (StatusCode::TEMPORARY_REDIRECT, dest),
+        _ => (StatusCode::MOVED_PERMANENTLY, redirect_path(path)?),
+    };
+    let location = match query {
+        Some(query) if !query.is_empty() => format!("{dest}?{query}"),
+        _ => dest.to_owned(),
+    };
+    Some((status, location))
+}
+
+/// Permanent redirects for Sensors URLs that moved, used while Sensors are on.
 pub fn redirect_path(path: &str) -> Option<&'static str> {
     match path {
         "/sensors.html" => Some("/sensors"),
@@ -291,14 +400,6 @@ pub fn redirect_path(path: &str) -> Option<&'static str> {
         "/agents.html" => Some("/sensors/agents"),
         "/self-host.html" => Some("/sensors/self-host"),
         _ => None,
-    }
-}
-
-pub fn redirect_target(path: &str, query: Option<&str>) -> Option<String> {
-    let dest = redirect_path(path)?;
-    match query {
-        Some(query) if !query.is_empty() => Some(format!("{dest}?{query}")),
-        _ => Some(dest.to_owned()),
     }
 }
 
@@ -400,8 +501,39 @@ fn content_type(path: &Path) -> Option<&'static str> {
     }
 }
 
-fn redirect(location: String) -> Response<Full<Bytes>> {
-    let mut response = text(StatusCode::MOVED_PERMANENTLY, "Moved");
+/// The app's `/app/config.json` with `sensors` set from this server's flag, so
+/// the app links to Sensors only where those pages are served. The rest of the
+/// file comes from the build (`scripts/write_spa_config.py`). Without a build,
+/// the app still gets the flag.
+fn spa_config(root: &Path, sensors: Sensors) -> Response<Full<Bytes>> {
+    let built = fs::read(root.join("app").join("config.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let body = spa_config_body(built, sensors);
+    let mut response = Response::new(Full::new(Bytes::from(body)));
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("application/json; charset=utf-8"),
+    );
+    headers.insert("cache-control", HeaderValue::from_static("no-store"));
+    response
+}
+
+pub fn spa_config_body(built: Option<serde_json::Value>, sensors: Sensors) -> String {
+    let mut config = match built {
+        Some(serde_json::Value::Object(map)) => map,
+        _ => serde_json::Map::new(),
+    };
+    config.insert(
+        "sensors".to_owned(),
+        serde_json::Value::Bool(sensors == Sensors::Shown),
+    );
+    serde_json::Value::Object(config).to_string()
+}
+
+fn redirect(status: StatusCode, location: String) -> Response<Full<Bytes>> {
+    let mut response = text(status, "Moved");
     response.headers_mut().insert(
         "location",
         HeaderValue::try_from(location).unwrap_or_else(|_| HeaderValue::from_static("/")),
@@ -525,14 +657,212 @@ mod tests {
     }
 
     #[test]
+    fn sensors_are_off_unless_the_flag_turns_them_on() {
+        assert_eq!(Sensors::parse(None), Sensors::Hidden);
+        for off in ["", "0", "false", "no", "off", "2", "sensors"] {
+            assert_eq!(Sensors::parse(Some(off)), Sensors::Hidden, "{off}");
+        }
+        for on in ["1", "true", "TRUE", " yes ", "on"] {
+            assert_eq!(Sensors::parse(Some(on)), Sensors::Shown, "{on}");
+        }
+    }
+
+    #[test]
+    fn hidden_sensors_pages_redirect_for_a_while_and_keep_the_query() {
+        let hidden = |path: &str, query: Option<&str>| redirect_for(path, query, Sensors::Hidden);
+        let temporary = |location: &str| Some((StatusCode::TEMPORARY_REDIRECT, location.into()));
+        assert_eq!(hidden("/sensors", None), temporary("/"));
+        assert_eq!(hidden("/sensors/", None), temporary("/"));
+        assert_eq!(hidden("/sensors/docs", None), temporary("/"));
+        assert_eq!(hidden("/sensors/agents/", None), temporary("/"));
+        assert_eq!(hidden("/sensors/index.html", None), temporary("/"));
+        assert_eq!(hidden("/sensors/self-host", None), temporary("/self-host"));
+        assert_eq!(
+            hidden("/sensors/self-host/index.html", None),
+            temporary("/self-host")
+        );
+        assert_eq!(hidden("/self-host.html", None), temporary("/self-host"));
+        assert_eq!(hidden("/sensors.html", None), temporary("/"));
+        assert_eq!(hidden("/docs.html", None), temporary("/"));
+        assert_eq!(hidden("/agents.html", None), temporary("/"));
+        assert_eq!(
+            hidden("/app.html", Some("plan=pro")),
+            temporary("/app?plan=pro")
+        );
+        assert_eq!(hidden("/demo.html", None), temporary("/app"));
+        assert_eq!(hidden("/phone.html", Some("")), temporary("/app"));
+        assert_eq!(
+            hidden("/ha.html", Some("state=abc")),
+            temporary("/app?state=abc")
+        );
+        // The Gateway site, the app, Settings, and shared assets are not Sensors pages.
+        for path in [
+            "/",
+            "/gateway",
+            "/docs",
+            "/self-host",
+            "/app",
+            "/app/config.json",
+            "/settings.html",
+            "/sensors.css",
+            "/sensors.js",
+            "/sensorsx",
+            "/api/sensors",
+        ] {
+            assert_eq!(hidden(path, None), None, "{path}");
+        }
+    }
+
+    #[test]
+    fn shown_sensors_pages_are_served() {
+        for path in [
+            "/sensors",
+            "/sensors/docs",
+            "/sensors/agents",
+            "/sensors/self-host",
+            "/app.html",
+            "/demo.html",
+            "/phone.html",
+            "/ha.html",
+        ] {
+            assert_eq!(redirect_for(path, None, Sensors::Shown), None, "{path}");
+        }
+        let root = Path::new("public");
+        assert!(safe_file(root, "/sensors").is_some());
+        assert!(safe_file(root, "/sensors/docs").is_some());
+        assert!(safe_file(root, "/app.html").is_some());
+    }
+
+    #[test]
+    fn vercel_sends_hidden_sensors_pages_to_the_same_places() {
+        let vercel: serde_json::Value =
+            serde_json::from_str(include_str!("../vercel.json")).unwrap();
+        let redirects: Vec<(String, String, bool)> = vercel["redirects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r.get("has").is_none())
+            .map(|r| {
+                (
+                    r["source"].as_str().unwrap().to_owned(),
+                    r["destination"].as_str().unwrap().to_owned(),
+                    r["permanent"].as_bool().unwrap(),
+                )
+            })
+            .collect();
+        // The first entry that matches wins, as on Vercel. `/x/:rest*` matches `/x` and below.
+        let vercel_target = |path: &str| {
+            redirects.iter().find(|(source, _, _)| {
+                source
+                    .strip_suffix("/:rest*")
+                    .map_or(source == path, |prefix| {
+                        path == prefix || path.starts_with(&format!("{prefix}/"))
+                    })
+            })
+        };
+        for path in [
+            "/sensors",
+            "/sensors/docs",
+            "/sensors/agents",
+            "/sensors/self-host",
+            "/sensors/self-host/index.html",
+            "/sensors.html",
+            "/docs.html",
+            "/agents.html",
+            "/self-host.html",
+            "/app.html",
+            "/demo.html",
+            "/phone.html",
+            "/ha.html",
+        ] {
+            let (_, destination, permanent) = vercel_target(path).unwrap_or_else(|| {
+                panic!("vercel.json has no redirect for {path}");
+            });
+            assert_eq!(
+                Some(destination.as_str()),
+                hidden_sensors_path(path),
+                "{path}"
+            );
+            assert!(!permanent, "{path} must not be a permanent redirect");
+        }
+        for (source, destination, permanent) in &redirects {
+            if !permanent {
+                let sample = source.trim_end_matches("/:rest*");
+                assert_eq!(hidden_sensors_path(sample), Some(destination.as_str()));
+            }
+        }
+    }
+
+    #[test]
+    fn sensors_api_routes_are_gated_and_the_rest_are_not() {
+        for path in [
+            "/api/agents",
+            "/api/alerts",
+            "/api/chat",
+            "/api/devices",
+            "/api/ingest",
+            "/api/mcp",
+            "/api/phone",
+            "/api/readings",
+            "/api/sensors",
+            "/api/setup",
+            "/api/voice",
+        ] {
+            assert!(sensors_api(path), "{path}");
+        }
+        for path in [
+            "/api/account",
+            "/api/auth",
+            "/api/billing",
+            "/api/contact",
+            "/api/cron",
+            "/api/gateway",
+            "/api/gateway/gateways",
+            "/api/me",
+            "/api/phones",
+            "/api/session",
+            "/api/status",
+            "/api/stream",
+            "/api/stripe-webhook",
+            "/api/waitlist",
+        ] {
+            assert!(!sensors_api(path), "{path}");
+        }
+    }
+
+    #[test]
+    fn app_config_carries_the_sensors_flag() {
+        let built =
+            serde_json::json!({"supabaseUrl": "https://x.supabase.co", "supabaseAnonKey": "k"});
+        let shown: serde_json::Value =
+            serde_json::from_str(&spa_config_body(Some(built.clone()), Sensors::Shown)).unwrap();
+        assert_eq!(shown["sensors"], true);
+        assert_eq!(shown["supabaseUrl"], "https://x.supabase.co");
+        assert_eq!(shown["supabaseAnonKey"], "k");
+        // A build-time value never overrides the server.
+        let built = serde_json::json!({"supabaseUrl": "", "sensors": true});
+        let hidden: serde_json::Value =
+            serde_json::from_str(&spa_config_body(Some(built), Sensors::Hidden)).unwrap();
+        assert_eq!(hidden["sensors"], false);
+        assert_eq!(spa_config_body(None, Sensors::Shown), r#"{"sensors":true}"#);
+        assert_eq!(
+            spa_config_body(Some(serde_json::json!([1])), Sensors::Hidden),
+            r#"{"sensors":false}"#
+        );
+    }
+
+    #[test]
     fn moved_pages_redirect_and_keep_the_query() {
         assert_eq!(redirect_path("/sensors.html"), Some("/sensors"));
         assert_eq!(redirect_path("/docs.html"), Some("/sensors/docs"));
         assert_eq!(redirect_path("/agents.html"), Some("/sensors/agents"));
         assert_eq!(redirect_path("/self-host.html"), Some("/sensors/self-host"));
         assert_eq!(
-            redirect_target("/docs.html", Some("plan=pro")).as_deref(),
-            Some("/sensors/docs?plan=pro")
+            redirect_for("/docs.html", Some("plan=pro"), Sensors::Shown),
+            Some((
+                StatusCode::MOVED_PERMANENTLY,
+                "/sensors/docs?plan=pro".to_owned()
+            ))
         );
         assert_eq!(redirect_path("/app.html"), None);
         assert_eq!(redirect_path("/install.sh"), None);

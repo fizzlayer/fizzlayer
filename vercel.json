@@ -25,24 +25,54 @@
       "permanent": true
     },
     {
-      "source": "/sensors.html",
-      "destination": "/sensors",
-      "permanent": true
-    },
-    {
-      "source": "/docs.html",
-      "destination": "/sensors/docs",
-      "permanent": true
-    },
-    {
-      "source": "/agents.html",
-      "destination": "/sensors/agents",
-      "permanent": true
+      "source": "/sensors/self-host/:rest*",
+      "destination": "/self-host",
+      "permanent": false
     },
     {
       "source": "/self-host.html",
-      "destination": "/sensors/self-host",
-      "permanent": true
+      "destination": "/self-host",
+      "permanent": false
+    },
+    {
+      "source": "/sensors/:rest*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/sensors.html",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/docs.html",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/agents.html",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/app.html",
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/demo.html",
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/phone.html",
+      "destination": "/app",
+      "permanent": false
+    },
+    {
+      "source": "/ha.html",
+      "destination": "/app",
+      "permanent": false
     },
     {
       "source": "/pricing",
@@ -122,7 +152,7 @@
       ]
     },
     {
-      "source": "/.well-known/(webmcp|webmcp.json|mcp.json|ai-plugin.json|mcp/server-card.json)",
+      "source": "/.well-known/(webmcp|webmcp.json|ai-plugin.json)",
       "headers": [
         {
           "key": "Content-Type",

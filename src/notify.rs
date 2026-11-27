@@ -106,7 +106,7 @@ pub fn pairing_script(code: &str) -> Option<String> {
         .collect::<Vec<_>>()
         .join(". ");
     Some(format!(
-        "This is Fizzlayer, calling to pair your phone. Your pairing code is: {spoken}. I will repeat the code. Your pairing code is: {spoken}. Enter this code in the Fizzlayer dashboard. Goodbye."
+        "This is Fizzlayer, calling to pair your phone. Your pairing code is: {spoken}. I will repeat the code. Your pairing code is: {spoken}. Enter this code in Fizzlayer. Goodbye."
     ))
 }
 
@@ -1133,7 +1133,7 @@ mod tests {
         let spoken = "one. two. zero. four. five. six";
         assert_eq!(script.matches(spoken).count(), 2);
         assert!(!script.contains("120456"));
-        assert!(script.contains("Enter this code in the Fizzlayer dashboard"));
+        assert!(script.contains("Enter this code in Fizzlayer."));
         assert!(pairing_script("12345").is_none());
         assert!(pairing_script("1234567").is_none());
         assert!(pairing_script("12a456").is_none());

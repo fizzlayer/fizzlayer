@@ -23,7 +23,14 @@ import prerender
 import rewrites
 import route
 import signin
+import site/changelog
+import site/enterprise
+import site/gateway_page
 import site/landing
+import site/pricing
+import site/self_host
+import site/status_page
+import ui/site
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -96,6 +103,146 @@ pub fn gateway_page_has_every_tab_and_counts_test() {
   string.contains(html, "aria-current=\"page\"") |> should.be_true
   string.contains(html, "fa-solid fa-hand") |> should.be_true
   string.contains(html, "/app/gateways//") |> should.be_false
+}
+
+fn on_plan(screen: String, plan: api.Plan, billing: Bool) -> String {
+  element.to_string(gateway.view(
+    gateway.Model(..gateway.preview(screen), plan:, billing:),
+  ))
+}
+
+fn tinkerer() -> api.Plan {
+  api.Plan(
+    ..api.hobbyist(),
+    id: "tinkerer",
+    name: "Tinkerer",
+    server_limit: api.Limited(10),
+    phone_calls: api.Limited(20),
+  )
+}
+
+fn pro() -> api.Plan {
+  api.Plan(
+    ..api.hobbyist(),
+    id: "pro",
+    name: "Pro",
+    server_limit: api.Limited(25),
+    phone_calls: api.Limited(100),
+    stdio: True,
+    dedicated: True,
+  )
+}
+
+const tinkerer_checkout = "/app/checkout?plan=tinkerer&amp;return=gateway"
+
+const pro_checkout = "/app/checkout?plan=pro&amp;return=gateway"
+
+pub fn hobbyist_pages_offer_tinkerer_and_pro_test() {
+  list.each(["gateways", "create", "overview", "servers"], fn(screen) {
+    let html = on_plan(screen, api.hobbyist(), True)
+    string.contains(html, "class=\"upsell\"") |> should.be_true
+    string.contains(html, tinkerer_checkout) |> should.be_true
+    string.contains(html, pro_checkout) |> should.be_true
+    string.contains(html, "10 MCP servers instead of 3") |> should.be_true
+  })
+}
+
+pub fn hobbyist_buttons_go_to_checkout_test() {
+  let html = on_plan("gateways", api.hobbyist(), True)
+  string.contains(html, "Upgrade to Tinkerer") |> should.be_true
+  string.contains(html, "Upgrade to Pro") |> should.be_true
+  string.contains(html, "Switch to") |> should.be_false
+}
+
+pub fn tinkerer_switches_to_pro_in_the_billing_portal_test() {
+  list.each(["gateways", "create", "overview"], fn(screen) {
+    let html = on_plan(screen, tinkerer(), True)
+    // Checkout refuses a second subscription, so no checkout link at all.
+    string.contains(html, "/app/checkout") |> should.be_false
+    string.contains(html, "Switch to Pro") |> should.be_true
+    string.contains(html, "Upgrade to") |> should.be_false
+    string.contains(html, "25 MCP servers instead of 10") |> should.be_true
+  })
+}
+
+pub fn the_portal_answer_opens_stripe_or_says_why_not_test() {
+  let model =
+    gateway.Model(
+      ..gateway.preview("gateways"),
+      plan: tinkerer(),
+      billing: True,
+    )
+  element.to_string(gateway.view(model))
+  |> string.contains("disabled")
+  |> should.be_false
+  let #(asking, _, _) = gateway.update(model, gateway.OpenPortal)
+  asking.busy |> should.be_true
+  // The button is disabled while the request runs.
+  element.to_string(gateway.view(asking))
+  |> string.contains("disabled")
+  |> should.be_true
+  let #(opened, _, path) =
+    gateway.update(
+      asking,
+      gateway.PortalOpened(#(
+        200,
+        "{\"url\":\"https://billing.stripe.com/p/x\"}",
+      )),
+    )
+  opened.busy |> should.be_false
+  opened.notice |> should.equal(gateway.Quiet)
+  path |> should.equal("")
+  let #(refused, _, _) =
+    gateway.update(
+      asking,
+      gateway.PortalOpened(#(
+        409,
+        "{\"error\":{\"code\":\"no_billing_account\",\"message\":\"Choose a paid plan first.\"}}",
+      )),
+    )
+  refused.busy |> should.be_false
+  refused.notice |> should.equal(gateway.Bad("Choose a paid plan first."))
+  let #(offline, _, _) =
+    gateway.update(asking, gateway.PortalOpened(#(0, "Failed to fetch")))
+  offline.notice
+  |> should.equal(gateway.Bad("Billing could not be opened. Try again."))
+}
+
+pub fn pro_and_enterprise_pages_offer_nothing_test() {
+  let enterprise = api.Plan(..pro(), id: "enterprise", name: "Enterprise")
+  list.each([pro(), enterprise], fn(plan) {
+    list.each(["gateways", "create", "overview"], fn(screen) {
+      string.contains(on_plan(screen, plan, True), "/app/checkout")
+      |> should.be_false
+    })
+  })
+}
+
+pub fn no_offer_without_billing_test() {
+  list.each(["gateways", "create", "overview"], fn(screen) {
+    let html = on_plan(screen, api.hobbyist(), False)
+    string.contains(html, "upsell") |> should.be_false
+    string.contains(html, "/app/checkout") |> should.be_false
+  })
+}
+
+pub fn billing_answer_turns_offers_on_test() {
+  let model = gateway.preview("gateways")
+  model.billing |> should.be_false
+  let #(on, _, _) =
+    gateway.update(model, gateway.BillingLoaded(#(200, "{\"available\":true}")))
+  on.billing |> should.be_true
+  let #(off, _, _) =
+    gateway.update(on, gateway.BillingLoaded(#(200, "{\"available\":false}")))
+  off.billing |> should.be_false
+  let #(down, _, _) = gateway.update(on, gateway.BillingLoaded(#(404, "")))
+  down.billing |> should.be_false
+}
+
+pub fn plan_line_uses_the_body_colour_test() {
+  let html = on_plan("gateways", api.hobbyist(), False)
+  string.contains(html, "class=\"plan-summary\"") |> should.be_true
+  string.contains(html, "Hobbyist plan: 1 of 1 gateways") |> should.be_true
 }
 
 pub fn servers_tab_lists_the_featured_registry_servers_test() {
@@ -267,13 +414,74 @@ pub fn view_does_not_render_the_access_token_test() {
       ),
       gate: gateway.preview("choose"),
       checkout: checkout.Unknown,
+      sensors: True,
     )
   let html = element.to_string(fizz_spa.view(model))
   string.contains(html, token) |> should.be_false
   string.contains(html, "not-shown-after-sign-in") |> should.be_false
   string.contains(html, "ada") |> should.be_true
   string.contains(html, "Gateway") |> should.be_true
-  string.contains(html, "/sensors") |> should.be_true
+  string.contains(html, "href=\"/sensors\"") |> should.be_true
+}
+
+fn signed_in_at_gateways() -> fizz_spa.Model {
+  let assert Ok(target) = uri.parse("/app/gateways")
+  fizz_spa.Model(
+    ..fizz_spa.first_model(target),
+    busy: False,
+    account: fizz_spa.SignedIn(username: "ada", body: "{\"username\":\"ada\"}"),
+  )
+}
+
+pub fn app_header_leaves_sensors_out_by_default_test() {
+  let model = signed_in_at_gateways()
+  model.sensors |> should.be_false
+  let html = element.to_string(fizz_spa.view(model))
+  string.contains(html, "href=\"/app/gateways\"") |> should.be_true
+  string.contains(html, "/sensors") |> should.be_false
+  string.contains(html, "Sensors") |> should.be_false
+}
+
+pub fn app_header_links_to_sensors_when_the_server_serves_them_test() {
+  let model = fizz_spa.Model(..signed_in_at_gateways(), sensors: True)
+  let html = element.to_string(fizz_spa.view(model))
+  string.contains(html, "href=\"/app/gateways\"") |> should.be_true
+  string.contains(html, "href=\"/sensors\"") |> should.be_true
+  // Signed out, there is no header nav at all, with or without Sensors.
+  let assert Ok(target) = uri.parse("/app/sign-in")
+  let signed_out = fizz_spa.Model(..fizz_spa.first_model(target), sensors: True)
+  element.to_string(fizz_spa.view(signed_out))
+  |> string.contains("href=\"/sensors\"")
+  |> should.be_false
+}
+
+pub fn only_the_server_config_turns_sensors_on_test() {
+  config.sensors_enabled(
+    "{\"supabaseUrl\":\"https://x.supabase.co\",\"supabaseAnonKey\":\"k\"}",
+  )
+  |> should.be_false
+  config.sensors_enabled("{\"sensors\":false}") |> should.be_false
+  config.sensors_enabled("{\"sensors\":\"true\"}") |> should.be_false
+  config.sensors_enabled("{\"sensors\":1}") |> should.be_false
+  config.sensors_enabled("<!doctype html>") |> should.be_false
+  config.sensors_enabled("{\"supabaseUrl\":\"\",\"sensors\":true}")
+  |> should.be_true
+  let model = signed_in_at_gateways()
+  let #(on, _) =
+    fizz_spa.update(model, fizz_spa.ConfigLoaded(#(True, "{\"sensors\":true}")))
+  on.sensors |> should.be_true
+  let #(off, _) =
+    fizz_spa.update(
+      on,
+      fizz_spa.ConfigLoaded(#(True, "{\"supabaseUrl\":\"\"}")),
+    )
+  off.sensors |> should.be_false
+  let #(missing, _) =
+    fizz_spa.update(
+      model,
+      fizz_spa.ConfigLoaded(#(False, "Missing config.json")),
+    )
+  missing.sensors |> should.be_false
 }
 
 pub fn gateway_screens_do_not_repeat_secrets_test() {
@@ -549,6 +757,67 @@ pub fn sign_up_email_comes_from_the_query_test() {
   |> should.equal("")
 }
 
+pub fn public_pages_end_with_the_pro_callout_test() {
+  [
+    enterprise.page(),
+    self_host.page(),
+    status_page.page(),
+    changelog.page(),
+  ]
+  |> list.each(fn(page) {
+    let html = element.to_document_string(page)
+    assert string.contains(html, "id=\"pro-callout-title\"")
+    assert string.contains(html, "href=\"/app?plan=pro\"")
+    assert string.contains(html, "href=\"/pricing\"")
+  })
+}
+
+pub fn gateway_page_closes_on_pro_test() {
+  let html = element.to_document_string(gateway_page.page())
+  assert !string.contains(html, "id=\"pro-callout-title\"")
+  assert string.contains(html, "href=\"/app?plan=pro\"")
+  assert string.contains(html, "Start free on Hobbyist")
+}
+
+pub fn public_copy_does_not_sell_sensors_test() {
+  let pages = [
+    pricing.page(),
+    enterprise.page(),
+    self_host.page(),
+    status_page.page(),
+    changelog.page(),
+  ]
+  list.each(pages, fn(page) {
+    let html = element.to_document_string(page)
+    assert !string.contains(html, "connected devices")
+    assert !string.contains(html, "Fizz credits")
+    assert !string.contains(html, "alerts from your sensors")
+  })
+  // The header and footer links are owned elsewhere; check the page body.
+  let assert Ok(#(_, main)) =
+    element.to_document_string(enterprise.page())
+    |> string.split_once("<main")
+  let assert Ok(#(main, _)) = string.split_once(main, "</main>")
+  assert !string.contains(string.lowercase(main), "sensor")
+  assert !string.contains(main, "Cold room")
+}
+
+pub fn pricing_recommends_pro_test() {
+  let html = element.to_document_string(pricing.page())
+  assert string.contains(html, "plan-card-featured")
+  assert string.contains(html, ">Recommended<")
+  assert string.contains(html, "href=\"/app?plan=pro\"")
+}
+
+pub fn site_header_marks_the_current_page_test() {
+  let html = element.to_document_string(pricing.page())
+  // Once in the desktop nav and once in the mobile menu.
+  let current =
+    "aria-current=\"page\" class=\"site-nav-link\" href=\"/pricing\""
+  assert list.length(string.split(html, current)) == 3
+  assert list.length(string.split(html, "aria-current")) == 3
+}
+
 pub fn sign_in_form_has_its_own_url_test() {
   route.parse("/app/sign-in") |> should.equal(route.SignIn)
   route.parse("/pricing") |> should.equal(route.Leave("/pricing"))
@@ -784,4 +1053,25 @@ pub fn tokens_are_named_by_the_user_and_kept_with_their_app_test() {
   minted.minted_for |> should.equal("claude")
   minted.minted_name |> should.equal("Work Mac")
   minted.token_name |> should.equal("")
+}
+
+pub fn site_header_and_footer_leave_sensors_out_test() {
+  // The committed site pages are shared by fizzlayer.com and self-hosted
+  // servers, and only a self-hosted server with FIZZ_SENSORS=1 serves Sensors.
+  let html =
+    site.document(
+      site.Meta(
+        title: "T",
+        description: "D",
+        path: "/",
+        image_alt: "A",
+        scripts: [],
+      ),
+      [],
+    )
+    |> element.to_document_string
+  string.contains(html, "href=\"/gateway\"") |> should.be_true
+  string.contains(html, "href=\"/docs\"") |> should.be_true
+  string.contains(html, "/sensors") |> should.be_false
+  string.contains(html, "Sensors") |> should.be_false
 }

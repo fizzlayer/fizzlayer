@@ -9,6 +9,7 @@ import lustre/attribute.{type Attribute}
 import lustre/element.{type Element, text}
 import lustre/element/html
 import lustre/element/keyed
+import lustre/event
 
 /// How much weight a button carries. One `Primary` per screen section.
 pub type Variant {
@@ -142,6 +143,18 @@ pub fn notice(
 
 pub fn notice_text(tone: Tone, message: String) -> Element(msg) {
   notice(tone, [], [html.p([], [text(message)])])
+}
+
+/// A turning ring with a visible label, for work the page is waiting on.
+/// Screen readers announce the label; the ring itself is decoration.
+pub fn spinner(label: String) -> Element(msg) {
+  html.div([attribute.class("spinner"), attribute.role("status")], [
+    html.span(
+      [attribute.class("spinner-ring"), attribute.aria_hidden(True)],
+      [],
+    ),
+    html.span([attribute.class("spinner-label")], [text(label)]),
+  ])
 }
 
 // Checkout -------------------------------------------------------------------
@@ -345,6 +358,94 @@ pub fn plan(
   children: List(Element(msg)),
 ) -> Element(msg) {
   html.section([attribute.class("plan"), ..attrs], children)
+}
+
+/// The one-line plan summary under the gateway list. It sits on the white
+/// page, so it uses the body colour rather than the muted one.
+pub fn plan_summary(children: List(Element(msg))) -> Element(msg) {
+  html.p([attribute.class("plan-summary")], children)
+}
+
+/// One paid plan offered in `upsell`: its name and price, what it adds, and
+/// its button.
+pub type Offer(msg) {
+  Offer(
+    name: String,
+    price: String,
+    reason: String,
+    button: String,
+    action: OfferAction(msg),
+  )
+}
+
+/// What an offer's button does: follow a link, or send a message. `busy`
+/// disables the button while that message's request runs.
+pub type OfferAction(msg) {
+  GoTo(href: String)
+  Send(msg: msg, busy: Bool)
+}
+
+/// A compact card offering the next plans, one row each. Nothing renders when
+/// there is nothing to offer. It reads on the white page and on navy panels.
+pub fn upsell(offers: List(Offer(msg))) -> Element(msg) {
+  case offers {
+    [] -> element.none()
+    offers ->
+      html.aside(
+        [attribute.class("upsell"), attribute.aria_label("Upgrade")],
+        list.map(offers, fn(offer) {
+          html.div([attribute.class("upsell-offer")], [
+            html.p([attribute.class("upsell-text")], [
+              html.strong([], [text(offer.name)]),
+              html.span([attribute.class("upsell-price")], [text(offer.price)]),
+              html.span([attribute.class("upsell-reason")], [
+                text(offer.reason),
+              ]),
+            ]),
+            case offer.action {
+              GoTo(href) -> link_button(Secondary, href, [text(offer.button)])
+              Send(msg, busy) ->
+                button(
+                  Secondary,
+                  [
+                    attribute.type_("button"),
+                    attribute.disabled(busy),
+                    event.on_click(msg),
+                  ],
+                  [text(offer.button)],
+                )
+            },
+          ])
+        }),
+      )
+  }
+}
+
+/// `upsell` for a gateway page, which places it twice: `InSide` under the
+/// side menu on wide screens, and `UnderPanel` below the panel on narrow
+/// ones, where the menu is a row of tabs above the panel. CSS shows one.
+pub type UpsellPlace {
+  InSide
+  UnderPanel
+}
+
+pub fn gateway_upsell(
+  place: UpsellPlace,
+  offers: List(Offer(msg)),
+) -> Element(msg) {
+  case offers {
+    [] -> element.none()
+    offers ->
+      html.div(
+        [
+          attribute.class(case place {
+            InSide -> "gw-upsell-side"
+            UnderPanel -> "gw-upsell-under"
+          }),
+        ],
+        [upsell(offers)],
+      )
+  }
 }
 
 // Sign-in ----------------------------------------------------------------------

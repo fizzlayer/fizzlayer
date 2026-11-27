@@ -42,6 +42,9 @@ pub type Model {
     account: Account,
     gate: gateway.Model,
     checkout: checkout.Model,
+    /// The server serves Sensors, so the header links to them. Only a
+    /// self-hosted server with `FIZZ_SENSORS=1` says so in `/app/config.json`.
+    sensors: Bool,
   )
 }
 
@@ -104,6 +107,7 @@ fn blank() -> Model {
     account: Booting,
     gate: gateway.empty(),
     checkout: checkout.Unknown,
+    sensors: False,
   )
 }
 
@@ -152,7 +156,7 @@ fn boot_uri(model: Model, uri: Uri) -> #(Model, Effect(Msg)) {
   }
 }
 
-fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
+pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     LinkClicked(href) ->
       case uri.parse(href) {
@@ -192,11 +196,13 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     // client only picks up sessions from older email links, so without its
     // config the app asks the server who is signed in.
     ConfigLoaded(#(False, _)) -> #(model, get_me())
-    ConfigLoaded(#(True, text)) ->
+    ConfigLoaded(#(True, text)) -> {
+      let model = Model(..model, sensors: config.sensors_enabled(text))
       case config.parse_config(text) {
         Error(_) -> #(model, get_me())
         Ok(#(url, key)) -> #(Model(..model, busy: True), boot(url, key))
       }
+    }
     SessionLoaded(#(True, token, _)) -> #(
       Model(..model, token: token),
       get_me(),
@@ -456,10 +462,7 @@ pub fn view(model: Model) -> Element(Msg) {
       ui.wordmark("/"),
       case model.account {
         SignedIn(_, _) ->
-          ui.nav("Sections", [
-            ui.nav_link(route.gateways_path, "Gateway", on_gateway),
-            ui.nav_link("/sensors", "Sensors", False),
-          ])
+          ui.nav("Sections", sections(model.sensors, on_gateway))
         _ -> element.none()
       },
       case model.route {
@@ -474,6 +477,15 @@ pub fn view(model: Model) -> Element(Msg) {
     ]),
     ui.main(wide, [screen(model)]),
   ])
+}
+
+/// The header's sections. Sensors is listed only where the server serves it.
+fn sections(sensors: Bool, on_gateway: Bool) -> List(Element(Msg)) {
+  let gateway = ui.nav_link(route.gateways_path, "Gateway", on_gateway)
+  case sensors {
+    True -> [gateway, ui.nav_link("/sensors", "Sensors", False)]
+    False -> [gateway]
+  }
 }
 
 fn screen(model: Model) -> Element(Msg) {

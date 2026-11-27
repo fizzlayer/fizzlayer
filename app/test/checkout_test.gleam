@@ -156,8 +156,18 @@ pub fn the_view_keeps_the_frame_and_offers_the_right_buttons_test() {
     fn(state) { string.contains(html(state), frame) |> should.be_true },
   )
   string.contains(html(Creating), "Upgrade to Pro") |> should.be_true
-  string.contains(html(Creating), "Loading secure checkout") |> should.be_true
-  string.contains(html(Open), "Loading") |> should.be_false
+  // Loading shows the spinner as a status, with its label as the text.
+  list.each([Waiting, Creating, Mounting], fn(state) {
+    let page = html(state)
+    string.contains(page, "class=\"spinner\"") |> should.be_true
+    string.contains(page, "role=\"status\"") |> should.be_true
+    string.contains(page, "Loading secure checkout") |> should.be_true
+  })
+  list.each([Open, Failed("x", True), Failed("x", False)], fn(state) {
+    let page = html(state)
+    string.contains(page, "class=\"spinner\"") |> should.be_false
+    string.contains(page, "Loading") |> should.be_false
+  })
   string.contains(html(Open), "Cancel") |> should.be_true
   string.contains(html(Failed("Use Manage billing.", True)), "Try again")
   |> should.be_true
@@ -174,4 +184,26 @@ pub fn the_view_keeps_the_frame_and_offers_the_right_buttons_test() {
     "does not name a plan",
   )
   |> should.be_true
+}
+
+pub fn each_plan_is_offered_the_paid_plans_above_it_test() {
+  // Hobbyist has no subscription and buys one; Tinkerer changes its own.
+  checkout.upgrades("hobbyist")
+  |> should.equal([checkout.Subscribe(Tinkerer), checkout.Subscribe(Pro)])
+  checkout.upgrades("tinkerer") |> should.equal([checkout.Switch(Pro)])
+  checkout.upgrades("pro") |> should.equal([])
+  checkout.upgrades("enterprise") |> should.equal([])
+  checkout.upgrades("") |> should.equal([])
+}
+
+pub fn the_portal_comes_back_to_the_gateways_test() {
+  checkout.portal_body(Gateways)
+  |> should.equal("{\"action\":\"portal\",\"return_to\":\"gateway\"}")
+  checkout.portal_url(200, "{\"url\":\"https://billing.stripe.com/p/x\"}")
+  |> should.equal(Ok("https://billing.stripe.com/p/x"))
+  checkout.portal_url(200, "{\"url\":\"javascript:alert(1)\"}")
+  |> should.equal(Error(Nil))
+  checkout.portal_url(409, "{\"url\":\"https://billing.stripe.com/p/x\"}")
+  |> should.equal(Error(Nil))
+  checkout.portal_url(200, "{}") |> should.equal(Error(Nil))
 }

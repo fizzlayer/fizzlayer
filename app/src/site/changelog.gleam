@@ -16,7 +16,7 @@ pub fn page() -> Element(msg) {
     [
       site.page_hero(
         "Changelog",
-        "What shipped.",
+        "Merged changes, newest first",
         "November 2 through November 13, 2026. Each line is a merged pull request. The date is the commit timestamp in US Pacific.",
         [
           site.link_arrow(
@@ -66,6 +66,7 @@ pub fn page() -> Element(msg) {
           "Fix demo call preview, greenhouse readings, and Fizz answers. (#3)",
         ]),
       ]),
+      site.pro_callout(),
     ],
   )
 }

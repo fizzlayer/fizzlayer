@@ -316,7 +316,7 @@ pub fn view(model: Model) -> Element(Msg) {
 
 fn status(state: State) -> Element(Msg) {
   case state {
-    Waiting | Creating | Mounting -> ui.muted("Loading secure checkout…")
+    Waiting | Creating | Mounting -> ui.spinner("Loading secure checkout…")
     Open -> element.none()
     Paid -> ui.notice_text(ui.Good, "Payment received. Returning…")
     Leaving -> ui.muted("Returning…")
@@ -348,7 +348,7 @@ fn back_button(label: String) -> Element(Msg) {
   )
 }
 
-fn plan_name(plan: Plan) -> String {
+pub fn plan_name(plan: Plan) -> String {
   case plan {
     Tinkerer -> "Tinkerer"
     Pro -> "Pro"
@@ -356,9 +356,72 @@ fn plan_name(plan: Plan) -> String {
 }
 
 /// The same prices as the pricing page.
-fn plan_price(plan: Plan) -> String {
+pub fn plan_price(plan: Plan) -> String {
   case plan {
     Tinkerer -> "$10 a month"
     Pro -> "$25 a month"
+  }
+}
+
+// Upgrades -------------------------------------------------------------------
+
+/// How a plan offer is taken up.
+pub type Upgrade {
+  /// No subscription yet: pay on `/app/checkout`.
+  Subscribe(Plan)
+  /// Already subscribed: checkout refuses a second subscription
+  /// (`already_subscribed`), so the change happens in the Stripe billing
+  /// portal.
+  Switch(Plan)
+}
+
+/// The paid plans worth offering to someone on `current`, a plan id from the
+/// API. Tinkerer is paid, so it already has a subscription to change.
+/// Enterprise is arranged with us, so Pro and Enterprise get no offer, and
+/// neither does a plan id this app does not know.
+pub fn upgrades(current: String) -> List(Upgrade) {
+  case current {
+    "hobbyist" -> [Subscribe(Tinkerer), Subscribe(Pro)]
+    "tinkerer" -> [Switch(Pro)]
+    _ -> []
+  }
+}
+
+/// `POST /api/billing` for a Stripe billing portal link that comes back to
+/// `back`.
+pub fn portal_body(back: Return) -> String {
+  json.object([
+    #("action", json.string("portal")),
+    #("return_to", json.string(return_id(back))),
+  ])
+  |> json.to_string
+}
+
+/// Read the portal answer: a Stripe-hosted `https://` page to open.
+pub fn portal_url(status: Int, body: String) -> Result(String, Nil) {
+  case status, json.parse(body, decode.at(["url"], decode.string)) {
+    200, Ok(url) ->
+      case string.starts_with(url, "https://") {
+        True -> Ok(url)
+        False -> Error(Nil)
+      }
+    _, _ -> Error(Nil)
+  }
+}
+
+/// MCP servers per gateway, as on the pricing page and in
+/// `src/gateway/limits.rs`.
+pub fn server_limit(plan: Plan) -> Int {
+  case plan {
+    Tinkerer -> 10
+    Pro -> 25
+  }
+}
+
+/// Phone calls a month, shared by alert calls and phone approvals.
+pub fn phone_calls(plan: Plan) -> Int {
+  case plan {
+    Tinkerer -> 20
+    Pro -> 100
   }
 }

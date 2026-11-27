@@ -50,9 +50,9 @@
     }
     // Enterprise is arranged with us directly, so it has no self-serve billing.
     const selfServe = billingAvailable && plan.id !== 'enterprise';
-    $('plan-actions').hidden = !selfServe;
-    for (const button of document.querySelectorAll('[data-plan]')) button.hidden = !selfServe || subscribed;
-    $('manage-billing').hidden = !selfServe || !subscription.has_billing_account;
+    $('plan-actions').hidden = !selfServe || !subscription.has_billing_account;
+    if (selfServe) window.fizzUpsell.render($('plan-upsell'), plan.id, 'settings');
+    else $('plan-upsell').hidden = true;
     const price = plan.monthly_price_cents ? ` · $${count(plan.monthly_price_cents / 100)}/month` : plan.monthly_price_cents === 0 ? ' · Free' : '';
     $('plan-name').textContent = plan.name + price;
     $('plan-devices').textContent = plan.device_limit === null ? `${count(plan.devices_used)} · Unlimited` : `${count(plan.devices_used)} of ${count(plan.device_limit)}`;
@@ -112,9 +112,6 @@
 
   // Checkout is Fizzlayer's own page with Stripe's form on it, and comes back here with
   // ?billing=. The billing portal is a Stripe page; the API answers with where to go.
-  for (const button of document.querySelectorAll('[data-plan]')) {
-    button.addEventListener('click', () => location.assign(`/app/checkout?plan=${button.dataset.plan}&return=settings`));
-  }
   $('manage-billing').addEventListener('click', async () => {
     const button = $('manage-billing');
     button.disabled = true;

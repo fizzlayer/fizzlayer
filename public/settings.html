@@ -7,7 +7,9 @@
 <link rel="stylesheet" href="/design.css">
 <link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/dashboard.css"><link rel="stylesheet" href="/sensors.css"><link rel="stylesheet" href="/settings.css">
 <script src="/passkey.js" defer></script>
+<script src="/upsell.js" defer></script>
 <script src="/settings.js" defer></script>
+<script src="/settings-phones.js" defer></script>
   <link rel="stylesheet" href="/workspace.css">
   <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
   <meta http-equiv="origin-trial" content="AxF27oYssyj8cvJlJbnS48Y6Bj5Z1+hBUowrfkKCmhgiBfYx7KCn/0+kiAsKPfmxho2LSMztNGgIIHF+pAbBuggAAABheyJvcmlnaW4iOiJodHRwczovL2ZpenpsYXllci5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
@@ -20,8 +22,8 @@
         <a class="dashboard-logo" href="/" aria-label="Fizzlayer home"><img src="/fizz-agent.svg" alt="" width="32" height="32">Fizzlayer<span>.</span></a>
         <div class="workspace-switch"><span class="workspace-monogram" aria-hidden="true">F</span><div>Personal workspace<small>Fizzlayer</small></div></div>
         <p class="sidebar-label">WORKSPACE</p>
-        <nav aria-label="Workspace"><a href="/app.html"><span class="fa-nav-icon fa-nav-table-cells-large" aria-hidden="true"></span><span>Overview</span></a><a href="/sensors"><span class="fa-nav-icon fa-nav-tower-broadcast" aria-hidden="true"></span><span>Sensors</span></a><a href="/sensors/agents"><span class="fa-nav-icon fa-nav-robot" aria-hidden="true"></span><span>Agents</span></a><a class="active" href="/settings.html" aria-current="page"><span class="fa-nav-icon fa-nav-gear" aria-hidden="true"></span><span>Settings</span></a></nav>
-        <div class="sidebar-guide"><img src="/fizz-agent.svg" alt="" width="39" height="39"><strong>Your world has a sidekick.</strong><p>Connect your first device and let Fizz make sense of the signals.</p><a href="/sensors/docs">Read the docs <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></a></div>
+        <nav aria-label="Workspace"><a href="/app/gateways"><span class="fa-nav-icon fa-nav-table-cells-large" aria-hidden="true"></span><span>Gateway</span></a><a class="active" href="/settings.html" aria-current="page"><span class="fa-nav-icon fa-nav-gear" aria-hidden="true"></span><span>Settings</span></a></nav>
+        <div class="sidebar-guide"><img src="/fizz-agent.svg" alt="" width="39" height="39"><strong>Control what your AI agents can do.</strong><p>Put rules and approvals in front of your MCP servers.</p><a href="/docs">Read the docs <span aria-hidden="true"><span class="fa-arrow fa-arrow-diagonal" aria-hidden="true"></span></span></a></div>
         <div class="dashboard-account"><span class="account-avatar" aria-hidden="true"><span class="fa fa-user"></span></span><span id="settings-username"></span><button type="button" id="settings-sign-out">Sign out</button></div>
       </header>
       <div class="workspace-content" id="workspace-content" tabindex="-1"><div class="workspace-topbar"><div class="workspace-breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Settings</strong></div><span><span class="status-dot" aria-hidden="true"></span> Personal workspace</span></div>
@@ -47,10 +49,9 @@
     </dl>
     <p class="settings-intro plan-intro">Sample sensors don't count toward your devices. One credit is one message to Fizz. Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan and appear in the alert form only when mail is configured. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). <a href="/pricing">Compare plans</a></p>
     <p class="plan-status" id="plan-status" hidden></p>
+    <aside class="plan-upsell" id="plan-upsell" aria-label="Upgrade" hidden></aside>
     <div class="plan-actions" id="plan-actions" hidden>
-      <button class="primary" type="button" data-plan="tinkerer" hidden>Upgrade to Tinkerer · $10/month</button>
-      <button class="primary" type="button" data-plan="pro" hidden>Upgrade to Pro · $25/month</button>
-      <button class="secondary" type="button" id="manage-billing" hidden>Manage billing</button>
+      <button class="secondary" type="button" id="manage-billing">Manage billing</button>
     </div>
     <p class="form-message" id="billing-message" role="status" aria-live="polite"></p>
   </section>
@@ -64,6 +65,16 @@
     <p id="passkey-empty" class="dashboard-empty" hidden>No passkeys yet. Press + to add one.</p>
     <p class="form-message" id="passkey-message" role="status"></p>
     <button class="secondary sign-in-again" id="sign-in-again" type="button" hidden>Sign in again</button>
+  </section>
+  <section class="dash-panel settings-panel phones-panel" id="phones" aria-labelledby="phones-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">04 / PHONE</p><h2 id="phones-title">Phone for approval calls</h2></div></div>
+    <p class="settings-intro phones-intro">When a gateway rule asks first and notifies by phone, Fizzlayer calls a number paired here. Pair a US number: Fizzlayer calls it and reads a 6-digit code, and you enter the code here. Phone calls are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC).</p>
+    <p class="sample-notice" id="phones-upgrade" hidden></p>
+    <ul id="phone-list" class="phone-list"></ul>
+    <p class="dashboard-empty" id="phones-empty" hidden>No paired numbers yet.</p>
+    <form id="phone-pair-form" class="phone-pair" hidden><label for="phone-number">US phone number<input id="phone-number" type="tel" inputmode="tel" autocomplete="tel" placeholder="(415) 555-0123" required></label><button class="primary" id="phone-start" type="submit">Call me with a code</button></form>
+    <form id="phone-confirm-form" class="phone-pair" hidden><label for="phone-code">6-digit code<input id="phone-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required></label><button class="primary" type="submit">Confirm</button><button class="secondary" id="phone-resend" type="button">Call again</button></form>
+    <p class="form-message" id="phone-message" role="status" aria-live="polite"></p>
   </section>
   <p class="form-message" id="page-error" role="alert"></p>
 </div></section></main>

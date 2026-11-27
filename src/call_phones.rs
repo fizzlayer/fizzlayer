@@ -13,7 +13,7 @@ use crate::{
 const MAX_BODY_BYTES: usize = 4 * 1024;
 
 pub const CALLS_NOT_INCLUDED: &str = "Phone-call alerts and the call that pairs a number are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Upgrade to place a call. On Hobbyist, use a dashboard or webhook alert. Email alerts are included on every plan when mail is configured.";
-pub const PHONE_NOT_PAIRED: &str = "Pair this phone number in the dashboard before an alert can call it. Open Phones, have Fizzlayer call the number, and enter the 6-digit code.";
+pub const PHONE_NOT_PAIRED: &str = "Pair this phone number in Settings before an alert can call it. Under Phone for approval calls, have Fizzlayer call the number, and enter the 6-digit code.";
 
 fn phone_error(value: &Value) -> Option<Response<ResponseBody>> {
     let code = value.get("error")?.as_str()?;

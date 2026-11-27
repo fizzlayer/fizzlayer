@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="#0b1722" name="theme-color"><title>Gateway docs | Fizzlayer</title><meta content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane." name="description"><meta content="website" property="og:type"><meta content="Fizzlayer" property="og:site_name"><meta content="https://fizzlayer.com/docs" property="og:url"><meta content="Gateway docs | Fizzlayer" property="og:title"><meta content="Run Fizzlayer Gateway with Docker, connect an MCP client, and use the /api/gateway control plane." property="og:description"><meta content="https://fizzlayer.com/og.svg" property="og:image"><meta content="Fizzlayer documentation." property="og:image:alt"><meta content="summary_large_image" name="twitter:card"><meta content="@fizzlayer" name="twitter:site"><link href="/fizz-agent.svg" rel="icon" type="image/svg+xml"><link href="https://fizzlayer.com/docs" rel="canonical"><link as="font" crossorigin href="/fonts/Geist-Variable.woff2" rel="preload" type="font/woff2"><link href="/fizz.css" rel="stylesheet"><script defer src="/docs.js"></script><script defer src="/analytics.js"></script></head><body class="site"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container site-header-inner"><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><nav aria-label="Main" class="site-nav"><a class="site-nav-link" href="/gateway">Gateway</a><a class="site-nav-link" href="/sensors">Sensors</a><a class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a></nav><div class="site-header-actions"><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></div><details class="site-menu"><summary>Menu</summary><nav aria-label="Main" class="site-menu-panel"><a class="site-nav-link" href="/gateway">Gateway</a><a class="site-nav-link" href="/sensors">Sensors</a><a class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></nav></details></div></header><main id="main"><section class="page-hero page-hero-docs"><div class="container"><p class="section-kicker">Gateway docs</p><h1 class="page-title" id="title">Fizzlayer Gateway</h1><p class="hero-sub">One MCP listener in front of your servers, with per-tool rules and pins. These pages match the code in this repository. The hosted URL is available once the shared fleet is deployed and <code>GATEWAY_HOSTED</code> is turned on. It is not on yet. Signed-in setup is at <a href="/app">/app</a>. The same routes are in <a href="/openapi.json">openapi.json</a>.
+<html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="#0b1722" name="theme-color"><title>Gateway docs | Fizzlayer</title><meta content="Set up Fizzlayer Gateway, hosted or with Docker, connect an MCP client, and use the /api/gateway control plane." name="description"><meta content="website" property="og:type"><meta content="Fizzlayer" property="og:site_name"><meta content="https://fizzlayer.com/docs" property="og:url"><meta content="Gateway docs | Fizzlayer" property="og:title"><meta content="Set up Fizzlayer Gateway, hosted or with Docker, connect an MCP client, and use the /api/gateway control plane." property="og:description"><meta content="https://fizzlayer.com/og.svg" property="og:image"><meta content="Fizzlayer documentation." property="og:image:alt"><meta content="summary_large_image" name="twitter:card"><meta content="@fizzlayer" name="twitter:site"><link href="/fizz-agent.svg" rel="icon" type="image/svg+xml"><link href="https://fizzlayer.com/docs" rel="canonical"><link as="font" crossorigin href="/fonts/Geist-Variable.woff2" rel="preload" type="font/woff2"><link href="/fizz.css" rel="stylesheet"><script defer src="/docs.js"></script><script defer src="/analytics.js"></script></head><body class="site"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container site-header-inner"><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><nav aria-label="Main" class="site-nav"><a class="site-nav-link" href="/gateway">Gateway</a><a aria-current="page" class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a></nav><div class="site-header-actions"><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></div><details class="site-menu"><summary>Menu</summary><nav aria-label="Main" class="site-menu-panel"><a class="site-nav-link" href="/gateway">Gateway</a><a aria-current="page" class="site-nav-link" href="/docs">Docs</a><a class="site-nav-link" href="/pricing">Pricing</a><a class="site-nav-link" href="/app/sign-in">Sign in</a><a class="button button-primary button-lg button-arrow" href="/app">Get started </a></nav></details></div></header><main id="main"><section class="page-hero page-hero-docs"><div class="container"><p class="section-kicker">Gateway docs</p><h1 class="page-title" id="title">Fizzlayer Gateway</h1><p class="hero-sub">Fizzlayer Gateway is one MCP endpoint between your AI agents and the MCP servers they use. It checks every tool call against your rules, can hold a call until you approve it, and hides a tool whose description changes. Use the hosted gateway from <a href="/app">/app</a>, or run it yourself with Docker. The routes on this page are also in <a href="/openapi.json">openapi.json</a>.
 </p></div></section><div class="container docs-layout"><nav aria-label="On this page" class="docs-toc">        <p class="toc-label">On this page</p>
         <ol>
           <li><a href="#overview">Overview</a></li>
@@ -16,231 +16,289 @@
         </ol>
       
 </nav><article aria-labelledby="title" class="legal-body prose">        <h2 id="overview">Overview</h2>
-        <p>The data plane is unmodified <a href="https://github.com/agentgateway/agentgateway" rel="noopener noreferrer">agentgateway</a> v1.7, pinned by image digest. Fizzlayer does not rebuild that image. The pieces in <code>gateway/</code> are:</p>
+        <p>An agent connects to the gateway URL with a Fizzlayer client token. The gateway forwards each MCP request to the right upstream server and asks a policy service about every <code>tools/call</code> and every <code>tools/list</code> answer. The pieces are:</p>
         <ul>
-          <li><code>fizz-config</code> reads servers from Postgres and writes agentgateway YAML. The write is atomic so the proxy's file watch can reload it. This is standalone mode.</li>
-          <li><code>fizz-agent</code> is linked mode. It polls the control plane with a registration token and writes that same file. It does not print the token or the YAML.</li>
-          <li><code>fizz-guard</code> is the ExtMcp service. <code>tools/call</code> is allow, deny, or approve. <code>tools/list</code> pins each tool. Phone approvals reserve a call on the shared monthly cap. <code>/api/cron</code> dials it.</li>
-          <li>The Rust API exposes <code>/api/gateway/*</code> for signed-in users and for a registration token. It does not change <code>/api/mcp</code>, <code>/install.sh</code>, Home Assistant, or <code>/.well-known/*</code>.</li>
+          <li>The proxy is unmodified <a href="https://github.com/agentgateway/agentgateway" rel="noopener noreferrer">agentgateway</a> v1.7.0, pinned by image digest. Fizzlayer does not rebuild that image.</li>
+          <li><code>fizz-guard</code> is the policy service. It allows, denies, or holds each tool call for approval, pins each listed tool, and writes the audit log. It reads rules, pins, approvals, and token revocations from Postgres on every call.</li>
+          <li><code>fizz-config</code> renders the agentgateway YAML from a Postgres you run. This is standalone mode.</li>
+          <li><code>fizz-agent</code> pulls that YAML from the Fizzlayer API with a registration token. This is linked mode, and it is also how the hosted gateway gets its config.</li>
+          <li>The control plane is the API under <code>/api/gateway/*</code>. The app at <a href="/app">/app</a> uses the same routes.</li>
         </ul>
-        <p>Sensors stay at <a href="/sensors/docs">/sensors/docs</a>. That MCP server uses <code>fizz_agent_</code> tokens. Gateway clients use a JWT. They are different credentials.</p>
-        <p><code>public/openapi.json</code> lists the sensors API and the <code>/api/gateway</code> routes. This page is the longer explanation of those routes.</p>
+        <p>The source for all of this is in <code>gateway/</code> in the repository.</p>
 
         <h2 id="concepts">Concepts</h2>
         <dl class="docs-defs">
-          <div><dt>Gateway</dt><dd>One agentgateway listener for a workspace. <code>mode</code> is <code>shared</code>, <code>dedicated</code>, or <code>selfhost</code>. Creating the row does not start a process. Self-host requires <code>public_url</code>.</dd></div>
-          <div><dt>Server</dt><dd>An upstream MCP target. <code>http</code> and <code>sse</code> take a URL without credentials in the URL. <code>stdio</code> takes a command and args, and only on a dedicated or self-hosted gateway whose plan includes stdio.</dd></div>
-          <div><dt>Policy</dt><dd>A row the guard reads on each call: optional server, tool name or <code>*</code>, effect <code>allow</code>, <code>deny</code>, or <code>approve</code>, and <code>notify_channel</code> <code>log</code>, <code>webhook</code>, or <code>phone</code>. A missing rule denies the call.</dd></div>
-          <div><dt>Pin</dt><dd>SHA-256 of the canonical JSON <code>{"description","inputSchema","name"}</code>. Status is unreviewed, approved, or changed.</dd></div>
-          <div><dt>Client token</dt><dd>An ES256 JWT for one person and one gateway. Revocation is a timestamp the guard reads. It is not a reload of the YAML.</dd></div>
-          <div><dt>Registration token</dt><dd><code>fizz_reg_…</code>, shown once when the gateway is created or rotated. <code>fizz-agent</code> uses it for <code>GET /api/gateway/agent/config</code> and <code>POST /api/gateway/agent/status</code>. The config response can include upstream keys.</dd></div>
+          <div><dt>Gateway</dt><dd>One MCP endpoint for your account. <code>mode</code> is <code>shared</code> (hosted by Fizzlayer), <code>dedicated</code>, or <code>selfhost</code>. A self-hosted gateway needs <code>public_url</code>, the URL your agents dial.</dd></div>
+          <div><dt>Server</dt><dd>An upstream MCP server. <code>http</code> and <code>sse</code> take a URL with no username or password in it. <code>stdio</code> takes a command and arguments, and only works on a dedicated or self-hosted gateway on a plan that includes stdio.</dd></div>
+          <div><dt>Rule</dt><dd>A policy row: an optional server, a tool name or <code>*</code>, an effect, and a notification channel. The app calls the effects Allow (<code>allow</code>), Block (<code>deny</code>), and Ask first (<code>approve</code>). A tool call that matches no rule is denied.</dd></div>
+          <div><dt>Approval</dt><dd>A held tool call. It records the server, the tool, a SHA-256 hash of the arguments, and the argument key names. Once approved, the same call with the same arguments goes through once.</dd></div>
+          <div><dt>Pin</dt><dd>A SHA-256 hash of a tool's name, description, and input schema. Its status is <code>unreviewed</code>, <code>approved</code>, or <code>changed</code>.</dd></div>
+          <div><dt>Client token</dt><dd>An ES256 JWT for one person and one gateway. Agents send it as <code>Authorization: Bearer</code>. Revoking it takes effect on the next call.</dd></div>
+          <div><dt>Registration token</dt><dd><code>fizz_reg_…</code>, shown once when a gateway is created or the token is rotated. <code>fizz-agent</code> uses it to pull config. That config can contain upstream API keys, so treat this token like a password.</dd></div>
+          <div><dt>Audit log</dt><dd>One row per <code>tools/call</code> decision: server, tool, the token's user and id, the argument hash and key names, the decision, and a reason. Argument values are not stored.</dd></div>
         </dl>
 
         <h2 id="quickstart">Quickstart</h2>
         <h3>Hosted</h3>
-        <p>Available once deployed. Creating a shared gateway stores <code>https://gw.fizzlayer.com/w/&lt;gateway-id&gt;/mcp</code>. One process serves every active shared gateway at that path. A client token's audience is that URL, so a token for one gateway is rejected on another. HTTP and SSE only. stdio stays on a Pro dedicated gateway, which this fleet does not run. Nothing in this repository points DNS at that host or starts the process.</p>
-        <p>The app checks <code>GET /api/gateway/hosted</code>, then <code>/gateway-hosted.json</code>. Both stay <code>{"available": false}</code> until you set <code>GATEWAY_HOSTED</code> to <code>1</code> on the API after the Compute service is up. This site does not turn that on. Until then, <a href="/app">/app</a> shows how to run the gateway yourself. Upstream API keys are decrypted only while the API renders the fleet YAML. The signed-in preview omits them. Tool calls are counted per gateway. Audit rows are kept 7 days on Hobbyist, 30 on Tinkerer, and 90 on Pro once the purge migration is applied. Sensors stay at <a href="/sensors">/sensors</a>.</p>
+        <ol>
+          <li>Sign in at <a href="/app">/app</a> and create a gateway. On Hobbyist and Tinkerer it is a shared gateway at <code>https://gw.fizzlayer.com/w/&lt;gateway-id&gt;/mcp</code>.</li>
+          <li>Add a server from the catalog or by URL. The catalog lists servers from the official MCP Registry that speak streamable HTTP or SSE and need one API key or none. A server that needs an OAuth sign-in cannot be added yet.</li>
+          <li>Check the server's tools and its rule. A new server starts with an Allow rule for every tool. Change it to Block or Ask first before you connect an agent if you want something stricter.</li>
+          <li>Open Connect, mint a client token, and copy the setup for your client.</li>
+        </ol>
+        <p>One process serves every active shared gateway. A client token's audience is its own gateway's URL, so a token for one gateway is rejected on another. Shared gateways run <code>http</code> and <code>sse</code> servers only. Dedicated gateways are part of Pro, but none are provisioned yet.</p>
+        <p>The app asks <code>GET /api/gateway/hosted</code>, and then <code>/gateway-hosted.json</code>, whether the shared host is answering. If it is not, the app still saves your gateway, servers, and rules, and Connect shows how to run the gateway yourself.</p>
+        <p>An API key you give for a server is encrypted before it is stored. The API decrypts it only to render the config the gateway process pulls, or to list that server's tools when you ask. The config preview in the app leaves it out.</p>
+
         <h3>Self-hosted, standalone</h3>
-        <p>Docker is the only dependency besides the repository. Compose builds the local image. Docker Hub does not have a <code>fizzlayer/fizzlayer-gateway</code> tag yet, so do not <code>docker pull</code> it. The publish workflow on main is what will push that name.</p>
+        <p>You need Docker and a copy of the repository. The compose file builds the Fizzlayer image from the repository, so there is nothing to pull first.</p>
         <pre><code>git clone --depth 1 https://github.com/fizzlayer/fizzlayer.git
 cd fizzlayer
 gateway/compose/test.sh</code></pre>
-        <p>The script writes <code>gateway/compose/.env</code> with a database password and an admin token, and does not print them. It applies the gateway migrations it mounts, runs the RLS test, and then an MCP client calls through the proxy. <code>ping</code> is allowed. <code>admin_reset</code> is denied and does not reach the sample server. <code>note</code> disappears from <code>tools/list</code> after its description changes. <code>move_funds</code> is rejected, approved once, and rejected on the second retry.</p>
-        <p>To leave that stack up after a successful run (the test script removes containers when it exits):</p>
+        <p>The script writes <code>gateway/compose/.env</code> with a database password and an admin token, and does not print them. It applies the gateway migrations, runs the row-level security test, and then calls through the proxy with an MCP client. <code>ping</code> is allowed. <code>admin_reset</code> is denied and never reaches the sample server. <code>note</code> disappears from <code>tools/list</code> after its description changes. <code>move_funds</code> is held, approved once, and rejected on the second retry.</p>
+        <p>The test script removes its containers when it exits. To keep the stack running:</p>
         <pre><code>cd gateway/compose
 docker compose --env-file .env up -d postgres fizz-config fizz-config-watch fizz-guard sample-mcp agentgateway</code></pre>
-        <p>The proxy listens on <code>127.0.0.1:3000</code>. Tokens for this compose file use audience <code>http://agentgateway:3000/mcp</code>, which is the name inside the compose network. The approval page is <code>http://127.0.0.1:9002/</code>. Paste <code>FIZZ_GUARD_ADMIN_TOKEN</code> from <code>.env</code>. That page does not place a phone call. Do not publish port 9002.</p>
-        <p><code>DATABASE_URL=memory://</code> keeps pins and approvals in the process and drops them on exit. The compose file uses Postgres. SQLite is not wired.</p>
+        <p>The proxy listens on <code>127.0.0.1:3000</code>. Tokens for this compose file use the audience <code>http://agentgateway:3000/mcp</code>, which is the proxy's name inside the compose network. The approval page is at <code>http://127.0.0.1:9002/</code>. Paste <code>FIZZ_GUARD_ADMIN_TOKEN</code> from <code>.env</code> to use it. That page does not place phone calls. Do not publish port 9002.</p>
+        <p>With <code>DATABASE_URL=memory://</code>, pins and approvals live in the process and are lost when it exits. The compose file uses Postgres. SQLite is not supported.</p>
+
         <h3>Linked mode</h3>
-        <p>Linked mode means a gateway you run pulls config from the Fizzlayer API. <code>fizz-agent</code> polls <code>GET /api/gateway/agent/config</code> with a registration token and writes the file agentgateway is watching. Do not run it on the same <code>config.yaml</code> as <code>fizz-config watch</code>. The two writers would overwrite each other. Variable details also live in <a href="https://github.com/fizzlayer/fizzlayer/blob/main/gateway/README.md">gateway/README.md</a>.</p>
-        <p>Create or rotate a gateway to get <code>fizz_reg_…</code>, shown once. The agent does not print the token or the YAML.</p>
+        <p>In linked mode you run the proxy and <code>fizz-guard</code>, and <code>fizz-agent</code> pulls the config from the Fizzlayer API. The agent polls <code>GET /api/gateway/agent/config</code> with a registration token and writes the file agentgateway watches. Do not point it at the same <code>config.yaml</code> as <code>fizz-config watch</code>, because the two would overwrite each other. More detail is in <a href="https://github.com/fizzlayer/fizzlayer/blob/main/gateway/README.md">gateway/README.md</a>.</p>
+        <p>Create a self-hosted gateway, or rotate its registration token, to get a <code>fizz_reg_…</code> value. It is shown once. The agent never prints the token or the YAML.</p>
         <div class="docs-table-wrap">
           <table>
             <caption class="visually-hidden">fizz-agent environment</caption>
             <thead><tr><th scope="col">Variable</th><th scope="col">Purpose</th></tr></thead>
             <tbody>
               <tr><td><code>FIZZ_API_URL</code></td><td>Origin only, such as <code>https://fizzlayer.com</code>. No path, user, or password.</td></tr>
-              <tr><td><code>FIZZ_REGISTRATION_TOKEN_FILE</code></td><td>File containing the token. Preferred. Mode <code>0600</code>.</td></tr>
+              <tr><td><code>FIZZ_REGISTRATION_TOKEN_FILE</code></td><td>File containing the token, mode <code>0600</code>. Preferred.</td></tr>
               <tr><td><code>FIZZ_REGISTRATION_TOKEN</code></td><td>The token itself, if you are not using the file.</td></tr>
-              <tr><td><code>FIZZ_CONFIG_OUT</code></td><td>File agentgateway was started with (<code>-f</code>). Default <code>/config/config.yaml</code>.</td></tr>
-              <tr><td><code>FIZZ_POLL_SECS</code></td><td>Delay between pulls. Default 5. Range 1 to 300.</td></tr>
-              <tr><td><code>FIZZ_ADMIN_URL</code></td><td>Optional origin of the proxy admin listener, such as <code>http://127.0.0.1:15000</code>.</td></tr>
-              <tr><td><code>FIZZ_AGENT_STATE</code></td><td>Optional file for the last ETag. Default is <code>.fizz-agent-state</code> beside the config.</td></tr>
+              <tr><td><code>FIZZ_CONFIG_OUT</code></td><td>The file agentgateway was started with (<code>-f</code>). Default <code>/config/config.yaml</code>.</td></tr>
+              <tr><td><code>FIZZ_POLL_SECS</code></td><td>Seconds between pulls. Default 5, range 1 to 300.</td></tr>
+              <tr><td><code>FIZZ_ADMIN_URL</code></td><td>Optional origin of the proxy's admin listener, such as <code>http://127.0.0.1:15000</code>.</td></tr>
+              <tr><td><code>FIZZ_AGENT_STATE</code></td><td>Optional file for the last ETag. Default <code>.fizz-agent-state</code> next to the config.</td></tr>
             </tbody>
           </table>
         </div>
         <pre><code>export FIZZ_API_URL=https://fizzlayer.com
 export FIZZ_REGISTRATION_TOKEN_FILE=/run/secrets/fizz-registration
 fizz-agent pull</code></pre>
-        <p>The agent sends <code>Authorization: Bearer</code>, <code>If-None-Match</code>, and <code>?rev=</code>. <code>304</code> leaves the file alone. A <code>200</code> is checked before the atomic rename: it has to be YAML with an <code>mcp</code> listener and one target kind per server. A document that fails that check is not written. The last good file keeps being served, and the agent <code>POST</code>s <code>/api/gateway/agent/status</code> with <code>rejected</code> and a short reason. That reason does not include the token or the YAML. Network errors, <code>401</code>, and <code>5xx</code> also leave the file in place and back off up to 60 seconds. A bad document does not use that backoff, so a corrected revision is picked up on the next poll.</p>
-        <p>agentgateway v1.7.0 watches that file and hot-reloads targets and policies. A reload it rejects stays on the previous in-memory config. <code>GET /api/runtime</code> on the admin listener reports <code>configReload.synchronized: false</code>. There is no separate reload RPC. When <code>FIZZ_ADMIN_URL</code> answers, <code>fizz-agent</code> reads that flag and, if the reload was rejected, puts the previous file back so a restart does not boot the bad document. The rendered config binds admin to <code>127.0.0.1:15000</code> inside the proxy container and does not publish it. Leave <code>FIZZ_ADMIN_URL</code> unset unless that listener is reachable from the agent without exposing it on the host.</p>
-        <p>The signed-in preview at <code>GET /api/gateway/gateways/{id}/config</code> omits credentials, and its ETag ends in <code>-redacted</code>. Upstream API keys are embedded only in the registration-token YAML, as <code>backendAuth.key.value</code>, because agentgateway needs them in <code>config.yaml</code>. Do not log that file.</p>
-        <p><code>fizz-guard</code> does not take policies from <code>fizz-agent</code>. The YAML only points <code>mcpGuardrails</code> at the guard. Allow, deny, approve, tool pins, approval rows, and client-token revocation are read from Postgres on each call. A policy change is visible on the next <code>tools/call</code> without a config reload, as long as <code>fizz-guard</code> uses the same database the control plane writes. Linked mode does not sync those rows over the registration token. Point <code>DATABASE_URL</code> at that database, or keep a local database and edit policies there. <code>DATABASE_URL=memory://</code> does not follow the cloud rows.</p>
-        <p><code>20261118000100_gateway_agent.sql</code> stores the agent's last report on <code>gateway.gateways</code> (<code>agent_status</code>, <code>agent_revision</code>, <code>agent_detail</code>). Apply it with the other gateway migrations (<code>supabase db push</code>). Until then the status <code>POST</code> fails and the agent still keeps the last good file. Pulling config itself is <code>20261114000400</code>. Phone approvals are <code>20261118000000</code>, which the local compose loads. Local compose does not apply <code>004</code> or <code>00100</code>.</p>
-        <p>The linked compose test uses a mock control plane on the Docker network. It does not print the token.</p>
+        <p>The agent sends <code>Authorization: Bearer</code>, <code>If-None-Match</code>, and <code>?rev=</code>. A <code>304</code> leaves the file alone. A <code>200</code> is checked before the file is replaced: it has to be YAML with an <code>mcp</code> listener and one target kind per server. A document that fails the check is not written. The last good file keeps serving, and the agent reports <code>rejected</code> with a short reason to <code>POST /api/gateway/agent/status</code>. The reason never includes the token or the YAML. Network errors, <code>401</code>, and <code>5xx</code> also leave the file in place, with a backoff of up to 60 seconds. A bad document does not trigger that backoff, so a fixed revision is picked up on the next poll.</p>
+        <p>agentgateway watches the file and reloads targets and policies when it changes. If it rejects a reload, it keeps the previous config in memory and its admin listener reports <code>configReload.synchronized: false</code> at <code>GET /api/runtime</code>. When <code>FIZZ_ADMIN_URL</code> is set and answers, <code>fizz-agent</code> reads that flag and puts the previous file back, so a restart does not boot the bad document. The rendered config binds the admin listener to <code>127.0.0.1:15000</code> inside the proxy container. Leave <code>FIZZ_ADMIN_URL</code> unset unless the agent can reach that listener without exposing it on the host.</p>
+        <p>The pulled YAML contains upstream API keys as <code>backendAuth.key.value</code>, because agentgateway reads them from <code>config.yaml</code>. Do not log that file. The preview at <code>GET /api/gateway/gateways/{id}/config</code> leaves keys out, and its ETag ends in <code>-redacted</code>.</p>
+        <p>The YAML does not carry your rules. It points agentgateway at <code>fizz-guard</code>, and the guard reads rules, pins, approvals, and token revocations from its own database on each call. In linked mode those rows are not synced over the registration token. Edit them in the database your <code>fizz-guard</code> uses. <code>DATABASE_URL=memory://</code> does not follow rows you change in the app.</p>
+        <p>The linked compose test runs the same flow against a mock control plane:</p>
         <pre><code>gateway/compose/test-linked.sh</code></pre>
-        <p>That stack adds a server through the mock, checks the new tool shows up without restarting agentgateway, then serves a bad document and checks the previous <code>ping</code> call still succeeds.</p>
+        <p>It adds a server through the mock, checks that the new tool appears without restarting agentgateway, then serves a bad document and checks that <code>ping</code> still works.</p>
 
         <h2 id="clients">Clients</h2>
-        <p>The gateway expects Streamable HTTP and <code>Authorization: Bearer</code> with a Fizzlayer JWT. Mint one with <code>POST /api/gateway/gateways/{id}/tokens</code> after you are signed in. Replace <code>YOUR_GATEWAY_URL</code> with the URL you actually dial, and use a token whose <code>aud</code> is the gateway's configured public URL. Those two strings can differ: the local compose publishes <code>127.0.0.1:3000</code> and sets <code>aud</code> to <code>http://agentgateway:3000/mcp</code>.</p>
+        <p>The gateway speaks streamable HTTP and expects <code>Authorization: Bearer</code> with a client token. Connect in the app fills in your gateway URL and a new token for each client below. With the API, mint a token with <code>POST /api/gateway/gateways/{id}/tokens</code>.</p>
+        <p>Use the URL you actually dial, and a token whose <code>aud</code> is the gateway's configured public URL. On the hosted gateway those are the same. On the local compose file they differ: you dial <code>127.0.0.1:3000</code>, and <code>aud</code> is <code>http://agentgateway:3000/mcp</code>.</p>
         <p class="docs-label">Claude Code</p>
         <pre><code>claude mcp add --transport http fizzlayer YOUR_GATEWAY_URL \
-  --header "Authorization: Bearer YOUR_JWT"</code></pre>
+  --header "Authorization: Bearer YOUR_TOKEN"</code></pre>
+        <p class="docs-label">Claude (web, desktop, and mobile)</p>
+        <p>In Claude, open Settings, then Connectors, then Add custom connector. Paste the gateway URL, and under Request headers add <code>Authorization</code> with the value <code>Bearer YOUR_TOKEN</code>. Claude connects from Anthropic's servers, so the gateway URL has to be public. <code>127.0.0.1</code> will not work.</p>
         <p class="docs-label">Cursor (<code>~/.cursor/mcp.json</code>)</p>
         <pre><code>{
   "mcpServers": {
     "fizzlayer": {
       "url": "YOUR_GATEWAY_URL",
-      "headers": { "Authorization": "Bearer YOUR_JWT" }
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
     }
   }
 }</code></pre>
-        <p class="docs-label">Generic MCP client</p>
+        <p>Connect also has an Add to Cursor button that installs the same entry.</p>
+        <p class="docs-label">VS Code (<code>.vscode/mcp.json</code>)</p>
+        <pre><code>{
+  "servers": {
+    "fizzlayer": {
+      "type": "http",
+      "url": "YOUR_GATEWAY_URL",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}</code></pre>
+        <p class="docs-label">Codex</p>
+        <pre><code>export FIZZLAYER_TOKEN='YOUR_TOKEN'
+codex mcp add fizzlayer --url YOUR_GATEWAY_URL --bearer-token-env-var FIZZLAYER_TOKEN</code></pre>
+        <p>Codex reads the token from the environment, so add the <code>export</code> line to your shell profile.</p>
+        <p class="docs-label">Gemini CLI</p>
+        <pre><code>gemini mcp add --transport http fizzlayer YOUR_GATEWAY_URL \
+  --header "Authorization: Bearer YOUR_TOKEN"</code></pre>
+        <p class="docs-label">Hermes Agent (<code>~/.hermes/config.yaml</code>)</p>
+        <pre><code>mcp_servers:
+  fizzlayer:
+    url: "YOUR_GATEWAY_URL"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"</code></pre>
+        <p class="docs-label">Any MCP client</p>
         <pre><code>curl YOUR_GATEWAY_URL \
-  -H 'Authorization: Bearer YOUR_JWT' \
+  -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'</code></pre>
-        <p class="docs-label">Claude Desktop</p>
-        <p>If your build of Claude Desktop lets you add a remote MCP server with a custom header, use the same URL and bearer token as Cursor. There is no OAuth login. The connector directory needs an OAuth 2.1 authorization server, which is not built, so a directory install will not work yet.</p>
         <p class="docs-label">ChatGPT</p>
-        <p>Not supported. Custom connectors and directory apps need OAuth 2.1 with PKCE. Fizzlayer does not publish that authorization server. A bearer JWT is not a substitute ChatGPT will use as the user login.</p>
-        <p>There is no <code>fizzlayer connect</code> command. Copy the JSON yourself.</p>
+        <p>Not supported yet. ChatGPT's connector form signs in with OAuth or with nothing, and has no place for the token the gateway checks. Fizzlayer does not run an OAuth authorization server. Codex can connect today.</p>
 
         <h2 id="policies">Policies and approvals</h2>
-        <p>Put a rule with <code>PUT /api/gateway/gateways/{id}/policies</code>:</p>
+        <p>Set a rule on the Rules tab, or with <code>PUT /api/gateway/gateways/{id}/policies</code>:</p>
         <pre><code>curl -X PUT https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/policies \
   -H 'Authorization: Bearer SUPABASE_ACCESS_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"tool_name":"*","effect":"approve","notify_channel":"log"}'</code></pre>
-        <p><code>tool_name</code> is <code>*</code> or a name matching <code>^[A-Za-z0-9_.:-]{1,128}$</code>. <code>server_id</code> is optional. Omit <code>notify_channel</code> on an update to keep the current value. A new row defaults to <code>log</code>. Uniqueness is the gateway, the server (or every server), and the tool name.</p>
-        <p>When the effect is <code>approve</code>, fizz-guard stores <code>sha256</code> of the canonical arguments, rejects, and returns. It does not wait inside the guardrail timeout. Default TTL is 10 minutes (<code>FIZZ_APPROVAL_TTL_SECS</code>).</p>
+        <p><code>tool_name</code> is <code>*</code> or a name matching <code>^[A-Za-z0-9_.:-]{1,128}$</code>. <code>server_id</code> is optional. Leave it out to cover every server on the gateway. A rule is unique per gateway, server (or every server), and tool name, so a second <code>PUT</code> for the same three updates the existing rule. Leave out <code>notify_channel</code> on an update to keep the current value. A new rule defaults to <code>log</code>.</p>
+        <p>When the effect is <code>approve</code>, <code>fizz-guard</code> stores a SHA-256 hash of the canonical arguments, rejects the call, and returns right away. The agent sees:</p>
+        <pre><code>Approval required: an approver was notified (id …). Ask the user to approve, then retry the same call.</code></pre>
+        <p>The guard does not wait inside agentgateway's 10-second guardrail timeout. An approval expires after 10 minutes by default. On a gateway you run, <code>FIZZ_APPROVAL_TTL_SECS</code> changes that, from 60 seconds to 24 hours.</p>
         <div class="docs-table-wrap">
           <table>
             <caption class="visually-hidden">Approval notification channels</caption>
             <thead><tr><th scope="col">notify_channel</th><th scope="col">What happens</th></tr></thead>
             <tbody>
-              <tr><td><code>log</code></td><td>One line: channel, tool, server, short id, result. No argument values.</td></tr>
-              <tr><td><code>webhook</code></td><td>POST that summary to <code>FIZZ_APPROVAL_WEBHOOK_URL</code> with a 2 second timeout. A URL with a username or password is ignored. If the POST fails, the approval row still exists.</td></tr>
-              <tr><td><code>phone</code></td><td>Reserves one call against the shared monthly cap and returns. It does not dial inside the guard. <code>/api/cron</code> dials with the same AgentPhone path as sensor alerts. The greeting names the gateway, tool, argument summary, and id, and tells you to approve in the app. Digit collection is not available from the provider. A full cap, a missing paired number, or unreadable billing is <code>skipped</code> and does not count. The guard then falls back to the webhook or a log line.</td></tr>
+              <tr><td><code>log</code></td><td>The guard writes one line: channel, tool, server, short id, and result. No argument values.</td></tr>
+              <tr><td><code>webhook</code></td><td>The guard POSTs that summary to <code>FIZZ_APPROVAL_WEBHOOK_URL</code>, an environment variable on <code>fizz-guard</code>, with a 2-second timeout. A URL with a username or password is ignored. If the variable is unset, the guard writes a log line instead. If the POST fails, the approval still exists.</td></tr>
+              <tr><td><code>phone</code></td><td>The guard reserves one call against the account's monthly phone-call cap and returns. It does not dial. The scheduler on the API dials queued calls about once a minute, through AgentPhone, to the account's most recently paired phone number. The call reads the gateway name, the tool, the argument key names, and the approval id, then tells you to approve or deny in the app. It does not take a keypress. If the plan has no calls, the cap is used up, no number is paired, or billing cannot be read, the reservation is recorded as <code>skipped</code>, does not count, and the guard falls back to the webhook or a log line.</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Decide a pending row that has not expired:</p>
+        <p>Phone approvals need Tinkerer, Pro, or Enterprise, and a US phone number paired on the account. Pairing places a call that reads a 6-digit code, and you enter that code to confirm the number. A number that is not paired is never called.</p>
+        <p>Decide a pending approval on the Approvals tab, or with the API while it has not expired:</p>
         <pre><code>curl -X POST https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/approvals/APPROVAL_ID/decision \
   -H 'Authorization: Bearer SUPABASE_ACCESS_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"status":"approved"}'</code></pre>
-        <p><code>status</code> is <code>approved</code> or <code>denied</code>. <code>args_preview</code> on the list endpoint is key names only. Owner and admin can write. A member can read and gets 403 on writes. Another workspace gets 404.</p>
+        <p><code>status</code> is <code>approved</code> or <code>denied</code>. <code>args_preview</code> on the list is key names only. An owner or admin can decide. A member can read and gets <code>403</code> on writes. A gateway in another account answers <code>404</code>.</p>
 
         <h2 id="pinning">Tool pinning</h2>
-        <p>A server added from the app or the API starts open. It gets an <code>allow</code> rule for <code>*</code>, and <code>gateway.servers.trust_new_tools</code> is true, so the guard pins each tool as <code>approved</code> the first time it is listed. Its tools are listed and callable right away. Narrow the <code>*</code> rule to Block or Ask first to change that.</p>
-        <p>Servers added before that default have <code>trust_new_tools</code> false. For them, a tool the guard has not seen is stored as <code>unreviewed</code>. <code>gateway.gateways.unreviewed_tools</code> is <code>hide</code> (the default) or <code>show</code>. <code>hide</code> removes an unreviewed tool from <code>tools/list</code>. <code>show</code> leaves it listed. Either way, <code>tools/call</code> is denied until the pin is approved.</p>
-        <p>On every server, trusted or not, if a later list has a different hash, the tool is removed from that response, status becomes <code>changed</code>, and <code>gateway.pin_alerts</code> gets one open row. <code>description_preview</code> is untrusted text from the MCP server, cut to 200 characters.</p>
+        <p>Every time an upstream server answers <code>tools/list</code>, the guard hashes each tool's name, description, and input schema and compares it with the stored pin.</p>
+        <p>A server added from the app or the API starts open. It gets an Allow rule for <code>*</code>, and its <code>trust_new_tools</code> flag is on, so the first time the guard sees a tool it pins it as <code>approved</code>. Its tools are listed and callable right away.</p>
+        <p>Servers added before that default have <code>trust_new_tools</code> off. On those, a tool the guard has not seen is pinned as <code>unreviewed</code>. The gateway's <code>unreviewed_tools</code> setting is <code>hide</code> (the default) or <code>show</code>. <code>hide</code> removes unreviewed tools from <code>tools/list</code>. <code>show</code> leaves them listed. Either way, calling one is denied until its pin is approved.</p>
+        <p>On every server, if a later list has a different hash for a tool, the tool is removed from that answer, its status becomes <code>changed</code>, calls to it are denied, and one open pin alert is stored. The alert shows up on the Changes tab. Its <code>description_preview</code> is up to 200 characters of text from the MCP server. Read it as untrusted input.</p>
         <pre><code>curl -X POST https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/pins/approve \
   -H 'Authorization: Bearer SUPABASE_ACCESS_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"server":"sample","tool":"note"}'</code></pre>
-        <p>That copies <code>observed_sha256</code> onto <code>pin_sha256</code>, sets status <code>approved</code>, and acknowledges open pin alerts for that tool. <code>PATCH</code> the gateway with <code>{"unreviewed_tools":"hide"}</code> or <code>"show"</code> to change the default.</p>
+        <p>Approving copies the observed hash onto the pin, sets the status to <code>approved</code>, and acknowledges open alerts for that tool. <code>PATCH</code> the gateway with <code>{"unreviewed_tools":"hide"}</code> or <code>"show"</code> to change the default.</p>
+        <p>On a gateway with more than one server, agentgateway names each tool <code>{server}_{tool}</code>. The guard uses that prefix to tell which server a tool belongs to.</p>
 
         <h2 id="tokens">Client tokens and JWKS</h2>
-        <p><code>GET /api/gateway/jwks</code> is public. No session. Agentgateway checks tokens with <code>jwtAuth</code>: issuer <code>fizzlayer</code>, mode <code>strict</code>, audience equal to the gateway public URL, JWKS from <code>GATEWAY_JWKS_URL</code> or the request origin plus <code>/api/gateway/jwks</code>.</p>
-        <p>Claims: <code>iss</code>, <code>sub</code> (the Fizzlayer user id), <code>aud</code>, <code>ws</code> (workspace id), <code>jti</code>, <code>iat</code>, <code>exp</code>. Algorithm ES256. The private key is <code>GATEWAY_SIGNING_KEY</code>, a PKCS#8 PEM. The server does not generate one. A single-line value may use <code>\n</code> for line breaks.</p>
+        <p><code>GET /api/gateway/jwks</code> is public and needs no session. agentgateway checks every request with <code>jwtAuth</code> in strict mode: issuer <code>fizzlayer</code>, audience equal to the gateway's public URL, and keys from <code>GATEWAY_JWKS_URL</code>, or from the request origin plus <code>/api/gateway/jwks</code>.</p>
+        <p>Claims are <code>iss</code>, <code>sub</code> (your user id), <code>aud</code>, <code>ws</code> (your workspace id), <code>jti</code>, <code>iat</code>, and <code>exp</code>. The algorithm is ES256.</p>
         <pre><code>curl -X POST https://fizzlayer.com/api/gateway/gateways/GATEWAY_ID/tokens \
   -H 'Authorization: Bearer SUPABASE_ACCESS_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"name":"Cursor on laptop","ttl_seconds":3600}'</code></pre>
-        <p>The JWT is returned once. Default life is 1 hour. <code>ttl_seconds</code> must be from 60 to 2592000 (30 days). The name is 1 to 80 characters. Delete <code>/tokens/{token_id}</code> to revoke. fizz-guard reads <code>revoked_at</code> from <code>gateway.client_tokens</code>.</p>
-        <p>Upstream API keys use <code>GATEWAY_SECRET_KEY</code>, base64 of 32 bytes. Ciphertext is AES-256-GCM with <code>key_id</code> <code>v1</code>. <code>auth_kind</code> is <code>none</code>, <code>key</code>, or <code>passthrough</code>. Send <code>api_key</code> when the kind is <code>key</code>. The list of servers never returns that key.</p>
+        <p>The JWT is returned once and is not stored. Fizzlayer keeps its name, id, expiry, and revocation time. The default life is 1 hour. <code>ttl_seconds</code> can be 60 to 2592000 (30 days). The name is 1 to 80 characters. <code>DELETE /tokens/{token_id}</code> revokes a token, and the guard refuses it from the next call on.</p>
+        <p>Each server's <code>auth_kind</code> is <code>none</code>, <code>key</code>, or <code>passthrough</code>. Send <code>api_key</code> with <code>key</code>. The key is sealed with AES-256-GCM before it is stored, using a key held by the API process and not kept in the database. The server list reports <code>has_secret</code> and never returns the key. <code>passthrough</code> uses agentgateway's backend-auth passthrough.</p>
 
         <h2 id="api">Control-plane API</h2>
-        <p>Send a Supabase access token as <code>Authorization: Bearer</code>, or use the <code>fizz_supabase</code> cookie. The account's workspace is created on first use. The account owner is <code>owner</code>. Until migration <code>20261114000400_gateway_control_plane.sql</code> is applied, these routes answer 503.</p>
+        <p>Signed-in routes take a Supabase access token as <code>Authorization: Bearer</code>, or the <code>fizz_supabase</code> cookie the site sets when you sign in. Your workspace is created on first use, and you are its <code>owner</code>. Owners and admins can change a gateway. Members can read it.</p>
         <div class="docs-table-wrap">
           <table>
             <caption class="visually-hidden">Gateway control-plane routes</caption>
             <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Body and result</th></tr></thead>
             <tbody>
               <tr><td>GET</td><td><code>/api/gateway/jwks</code></td><td>Public JWKS. No session.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/hosted</code></td><td><code>{"available":true}</code> only when <code>GATEWAY_HOSTED</code> is <code>1</code>, <code>true</code>, or <code>yes</code>. Otherwise <code>{"available":false}</code>. No session.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/agent/fleet</code></td><td>YAML for every active shared gateway. <code>Authorization: Bearer fizz_fleet_…</code>.</td></tr>
-              <tr><td>POST</td><td><code>/api/gateway/agent/fleet/status</code></td><td>Fleet agent report. Same body as the per-gateway status.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/agent/config</code></td><td>YAML for <code>Authorization: Bearer fizz_reg_…</code>. 304 when the revision matches.</td></tr>
-              <tr><td>GET, POST</td><td><code>/api/gateway/gateways</code></td><td>List, or create. Create body: <code>name</code> (lowercase, letter first, digits and hyphens, at most 41 characters, not ending in a hyphen), optional <code>mode</code> (<code>shared</code>, <code>dedicated</code>, <code>selfhost</code>), <code>region</code>, <code>public_url</code>, <code>listen_port</code>. The response includes <code>registration_token</code> once. <code>GET</code> includes <code>plan</code>.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/hosted</code></td><td><code>{"available":true}</code> when the hosted fleet is switched on, otherwise <code>{"available":false}</code>. No session.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/registry</code></td><td>Searches the official MCP Registry. Optional <code>search</code> (up to 100 characters) and <code>cursor</code>. Returns only active servers with a remote streamable HTTP or SSE URL. 502 <code>registry_unavailable</code> when the registry does not answer.</td></tr>
+              <tr><td>GET, POST</td><td><code>/api/gateway/gateways</code></td><td>List, or create. Create takes <code>name</code> (lowercase, starting with a letter, letters, digits, and hyphens, at most 41 characters, not ending in a hyphen), and optional <code>mode</code>, <code>region</code>, <code>public_url</code>, and <code>listen_port</code>. The response includes <code>registration_token</code> once. The list includes your <code>plan</code>.</td></tr>
               <tr><td>PATCH</td><td><code>/api/gateway/gateways/{id}</code></td><td><code>{"unreviewed_tools":"hide"|"show"}</code>.</td></tr>
-              <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}</code></td><td>Deletes the gateway and its servers, secrets, and tokens.</td></tr>
-              <tr><td>GET, POST</td><td><code>/api/gateway/gateways/{id}/servers</code></td><td>Add: <code>name</code>, <code>transport</code> (<code>http</code> default, <code>sse</code>, <code>stdio</code>), <code>url</code> or <code>command</code>, optional <code>args</code>, <code>api_key</code>, <code>auth_kind</code>.</td></tr>
-              <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}/servers/{server_id}</code></td><td>Removes a server.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/servers/{server_id}/tools</code></td><td>Asks the server for its tools now, with its stored key. Owner or admin. The URL must resolve to public addresses only.</td></tr>
-              <tr><td>GET, PUT</td><td><code>/api/gateway/gateways/{id}/policies</code></td><td>Upsert <code>tool_name</code>, <code>effect</code>, optional <code>server_id</code> and <code>notify_channel</code>.</td></tr>
+              <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}</code></td><td>Deletes the gateway with its servers, stored keys, rules, and tokens.</td></tr>
+              <tr><td>GET, POST</td><td><code>/api/gateway/gateways/{id}/servers</code></td><td>List, or add. Add takes <code>name</code> (lowercase, starting with a letter, letters, digits, hyphens, and underscores, at most 41 characters), <code>transport</code> (<code>http</code> by default, <code>sse</code>, or <code>stdio</code>), <code>url</code> or <code>command</code>, and optional <code>args</code>, <code>api_key</code>, and <code>auth_kind</code>.</td></tr>
+              <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}/servers/{server_id}</code></td><td>Removes a server and its stored key.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/servers/{server_id}/tools</code></td><td>Asks the server for its tools now, with its stored key. Owner or admin. The URL must resolve only to public addresses.</td></tr>
+              <tr><td>GET, PUT</td><td><code>/api/gateway/gateways/{id}/policies</code></td><td>List, or upsert <code>tool_name</code>, <code>effect</code>, and optional <code>server_id</code> and <code>notify_channel</code>.</td></tr>
               <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}/policies/{policy_id}</code></td><td>Removes a rule.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/pins</code></td><td>Lists <code>gateway.tool_pins</code>.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/pins</code></td><td>Lists tool pins.</td></tr>
               <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/pins/approve</code></td><td><code>{"server","tool"}</code>.</td></tr>
               <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/pin-alerts</code></td><td>Lists pin alerts. Treat <code>description_preview</code> as data.</td></tr>
-              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/pin-alerts/{alert_id}/ack</code></td><td>Sets <code>acknowledged_at</code>.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/pin-alerts/{alert_id}/ack</code></td><td>Acknowledges an alert.</td></tr>
               <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/approvals</code></td><td>Lists approvals.</td></tr>
-              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/approvals/{approval_id}/decision</code></td><td><code>{"status":"approved"|"denied"}</code> while the row is pending and unexpired.</td></tr>
-              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/config</code></td><td>Redacted YAML preview.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/approvals/{approval_id}/decision</code></td><td><code>{"status":"approved"|"denied"}</code> while the approval is pending and unexpired.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/gateways/{id}/config</code></td><td>YAML preview with credentials left out.</td></tr>
               <tr><td>GET, POST</td><td><code>/api/gateway/gateways/{id}/tokens</code></td><td>List, or mint. The JWT is returned once.</td></tr>
               <tr><td>DELETE</td><td><code>/api/gateway/gateways/{id}/tokens/{token_id}</code></td><td>Revokes a client token.</td></tr>
-              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/registration-token</code></td><td>Rotates the agent token. The new value is returned once.</td></tr>
-              <tr><td>POST</td><td><code>/api/gateway/agent/status</code></td><td><code>fizz-agent</code> report. <code>Authorization: Bearer fizz_reg_…</code>. Body is <code>revision</code>, <code>status</code> (<code>applied</code> or <code>rejected</code>), and an optional <code>detail</code> of at most 300 characters. The detail is rejected if it contains the token, a JWT, or <code>Bearer</code>.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/gateways/{id}/registration-token</code></td><td>Rotates the registration token. The new value is returned once, and the old one stops working.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/agent/config</code></td><td>Config YAML for <code>Authorization: Bearer fizz_reg_…</code>. <code>304</code> when the revision matches.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/agent/status</code></td><td><code>fizz-agent</code> report, with the same token. Body is <code>revision</code>, <code>status</code> (<code>applied</code> or <code>rejected</code>), and an optional <code>detail</code> of at most 300 characters. A detail that contains a token, a JWT, or <code>Bearer</code> is rejected.</td></tr>
+              <tr><td>GET</td><td><code>/api/gateway/agent/fleet</code></td><td>Config for every active shared gateway. Used by the hosted fleet with <code>Authorization: Bearer fizz_fleet_…</code>.</td></tr>
+              <tr><td>POST</td><td><code>/api/gateway/agent/fleet/status</code></td><td>The fleet agent's report. Same body as the per-gateway report.</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Over a cap, the API answers 402 with <code>gateway_limit</code>, <code>server_limit</code>, <code>stdio_not_included</code>, or <code>dedicated_not_included</code>. Stdio on a shared gateway is <code>stdio_shared</code>. A downgrade disables the newest extra gateways and servers. It does not delete them. A name that fails validation is 400 <code>invalid_request</code>.</p>
-        <p>Omit <code>mode</code> on create and the API uses <code>shared</code> on Hobbyist and Tinkerer, and <code>dedicated</code> on Pro and Enterprise. The default URL stored on the row is <code>https://gw.fizzlayer.com/w/{id}/mcp</code> or <code>https://{name}.gw.fizzlayer.com/mcp</code>. The shared host answers only after the fleet is deployed. The dedicated host is not provisioned.</p>
-        <p>Environment on the API, not committed:</p>
+        <p>If you leave out <code>mode</code> on create, the API uses <code>shared</code> on Hobbyist and Tinkerer, and <code>dedicated</code> on Pro and Enterprise. The stored URL is <code>https://gw.fizzlayer.com/w/{id}/mcp</code> for a shared gateway and <code>https://{name}.gw.fizzlayer.com/mcp</code> for a dedicated one. Dedicated hosts are not provisioned yet.</p>
+        <p>Errors use one JSON shape with a stable <code>code</code>. Over a plan limit, the API answers <code>402</code> with <code>gateway_limit</code>, <code>server_limit</code>, <code>stdio_not_included</code>, or <code>dedicated_not_included</code>. A stdio server on a shared gateway is <code>400</code> <code>stdio_shared</code>. A name or body that fails validation is <code>400</code> <code>invalid_request</code>. Too many requests is <code>429</code> <code>rate_limited</code> with <code>Retry-After: 60</code>.</p>
+        <h3>Running the control plane yourself</h3>
+        <p>If you deploy the API from this repository, apply the gateway migrations with <code>supabase db push</code>. Until <code>20261114000400_gateway_control_plane.sql</code> is applied, these routes answer <code>503</code>. Set these on the API, and do not commit the values:</p>
         <ul>
-          <li><code>GATEWAY_SIGNING_KEY</code> to mint tokens and serve JWKS.</li>
-          <li><code>GATEWAY_SECRET_KEY</code> to store an MCP API key.</li>
-          <li><code>GATEWAY_JWKS_URL</code> absolute URL written into YAML as <code>jwtAuth.jwks.url</code>.</li>
-          <li><code>GATEWAY_GUARD_HOST</code> optional, default <code>fizz-guard:9001</code>. On the single hosted container set <code>127.0.0.1:9001</code>.</li>
-          <li><code>GATEWAY_FLEET_TOKEN</code> for the shared fleet pull. Same value as <code>FIZZ_FLEET_TOKEN</code> on the Compute service.</li>
-          <li><code>GATEWAY_HOSTED</code> optional. Set to <code>1</code> after deploy. Unset keeps <code>GET /api/gateway/hosted</code> at <code>{"available":false}</code>.</li>
+          <li><code>GATEWAY_SIGNING_KEY</code>: a PKCS#8 PEM for the ES256 key that signs client tokens and backs the JWKS. The server does not generate one. A single-line value may use <code>\n</code> for line breaks.</li>
+          <li><code>GATEWAY_SECRET_KEY</code>: base64 of 32 bytes, used to encrypt stored MCP API keys.</li>
+          <li><code>GATEWAY_JWKS_URL</code>: the absolute JWKS URL written into the YAML. Optional, but set it in production.</li>
+          <li><code>GATEWAY_GUARD_HOST</code>: <code>host:port</code> of <code>fizz-guard</code>. Default <code>fizz-guard:9001</code>. In the single hosted container, use <code>127.0.0.1:9001</code>.</li>
+          <li><code>GATEWAY_FLEET_TOKEN</code>: <code>fizz_fleet_</code> plus 64 hex characters, for the hosted fleet pull. The same value is <code>FIZZ_FLEET_TOKEN</code> on the fleet.</li>
+          <li><code>GATEWAY_HOSTED</code>: set to <code>1</code>, <code>true</code>, or <code>yes</code> once the shared fleet is running. Anything else keeps <code>/api/gateway/hosted</code> at <code>{"available":false}</code>.</li>
         </ul>
-        <p>Rendered YAML sets <code>adminAddr</code> to <code>127.0.0.1:15000</code>, session key <code>disabled</code>, <code>statefulMode: stateless</code>, <code>prefixMode: never</code>, and <code>mcpGuardrails</code> with <code>failureMode: failClosed</code> on <code>tools/call</code> request and <code>tools/list</code> response.</p>
+        <p>The rendered YAML sets <code>adminAddr</code> to <code>127.0.0.1:15000</code>, the session key to <code>disabled</code>, <code>statefulMode: stateless</code>, <code>prefixMode: conditional</code>, and <code>mcpGuardrails</code> with <code>failureMode: failClosed</code> on the <code>tools/call</code> request and the <code>tools/list</code> response.</p>
 
         <h2 id="limits">Limits</h2>
-        <p>Numbers are the columns on <code>fizz_plans</code> from <code>20261114000400_gateway_control_plane.sql</code>. Phone calls are shared with sensor alert calls and reset on the first of each month (UTC). Enterprise phone calls are unlimited unless <code>fizz_subscriptions.monthly_call_cap</code> is set.</p>
+        <p>These are the plan columns on <code>fizz_plans</code>, the same numbers as the <a href="/pricing">pricing page</a>. Monthly counts reset on the first of each month (UTC).</p>
         <div class="docs-table-wrap">
           <table>
             <caption class="visually-hidden">Plan limits for the gateway</caption>
-            <thead><tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">Gateways</th><th scope="col">Servers</th><th scope="col">Tool calls / month</th><th scope="col">Phone calls</th><th scope="col">Audit days</th><th scope="col">Seats</th><th scope="col">stdio / dedicated</th></tr></thead>
+            <thead><tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">Gateways</th><th scope="col">MCP servers</th><th scope="col">Tool calls / month</th><th scope="col">Phone calls / month</th><th scope="col">Audit days</th><th scope="col">Seats</th><th scope="col">stdio and dedicated</th></tr></thead>
             <tbody>
-              <tr><td>Hobbyist</td><td>$0</td><td>1</td><td>3</td><td>10,000</td><td>0</td><td>7</td><td>1</td><td>No</td></tr>
+              <tr><td>Hobbyist</td><td>$0</td><td>1</td><td>3</td><td>10,000</td><td>None</td><td>7</td><td>1</td><td>No</td></tr>
               <tr><td>Tinkerer</td><td>$10 / month</td><td>1</td><td>10</td><td>50,000</td><td>20</td><td>30</td><td>1</td><td>No</td></tr>
-              <tr><td>Pro</td><td>$25 / month</td><td>1</td><td>25</td><td>200,000</td><td>100</td><td>90</td><td>3</td><td>Yes, not provisioned</td></tr>
-              <tr><td>Enterprise</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Yes, not provisioned</td></tr>
+              <tr><td>Pro</td><td>$25 / month</td><td>1</td><td>25</td><td>200,000</td><td>100</td><td>90</td><td>3</td><td>Included, not provisioned yet</td></tr>
+              <tr><td>Enterprise</td><td>Custom</td><td>Custom</td><td>Custom</td><td>Custom</td><td>By contract</td><td>Custom</td><td>Custom</td><td>Included, not provisioned yet</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Enforced when you call the API: gateway count, server count, the dedicated flag, the stdio flag, and the phone-call cap. On the shared fleet, <code>fizz-guard</code> also rejects a tool call past the monthly tool-call number and records decision <code>quota</code>. <code>/api/cron</code> deletes audit rows older than the plan's audit days after <code>20261118000200_hosted_gateway.sql</code> is applied. <code>usage_daily</code> is kept for later metering. Seat count is not a login limit. Stripe does not receive gateway usage records yet. Sensor device and credit limits are unchanged: Hobbyist 3 devices and 10 credits, Tinkerer 10 and 100, Pro 50 and 1,000. Email and webhook alerts are on every plan, including Hobbyist. The dashboard hides email until mail is configured.</p>
+        <p>What is enforced:</p>
+        <ul>
+          <li>Gateway count, server count, stdio, and dedicated mode are checked when you create a gateway or add a server.</li>
+          <li><code>fizz-guard</code> rejects a tool call past the monthly tool-call number and records it in the audit log with decision <code>quota</code>.</li>
+          <li>Phone approvals count against one monthly call cap per account. Pairing calls do not count. Enterprise is unlimited unless the contract sets a cap.</li>
+          <li>The scheduler deletes audit rows older than your plan's audit days. Retention follows your current plan, so moving to a plan with fewer days deletes older rows at the next run. Enterprise rows are kept unless a contract says otherwise. Daily usage counts are kept for metering.</li>
+          <li>When you move to a plan with lower limits, the newest gateways and servers over the new limit are paused, not deleted.</li>
+          <li>The hosted shared process also limits requests per gateway per minute: Hobbyist 30, Tinkerer 120, Pro 240, and Enterprise 600.</li>
+          <li>The control-plane API allows 120 reads and 60 writes a minute per user, and 30 tool listings a minute.</li>
+        </ul>
+        <p>Not enforced yet: the seat number (there is no way to add members yet), and usage-based billing. Stripe does not receive gateway usage records.</p>
 
         <h2 id="troubleshooting">Troubleshooting</h2>
         <dl class="docs-faq">
-          <div><dt>503 from <code>/api/gateway</code></dt><dd>The control-plane migration is not applied, or the handler cannot reach the database. <code>supabase db push</code> applies <code>20261114000400_gateway_control_plane.sql</code>. Signing also needs <code>GATEWAY_SIGNING_KEY</code> before minting a token.</dd></div>
-          <div><dt>401</dt><dd>The session token was missing or rejected, or a registration token was rejected on the agent route. Sign in again, or rotate the registration token. The old registration token stops working.</dd></div>
-          <div><dt>402</dt><dd><code>gateway_limit</code>, <code>server_limit</code>, <code>stdio_not_included</code>, or <code>dedicated_not_included</code>. Disable a gateway or server, or use a plan that includes that mode. A downgrade disables extras. It does not delete them.</dd></div>
-          <div><dt>The tool is missing from <code>tools/list</code></dt><dd>It is unreviewed and <code>unreviewed_tools</code> is <code>hide</code>, or the description or schema changed. Approve the pin. Read <code>description_preview</code> as untrusted text.</dd></div>
-          <div><dt>tools/call says approval is required</dt><dd>Approve that id, then retry the same arguments before the TTL. A different argument hash is a new approval. A second identical retry after a success is rejected.</dd></div>
-          <div><dt>Every call is denied and the guard is healthy</dt><dd>There is no matching allow or approved pin. With no rule at all the default is deny; servers added from the app start with an allow rule for <code>*</code>. <code>failureMode</code> is <code>failClosed</code>, so a guard error also denies.</dd></div>
-          <div><dt>The client connects and the JWT is rejected</dt><dd>The <code>aud</code> claim must match the audience in the generated YAML, which is the gateway public URL. For the local compose file that is <code>http://agentgateway:3000/mcp</code>, even if you dial <code>127.0.0.1:3000</code>.</dd></div>
-          <div><dt>Phone approval did not ring</dt><dd>Hobbyist cannot place calls. The cap may be spent. The number must already be paired. <code>AGENTPHONE_API_KEY</code> and <code>AGENTPHONE_AGENT_ID</code> must be set. The guard only reserves the call. <code>/api/cron</code> dials it. A skipped reservation does not decrement the cap.</dd></div>
-          <div><dt>Config pull returns YAML the proxy will not load</dt><dd>On standalone, <code>fizz-config</code> refuses to write a credential and refuses stdio on a shared gateway. Check the container logs. They are scrubbed for tokens in <code>gateway/compose/test.sh</code> when the test fails.</dd></div>
+          <div><dt>401</dt><dd>The session token was missing or rejected, or a registration token was rejected on an agent route. Sign in again, or rotate the registration token.</dd></div>
+          <div><dt>402</dt><dd><code>gateway_limit</code>, <code>server_limit</code>, <code>stdio_not_included</code>, or <code>dedicated_not_included</code>. Remove a gateway or server, or move to a plan that includes what you asked for.</dd></div>
+          <div><dt>409 <code>gateway_disabled</code></dt><dd>The gateway is paused because it is over your plan's limit. Remove another gateway or upgrade, and it runs again.</dd></div>
+          <div><dt>503 from <code>/api/gateway</code></dt><dd>The database could not be reached. On a control plane you run yourself, the gateway migrations may not be applied, or <code>GATEWAY_SIGNING_KEY</code> or <code>GATEWAY_SECRET_KEY</code> may be missing.</dd></div>
+          <div><dt>503 <code>missing_secret</code> on a server</dt><dd>That server's stored key could not be decrypted, so the gateway leaves the server out and keeps serving its other servers. Remove the server and add it again with its key.</dd></div>
+          <div><dt>A tool is missing from <code>tools/list</code></dt><dd>Its description or schema changed, or it is unreviewed and the gateway hides unreviewed tools. Check the Changes tab and approve the pin. Read <code>description_preview</code> as untrusted text.</dd></div>
+          <div><dt>Every call is denied</dt><dd>No rule allows the call, or the tool's pin is not approved. A tool call with no matching rule is denied. The guard also fails closed, so if it cannot answer, the call is denied.</dd></div>
+          <div><dt><code>tools/call</code> says approval is required</dt><dd>Approve that id, then retry with the same arguments before it expires. Different arguments make a new approval. An approval works once.</dd></div>
+          <div><dt>The client connects and the token is rejected</dt><dd>The token's <code>aud</code> must match the gateway's public URL. For the local compose file that is <code>http://agentgateway:3000/mcp</code>, even though you dial <code>127.0.0.1:3000</code>. Check that the token has not expired or been revoked.</dd></div>
+          <div><dt>A phone approval did not ring</dt><dd>Hobbyist does not include calls. The month's cap may be used up, or no number is paired. The guard only reserves the call, and the scheduler dials it about a minute later. A skipped reservation does not use up the cap. On a control plane you run yourself, <code>AGENTPHONE_API_KEY</code> must be set, and <code>AGENTPHONE_AGENT_ID</code> too if the AgentPhone account has more than one agent.</dd></div>
+          <div><dt>A long SSE stream closes on the hosted gateway</dt><dd>Hosted traffic passes through Vercel, which can close a stream when its time limit is reached. The gateway is still running. Reconnect.</dd></div>
+          <div><dt>The catalog does not load</dt><dd><code>502 registry_unavailable</code> means the MCP Registry did not answer. Try again, or add the server by URL.</dd></div>
+          <div><dt>The proxy will not load the config</dt><dd>In standalone mode, <code>fizz-config</code> refuses to write a credential and refuses stdio on a shared gateway. Check the container logs.</dd></div>
         </dl>
 
         <h2 id="security">Security</h2>
         <ul>
-          <li>The guard fails closed. A crashed sidecar is a deny, not an allow.</li>
-          <li>Shared gateways cannot run stdio. A dedicated or self-hosted gateway can. The process is not given a seccomp or container sandbox by this repo. Treat stdio as a command you are willing to run.</li>
-          <li>Do not publish the admin UI. It binds to localhost. An empty upstream config can serve <code>/ui/</code> without auth. The rendered file sets <code>adminAddr</code> to <code>127.0.0.1:15000</code>.</li>
-          <li>Do not publish port 9002. The admin token can decide every pending row in that database.</li>
-          <li>The registration-token YAML can contain upstream API keys. The signed-in preview does not. Neither response should be logged.</li>
-          <li>Client JWTs are bearer secrets. Prefer a short TTL. Revocation depends on fizz-guard reading <code>revoked_at</code>, not on the YAML file changing.</li>
-          <li>Webhook URLs with embedded passwords are ignored. Pin alert text is attacker-controlled if the MCP server is.</li>
-          <li>This product does not claim to prevent prompt injection. A tool result can still instruct the model. The gateway decides whether the next tool call is allowed.</li>
+          <li>The guard fails closed. If it is down or returns an error, agentgateway denies the call.</li>
+          <li>The guard never receives the client's <code>Authorization</code> or <code>Cookie</code> header.</li>
+          <li>Stored MCP API keys are encrypted with AES-256-GCM. The encryption key lives with the API process, not in the database. The browser never receives a stored key.</li>
+          <li>Registration tokens are stored only as SHA-256 hashes. Client tokens are not stored at all.</li>
+          <li>The pulled config can contain upstream API keys. The preview in the app does not. Do not log either.</li>
+          <li>Client tokens are bearer secrets. Prefer a short life. Revocation works because the guard checks it on each call, not because the YAML changes.</li>
+          <li>Listing a server's tools from the API only calls public addresses, so a server URL cannot be used to reach a private network.</li>
+          <li>Shared gateways cannot run stdio. A dedicated or self-hosted gateway can, and this repository does not sandbox that process. Treat a stdio server as a command you are willing to run.</li>
+          <li>Do not publish the proxy's admin listener. The rendered config binds it to <code>127.0.0.1:15000</code>. Do not publish port 9002 either: its admin token can decide every pending approval in that database.</li>
+          <li>Webhook URLs with a username or password are ignored. Pin alert text comes from the MCP server, so it is untrusted if the server is.</li>
+          <li>The gateway does not prevent prompt injection. A tool result can still instruct the model. What the gateway controls is whether the next tool call is allowed.</li>
           <li>License: Apache-2.0, copyright 2026 Fizzlayer LLC. agentgateway is included under its own Apache-2.0 license. See <code>gateway/NOTICE</code>.</li>
         </ul>
-        <p>Repository notes: <a href="https://github.com/fizzlayer/fizzlayer/blob/main/gateway/README.md">gateway/README.md</a>. Sensor setup: <a href="/sensors/docs">/sensors/docs</a>.</p>
-      
-</article></div></main><footer class="site-footer"><div class="container"><div class="footer-grid"><div><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><p class="footer-tagline">Control what your AI agents can do.</p></div><nav aria-label="Product"><h2 class="footer-title">Product</h2><ul class="footer-links"><li><a href="/gateway">Gateway</a></li><li><a href="/sensors">Sensors</a></li><li><a href="/pricing">Pricing</a></li><li><a href="/enterprise">Enterprise</a></li></ul></nav><nav aria-label="Developers"><h2 class="footer-title">Developers</h2><ul class="footer-links"><li><a href="/docs">Gateway docs</a></li><li><a href="/sensors/docs">Sensors docs</a></li><li><a href="/self-host">Self-host</a></li><li><a href="/status">Status</a></li><li><a href="/changelog">Changelog</a></li><li><a href="/llms.txt">For AI agents</a></li></ul></nav><nav aria-label="Company"><h2 class="footer-title">Company</h2><ul class="footer-links"><li><a href="https://github.com/fizzlayer/fizzlayer">GitHub</a></li><li><a href="https://x.com/fizzlayer">X</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li></ul></nav></div><div class="footer-bottom"><span>© 2026 Fizzlayer LLC</span><span>Open source under Apache-2.0</span></div></div></footer></body></html>
+        <p>Repository notes: <a href="https://github.com/fizzlayer/fizzlayer/blob/main/gateway/README.md">gateway/README.md</a>.</p>
+
+</article></div></main><footer class="site-footer"><div class="container"><div class="footer-grid"><div><a aria-label="Fizzlayer home" class="wordmark" href="/"><img alt height="30" src="/fizz-logo.svg" width="30"><span>Fizzlayer<span class="wordmark-dot">.</span></span></a><p class="footer-tagline">Rules and approvals for the MCP tools your AI agents call.</p></div><nav aria-label="Product"><h2 class="footer-title">Product</h2><ul class="footer-links"><li><a href="/gateway">Gateway</a></li><li><a href="/pricing">Pricing</a></li><li><a href="/enterprise">Enterprise</a></li></ul></nav><nav aria-label="Developers"><h2 class="footer-title">Developers</h2><ul class="footer-links"><li><a href="/docs">Gateway docs</a></li><li><a href="/self-host">Self-host</a></li><li><a href="/status">Status</a></li><li><a href="/changelog">Changelog</a></li><li><a href="/llms.txt">For AI agents</a></li></ul></nav><nav aria-label="Company"><h2 class="footer-title">Company</h2><ul class="footer-links"><li><a href="https://github.com/fizzlayer/fizzlayer">GitHub</a></li><li><a href="https://x.com/fizzlayer">X</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li></ul></nav></div><div class="footer-bottom"><span>© 2026 Fizzlayer LLC</span><span>Open source under Apache-2.0</span></div></div></footer></body></html>
