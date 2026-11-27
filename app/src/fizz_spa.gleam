@@ -135,8 +135,10 @@ fn boot_uri(model: Model, uri: Uri) -> #(Model, Effect(Msg)) {
     _ -> {
       let #(form, form_effect) =
         signin.init(wants_create(uri.path, uri.query), uri.fragment)
+      let #(form, prefill_effect) = signin.prefill(form, uri.query)
       let form_effect = case parsed {
-        route.SignIn -> effect.map(form_effect, SignInMsg)
+        route.SignIn ->
+          effect.map(effect.batch([form_effect, prefill_effect]), SignInMsg)
         _ -> effect.none()
       }
       #(

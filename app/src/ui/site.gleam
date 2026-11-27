@@ -625,49 +625,50 @@ pub type Plan {
 }
 
 pub fn plans(cards: List(Plan)) -> Element(msg) {
-  html.div(
-    [attribute.class("plans")],
-    list.map(cards, fn(plan) {
-      html.article(
+  html.div([attribute.class("plans")], list.map(cards, plan_card(_, html.h2)))
+}
+
+fn plan_card(
+  plan: Plan,
+  heading: fn(List(attribute.Attribute(msg)), List(Element(msg))) ->
+    Element(msg),
+) -> Element(msg) {
+  html.article(
+    [
+      attribute.class(case plan.featured {
+        True -> "plan-card plan-card-featured"
+        False -> "plan-card"
+      }),
+    ],
+    [
+      heading([attribute.class("plan-name")], [
+        text(plan.name),
+        case plan.featured {
+          True ->
+            html.span([attribute.class("plan-badge")], [text("Recommended")])
+          False -> element.none()
+        },
+      ]),
+      html.p([attribute.class("plan-tagline")], [text(plan.tagline)]),
+      html.p([attribute.class("plan-price")], [
+        text(plan.price),
+        case plan.period {
+          "" -> element.none()
+          period -> html.small([], [text(" " <> period)])
+        },
+      ]),
+      checklist(plan.points),
+      html.a(
         [
           attribute.class(case plan.featured {
-            True -> "plan-card plan-card-featured"
-            False -> "plan-card"
+            True -> "button button-primary button-lg button-block"
+            False -> "button button-secondary button-lg button-block"
           }),
+          attribute.href(plan.href),
         ],
-        [
-          html.h2([attribute.class("plan-name")], [
-            text(plan.name),
-            case plan.featured {
-              True ->
-                html.span([attribute.class("plan-badge")], [
-                  text("Recommended"),
-                ])
-              False -> element.none()
-            },
-          ]),
-          html.p([attribute.class("plan-tagline")], [text(plan.tagline)]),
-          html.p([attribute.class("plan-price")], [
-            text(plan.price),
-            case plan.period {
-              "" -> element.none()
-              period -> html.small([], [text(" " <> period)])
-            },
-          ]),
-          checklist(plan.points),
-          html.a(
-            [
-              attribute.class(case plan.featured {
-                True -> "button button-primary button-lg button-block"
-                False -> "button button-secondary button-lg button-block"
-              }),
-              attribute.href(plan.href),
-            ],
-            [text(plan.cta)],
-          ),
-        ],
-      )
-    }),
+        [text(plan.cta)],
+      ),
+    ],
   )
 }
 
@@ -917,4 +918,119 @@ fn field(
 /// Page-width content with no section spacing of its own.
 pub fn container(children: List(Element(msg))) -> Element(msg) {
   html.section([attribute.class("container")], children)
+}
+
+// Home page --------------------------------------------------------------------
+
+/// An email field and a button that open the create-account screen at `/app`
+/// with the address filled in. `signin.prefill` reads `?email=`. An empty
+/// field still lands on that screen.
+pub fn signup(id: String, button: String) -> Element(msg) {
+  html.form(
+    [
+      attribute.class("signup"),
+      attribute.action("/app"),
+      attribute.method("get"),
+    ],
+    [
+      html.label([attribute.class("visually-hidden"), attribute.for(id)], [
+        text("Email"),
+      ]),
+      html.input([
+        attribute.class("input signup-input"),
+        attribute.id(id),
+        attribute.name("email"),
+        attribute.type_("email"),
+        attribute.autocomplete("email"),
+        attribute.attribute("inputmode", "email"),
+        attribute.attribute("autocapitalize", "none"),
+        attribute.attribute("spellcheck", "false"),
+        attribute.attribute("maxlength", "254"),
+        attribute.placeholder("you@company.com"),
+      ]),
+      html.button(
+        [
+          attribute.class("button button-primary button-lg button-arrow"),
+          attribute.type_("submit"),
+        ],
+        [text(button <> " ")],
+      ),
+    ],
+  )
+}
+
+/// `preview` on a plain panel instead of the tinted one.
+pub fn preview_plain(label: String, cards: List(Element(msg))) -> Element(msg) {
+  html.div(
+    [
+      attribute.class("preview preview-plain"),
+      attribute.role("img"),
+      attribute.aria_label(label),
+    ],
+    cards,
+  )
+}
+
+/// Server logos from `public/logos`, each `#(file name, server name)`, and a
+/// last tile for everything else. The visible name is the accessible name, so
+/// the image itself is decorative.
+pub fn logo_grid(
+  label: String,
+  logos: List(#(String, String)),
+  more: String,
+) -> Element(msg) {
+  let tiles =
+    list.map(logos, fn(logo) {
+      html.li([attribute.class("logo-tile")], [
+        html.img([
+          attribute.src("/logos/" <> logo.0 <> ".svg"),
+          attribute.alt(""),
+          attribute.width(28),
+          attribute.height(28),
+        ]),
+        html.span([], [text(logo.1)]),
+      ])
+    })
+  let last =
+    html.li([attribute.class("logo-tile")], [
+      html.span([attribute.class("logo-plus"), attribute.aria_hidden(True)], [
+        text("+"),
+      ]),
+      html.span([], [text(more)]),
+    ])
+  html.ul(
+    [attribute.class("logo-grid"), attribute.aria_label(label)],
+    list.append(tiles, [last]),
+  )
+}
+
+/// Rows of a short explanation beside a small picture of it.
+pub fn details(children: List(Element(msg))) -> Element(msg) {
+  html.div([attribute.class("detail-list")], children)
+}
+
+pub fn detail(
+  title: String,
+  body: String,
+  visual: Element(msg),
+) -> Element(msg) {
+  html.article([attribute.class("detail")], [
+    html.div([], [html.h3([], [text(title)]), html.p([], [text(body)])]),
+    html.div([attribute.class("detail-visual"), attribute.aria_hidden(True)], [
+      visual,
+    ]),
+  ])
+}
+
+/// Buttons and links under a section's content.
+pub fn section_actions(children: List(Element(msg))) -> Element(msg) {
+  html.div([attribute.class("hero-actions")], children)
+}
+
+/// Two plans side by side inside a section, so their names are `h3`.
+pub fn plan_pair(cards: List(Plan)) -> Element(msg) {
+  html.div(
+    [attribute.class("plans plans-pair")],
+    list.map(cards, plan_card(_, html.h3)),
+  )
 }
