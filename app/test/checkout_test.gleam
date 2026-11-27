@@ -156,8 +156,18 @@ pub fn the_view_keeps_the_frame_and_offers_the_right_buttons_test() {
     fn(state) { string.contains(html(state), frame) |> should.be_true },
   )
   string.contains(html(Creating), "Upgrade to Pro") |> should.be_true
-  string.contains(html(Creating), "Loading secure checkout") |> should.be_true
-  string.contains(html(Open), "Loading") |> should.be_false
+  // Loading shows the spinner as a status, with its label as the text.
+  list.each([Waiting, Creating, Mounting], fn(state) {
+    let page = html(state)
+    string.contains(page, "class=\"spinner\"") |> should.be_true
+    string.contains(page, "role=\"status\"") |> should.be_true
+    string.contains(page, "Loading secure checkout") |> should.be_true
+  })
+  list.each([Open, Failed("x", True), Failed("x", False)], fn(state) {
+    let page = html(state)
+    string.contains(page, "class=\"spinner\"") |> should.be_false
+    string.contains(page, "Loading") |> should.be_false
+  })
   string.contains(html(Open), "Cancel") |> should.be_true
   string.contains(html(Failed("Use Manage billing.", True)), "Try again")
   |> should.be_true

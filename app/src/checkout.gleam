@@ -316,7 +316,7 @@ pub fn view(model: Model) -> Element(Msg) {
 
 fn status(state: State) -> Element(Msg) {
   case state {
-    Waiting | Creating | Mounting -> ui.muted("Loading secure checkout…")
+    Waiting | Creating | Mounting -> ui.spinner("Loading secure checkout…")
     Open -> element.none()
     Paid -> ui.notice_text(ui.Good, "Payment received. Returning…")
     Leaving -> ui.muted("Returning…")
