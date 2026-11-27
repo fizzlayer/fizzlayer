@@ -29,6 +29,8 @@ pub type Route {
   NewGateway
   Gateway(id: String, tab: Tab)
   Preview(name: String)
+  /// Paid checkout. The plan and return page are in the query.
+  Checkout
   NotFound(path: String)
   Leave(path: String)
 }
@@ -44,6 +46,8 @@ pub const sign_in_form_path = "/app/sign-in"
 pub const gateways_path = "/app/gateways"
 
 pub const new_gateway_path = "/app/onboarding"
+
+pub const checkout_path = "/app/checkout"
 
 /// Every tab in menu order.
 pub const tabs = [
@@ -101,6 +105,7 @@ pub fn parse(path: String) -> Route {
     ["gateways", id, page] | ["app", "gateways", id, page] ->
       gateway(path, id, tab_of(page))
     ["preview", name] | ["app", "preview", name] -> Preview(name:)
+    ["checkout"] | ["app", "checkout"] -> Checkout
     ["app", ..] -> NotFound(path:)
     _ -> Leave(path:)
   }

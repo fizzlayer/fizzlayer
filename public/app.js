@@ -151,7 +151,7 @@ function renderPlanChoices() {
     button.className = 'plan-option';
     button.append(planBody(plan));
     button.addEventListener('click', () => {
-      if (plan.paid) startCheckout(plan.id, button);
+      if (plan.paid) startCheckout(plan.id);
       else finishPlanChoice();
     });
     box.append(button);
@@ -176,17 +176,9 @@ async function finishPlanChoice() {
   showSetup(signedInUsername);
 }
 
-async function startCheckout(plan, button) {
-  if (button) button.disabled = true;
-  $('plan-screen-error').hidden = true;
-  try {
-    const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
-    location.assign(result.url);
-  } catch (error) {
-    $('plan-screen-error').textContent = error.message;
-    $('plan-screen-error').hidden = false;
-    if (button) button.disabled = false;
-  }
+// Checkout is the SPA's /app/checkout page, which comes back here with ?billing=.
+function startCheckout(plan) {
+  location.assign(`/app/checkout?plan=${plan}&return=app`);
 }
 
 function takeSignupPlan() {
@@ -199,11 +191,6 @@ function takeSignupPlan() {
 }
 
 async function showBillingReturn(username) {
-  if (sessionStorage.getItem('fizz.afterCheckout') === 'gateway') {
-    sessionStorage.removeItem('fizz.afterCheckout');
-    location.assign('/app/start');
-    return;
-  }
   await billingKnown;
   const note = $('upgrade-prompt');
   note.replaceChildren();
@@ -230,11 +217,8 @@ async function continueAfterSignup(username, signup) {
   const plan = takeSignupPlan();
   sessionStorage.removeItem(SIGNUP_FLAG);
   if (plan && billingAvailable) {
-    try {
-      const result = await send('/api/billing', 'POST', { action: 'checkout', plan, return_to: 'app' });
-      location.assign(result.url);
-      return;
-    } catch { /* Checkout did not start. The account stays on Hobbyist. */ }
+    startCheckout(plan);
+    return;
   }
   // A new account, including one that confirmed its email, picks Gateway or Sensors.
   if (signup) {

@@ -1,4 +1,5 @@
-//! Stripe billing. Checkout starts a subscription, the billing portal changes or cancels it,
+//! Stripe billing. Checkout starts a subscription on Fizzlayer's own `/app/checkout` page,
+//! which mounts Stripe's embedded form. The billing portal changes or cancels it,
 //! and the webhook copies each subscription's current state from Stripe into
 //! `fizz_subscriptions`. Billing is optional: without the Stripe variables every account
 //! keeps the plan stored in the database.
@@ -17,10 +18,15 @@ use crate::store::Supabase;
 const STRIPE_API: &str = "https://api.stripe.com/v1";
 /// Stripe's recommended limit on the age of a signed webhook, which bounds replays.
 const SIGNATURE_TOLERANCE_SECS: u64 = 300;
+/// Checkout Sessions are created at this API version so `ui_mode=embedded_page` means the same
+/// thing whatever the account's default version is. It is the release train the Stripe.js loader
+/// in `app/package.json` loads.
+const CHECKOUT_API_VERSION: &str = "2026-09-30.endive";
 
 pub struct Stripe {
     client: Client,
     key: String,
+    publishable_key: String,
     webhook_secret: String,
     tinkerer_price: String,
     pro_price: String,
@@ -39,9 +45,15 @@ impl Stripe {
             .timeout(Duration::from_secs(8))
             .build()
             .ok()?;
+        let key = read("STRIPE_SECRET_KEY")?;
+        let publishable_key = read("STRIPE_PUBLISHABLE_KEY")?;
+        if !keys_pair(&key, &publishable_key) {
+            return None;
+        }
         Some(Self {
             client,
-            key: read("STRIPE_SECRET_KEY")?,
+            key,
+            publishable_key,
             webhook_secret: read("STRIPE_WEBHOOK_SECRET")?,
             tinkerer_price: read("STRIPE_PRICE_TINKERER")?,
             pro_price: read("STRIPE_PRICE_PRO")?,
@@ -70,15 +82,15 @@ impl Stripe {
         &self,
         path: &str,
         form: &[(&str, &str)],
-        idempotency_key: Option<&str>,
+        headers: &[(&str, &str)],
     ) -> Option<Value> {
         let mut request = self
             .client
             .post(format!("{STRIPE_API}/{path}"))
             .bearer_auth(&self.key)
             .form(form);
-        if let Some(key) = idempotency_key {
-            request = request.header("idempotency-key", key);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
         }
         let response = request.send().await.ok()?;
         if !response.status().is_success() {
@@ -102,6 +114,20 @@ impl Stripe {
     }
 }
 
+/// `test` or `live`, read from a key such as `sk_test_...`, `rk_live_...` or `pk_test_...`.
+fn key_mode(key: &str) -> Option<&str> {
+    let (_, rest) = key.split_once('_')?;
+    let (mode, _) = rest.split_once('_')?;
+    matches!(mode, "test" | "live").then_some(mode)
+}
+
+/// A test-mode publishable key with a live secret key (or the reverse) loads a form that can
+/// never open the session, so that pair counts as unconfigured.
+fn keys_pair(secret: &str, publishable: &str) -> bool {
+    publishable.starts_with("pk_")
+        && key_mode(publishable).is_some_and(|mode| key_mode(secret) == Some(mode))
+}
+
 fn stripe_id(value: &Value, prefix: &str) -> Option<String> {
     value
         .as_str()
@@ -123,19 +149,50 @@ fn unavailable() -> Response<ResponseBody> {
     )
 }
 
-/// Where Stripe sends the browser after checkout. Only these two app paths are allowed.
+/// Where the browser goes after checkout or the portal. Only these app paths are allowed.
 fn checkout_return_path(return_to: Option<&str>) -> Option<&'static str> {
     match return_to {
         None | Some("settings") => Some("/settings.html"),
         Some("app") => Some("/app.html"),
+        Some("gateway") => Some("/app/gateways"),
         Some(_) => None,
     }
 }
 
+/// The Checkout Session form. The form is embedded in `/app/checkout`, which handles a finished
+/// payment itself; Stripe only sends the browser to `return_url` for a payment method that has
+/// to leave the page, such as a bank redirect.
+fn checkout_form<'a>(
+    stripe_customer: &'a str,
+    customer_id: &'a str,
+    price: &'a str,
+    return_url: &'a str,
+) -> [(&'static str, &'a str); 9] {
+    [
+        ("mode", "subscription"),
+        ("ui_mode", "embedded_page"),
+        ("redirect_on_completion", "if_required"),
+        ("return_url", return_url),
+        ("customer", stripe_customer),
+        ("client_reference_id", customer_id),
+        ("line_items[0][price]", price),
+        ("line_items[0][quantity]", "1"),
+        ("subscription_data[metadata][fizz_customer_id]", customer_id),
+    ]
+}
+
+/// The secret Stripe.js opens the embedded form with: `cs_<id>_secret_<token>`.
+fn client_secret(session: &Value) -> Option<&str> {
+    session["client_secret"]
+        .as_str()
+        .filter(|secret| secret.starts_with("cs_") && secret.contains("_secret_"))
+}
+
 /// `GET /api/billing` reports whether paid checkout is configured, with no session.
-/// `POST /api/billing` with `{"action": "checkout", "plan": "tinkerer" | "pro"}` or
-/// `{"action": "portal"}`. Both answer with a Stripe-hosted `url` to open.
-/// Checkout accepts `return_to` of `"settings"` (the default) or `"app"`.
+/// `POST /api/billing` with `{"action": "checkout", "plan": "tinkerer" | "pro"}` answers with
+/// `client_secret` and `publishable_key` for the embedded form. `{"action": "portal"}` answers
+/// with a Stripe-hosted `url` to open. `return_to` is `"settings"` (the default), `"app"` or
+/// `"gateway"`.
 pub async fn handle(request: Request) -> Response<ResponseBody> {
     if request.method().as_str() == "GET" {
         return reply(
@@ -221,25 +278,22 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                     None => return unavailable(),
                 },
             };
-            let success_url = format!("{return_url}?billing=success");
-            let cancel_url = format!("{return_url}?billing=cancelled");
+            let paid_url = format!("{return_url}?billing=success");
             let session = stripe
                 .post(
                     "checkout/sessions",
-                    &[
-                        ("mode", "subscription"),
-                        ("customer", stripe_customer.as_str()),
-                        ("client_reference_id", customer_id),
-                        ("line_items[0][price]", price),
-                        ("line_items[0][quantity]", "1"),
-                        ("subscription_data[metadata][fizz_customer_id]", customer_id),
-                        ("success_url", success_url.as_str()),
-                        ("cancel_url", cancel_url.as_str()),
-                    ],
-                    None,
+                    &checkout_form(&stripe_customer, customer_id, price, &paid_url),
+                    &[("stripe-version", CHECKOUT_API_VERSION)],
                 )
                 .await;
-            hosted_url(session)
+            match session.as_ref().and_then(client_secret) {
+                Some(secret) => reply(
+                    200,
+                    json!({"client_secret": secret, "publishable_key": stripe.publishable_key}),
+                    None,
+                ),
+                None => unavailable(),
+            }
         }
         Some("portal") => {
             let Some(stripe_customer) = stripe_id(&account["stripe_customer_id"], "cus_") else {
@@ -256,7 +310,7 @@ pub async fn handle(request: Request) -> Response<ResponseBody> {
                         ("customer", stripe_customer.as_str()),
                         ("return_url", return_url.as_str()),
                     ],
-                    None,
+                    &[],
                 )
                 .await;
             hosted_url(session)
@@ -276,12 +330,9 @@ async fn create_customer(
     if let Some(email) = account["email"].as_str() {
         form.push(("email", email));
     }
+    let idempotency_key = format!("fizz-customer-{customer_id}");
     let created = stripe
-        .post(
-            "customers",
-            &form,
-            Some(&format!("fizz-customer-{customer_id}")),
-        )
+        .post("customers", &form, &[("idempotency-key", &idempotency_key)])
         .await?;
     let created = stripe_id(&created["id"], "cus_")?;
     let linked = store
@@ -508,15 +559,73 @@ mod tests {
     }
 
     #[test]
-    fn checkout_returns_only_to_the_app_or_settings() {
+    fn checkout_returns_only_to_known_app_pages() {
         assert_eq!(checkout_return_path(None), Some("/settings.html"));
         assert_eq!(
             checkout_return_path(Some("settings")),
             Some("/settings.html")
         );
         assert_eq!(checkout_return_path(Some("app")), Some("/app.html"));
+        assert_eq!(checkout_return_path(Some("gateway")), Some("/app/gateways"));
         assert_eq!(checkout_return_path(Some("https://evil.example")), None);
         assert_eq!(checkout_return_path(Some("/app.html")), None);
+    }
+
+    #[test]
+    fn checkout_embeds_the_form_and_returns_only_after_a_redirect() {
+        let form = checkout_form(
+            "cus_1",
+            "uuid",
+            "price_1",
+            "https://x.test/app.html?billing=success",
+        );
+        let field = |name: &str| {
+            form.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| *value)
+        };
+        assert_eq!(field("ui_mode"), Some("embedded_page"));
+        assert_eq!(field("redirect_on_completion"), Some("if_required"));
+        assert_eq!(
+            field("return_url"),
+            Some("https://x.test/app.html?billing=success")
+        );
+        assert_eq!(field("customer"), Some("cus_1"));
+        assert_eq!(
+            field("subscription_data[metadata][fizz_customer_id]"),
+            Some("uuid")
+        );
+        // Embedded sessions reject the hosted page's redirect URLs.
+        assert_eq!(field("success_url"), None);
+        assert_eq!(field("cancel_url"), None);
+    }
+
+    #[test]
+    fn only_a_checkout_session_secret_opens_the_form() {
+        let secret = |value: Value| client_secret(&value).map(str::to_owned);
+        assert_eq!(
+            secret(json!({"client_secret": "cs_test_a1_secret_b2"})).as_deref(),
+            Some("cs_test_a1_secret_b2")
+        );
+        assert_eq!(secret(json!({"client_secret": "pi_1_secret_2"})), None);
+        assert_eq!(secret(json!({"client_secret": "cs_test_a1"})), None);
+        assert_eq!(
+            secret(json!({"client_secret": null, "url": "https://checkout.stripe.com/x"})),
+            None
+        );
+    }
+
+    #[test]
+    fn publishable_key_must_match_the_secret_key_mode() {
+        assert!(keys_pair("sk_test_1", "pk_test_2"));
+        assert!(keys_pair("rk_live_1", "pk_live_2"));
+        assert!(!keys_pair("sk_live_1", "pk_test_2"));
+        assert!(!keys_pair("sk_test_1", "pk_live_2"));
+        assert!(
+            !keys_pair("sk_test_1", "sk_test_2"),
+            "a secret key is not publishable"
+        );
+        assert!(!keys_pair("sk_test_1", "pk_2"));
     }
 
     #[test]

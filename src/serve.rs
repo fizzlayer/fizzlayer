@@ -453,12 +453,13 @@ fn insert_missing(headers: &mut hyper::HeaderMap, name: &str, value: &str) {
 }
 
 fn csp(https: bool) -> String {
-    let mut connect = String::from(
-        "'self' https://*.supabase.co wss://*.supabase.co ws://localhost:8080 http://localhost:8080 ws://127.0.0.1:8080 http://127.0.0.1:8080",
-    );
-    connect.push_str(&stream_connect());
+    policy(https, &stream_connect())
+}
+
+/// Stripe.js and its frames come from Stripe for `/app/checkout`. Keep `vercel.json` the same.
+fn policy(https: bool, stream: &str) -> String {
     let mut policy = format!(
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src {connect}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        "default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:8080 http://localhost:8080 ws://127.0.0.1:8080 http://127.0.0.1:8080 https://api.stripe.com{stream}; frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     );
     if https {
         policy.push_str("; upgrade-insecure-requests");
@@ -541,6 +542,32 @@ mod tests {
         assert_eq!(redirect_path("/api/gateway/gateways"), None);
         assert_eq!(redirect_path("/ha.html"), None);
         assert_eq!(redirect_path("/.well-known/mcp.json"), None);
+    }
+
+    #[test]
+    fn csp_allows_stripe_checkout_and_matches_vercel() {
+        let policy = policy(true, "");
+        let directive = |name: &str| {
+            policy
+                .split("; ")
+                .find_map(|part| part.strip_prefix(name)?.strip_prefix(' '))
+                .unwrap_or_default()
+                .to_owned()
+        };
+        assert!(directive("script-src").contains("https://js.stripe.com"));
+        assert!(directive("frame-src").contains("https://js.stripe.com"));
+        assert!(directive("frame-src").contains("https://hooks.stripe.com"));
+        assert!(directive("connect-src").contains("https://api.stripe.com"));
+        assert_eq!(directive("frame-ancestors"), "'none'");
+        let vercel: serde_json::Value =
+            serde_json::from_str(include_str!("../vercel.json")).unwrap();
+        let header = vercel["headers"][0]["headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["key"] == "Content-Security-Policy")
+            .unwrap();
+        assert_eq!(header["value"].as_str(), Some(policy.as_str()));
     }
 
     #[test]

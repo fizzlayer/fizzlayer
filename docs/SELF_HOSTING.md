@@ -168,7 +168,7 @@ Leave these empty. The website still runs.
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway key. Used when no custom base URL is set. `VERCEL_OIDC_TOKEN` is also accepted there |
 | `ELEVENLABS_API_KEY` | Voice chat. `ELEVENLABS_VOICE_ID` optional; default George (`JBFqnCBsd6RMkjVDRZzb`) |
 | `AGENTPHONE_API_KEY` | Outbound US voice calls. `AGENTPHONE_AGENT_ID` when the account has more than one agent |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | Paid checkout. Set all four or none |
+| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | Paid checkout. Set all five or none |
 
 The model behind `OPENAI_BASE_URL` must accept JSON mode (`response_format: json_object`). A model that only returns plain text makes chat answer 503.
 
@@ -362,7 +362,7 @@ The Compose file maps `host.docker.internal` to the host. Pull a model that supp
 
 **Phone calls.** Leave `AGENTPHONE_API_KEY` empty and nothing is dialed. There is no self-hosted dialer. Phone-call alerts and the pairing call are US voice only, and the account's plan must include them (Tinkerer, Pro, or Enterprise). Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist does not place calls. Dashboard and webhook alerts still work. Email alerts are included on every plan and stay hidden until `RESEND_API_KEY` and `FIZZ_ALERT_FROM` are both set.
 
-**Stripe.** Leave the four `STRIPE_*` variables empty. `GET /api/billing` returns `{"available":false}`. Sign-up skips the plan screen and checkout, shows no upgrade prompt, and continues to sensor selection. `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
+**Stripe.** Leave the five `STRIPE_*` variables empty. `GET /api/billing` returns `{"available":false}`. Sign-up skips the plan screen and checkout, shows no upgrade prompt, and continues to sensor selection. `POST /api/billing` returns 503: "Paid plans aren't available on this server." Plans in the database are unchanged.
 
 **SMTP.** Keep `MAILER_AUTOCONFIRM=true` until a message actually arrives. Then set `MAILER_AUTOCONFIRM=false` and the `SMTP_*` variables. Password reset and the confirmation link use `PUBLIC_URL`.
 
@@ -511,7 +511,7 @@ Add these server-side environment variables to each environment you use:
 | `AGENTPHONE_API_KEY` | For alert calls | AgentPhone credential |
 | `AGENTPHONE_AGENT_ID` | Sometimes | Required when the AgentPhone account has multiple agents; a sole agent is selected automatically |
 | `CRON_SECRET` | For silence alerts and call retries | Long random secret. Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` on `GET /api/cron`. Use the same value if an external scheduler calls that path |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all four or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
+| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TINKERER`, `STRIPE_PRICE_PRO` | For paid plans | Stripe billing; set all five or none. See [billing with Stripe](REFERENCE.md#billing-with-stripe) |
 | `FIZZ_STREAM_URL` | For live sockets and MQTT | Public base URL of the `fizz-worker` Compute service, including the gateway path and no trailing slash. Production is `https://bbmdkpzzzalkvthwgsek.supabase.co/compute/v1/fizz-worker`. The path is `/compute/v1/fizz-worker`, not `/workers/v1/`. Empty leaves streaming off; HTTPS ingest is unchanged. Devices should read `GET /api/stream` instead of hardcoding this host |
 | `FIZZ_MQTT_TCP_URL` | No | Leave unset on Vercel. Production `GET /api/stream` returns `mqtt_tcp_url: null`. The hosted worker has no plain TCP port 1883. The Docker Compose stack sets `mqtt://localhost:1883` |
 | `OPENAI_BASE_URL` | No | OpenAI-compatible `/v1` root, such as `http://127.0.0.1:11434/v1` for Ollama. `AI_GATEWAY_BASE_URL` is the same setting. Unset uses `https://ai-gateway.vercel.sh/v1`. Set `OPENAI_MODEL` or `AI_GATEWAY_MODEL` to a model that accepts JSON mode. `OPENAI_API_KEY` is accepted; a custom base with no key sends a placeholder bearer for servers that ignore it |

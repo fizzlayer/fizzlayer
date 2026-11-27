@@ -91,11 +91,11 @@ if [[ $local_db -eq 1 ]]; then
   # The .env replaces the project's cloud variables, so pass Stripe settings from this shell.
   stripe_env="$(env | grep -E '^STRIPE_[A-Z_]+=' | sort || true)"
   case "$stripe_env" in
-    *"STRIPE_SECRET_KEY="[rs]k_live_*) die "use a test-mode Stripe key with --local-db, not a live one" ;;
+    *"STRIPE_SECRET_KEY="[rs]k_live_* | *"STRIPE_PUBLISHABLE_KEY=pk_live_"*) die "use test-mode Stripe keys with --local-db, not live ones" ;;
   esac
-  stripe_count="$(grep -cE '^STRIPE_(SECRET_KEY|WEBHOOK_SECRET|PRICE_TINKERER|PRICE_PRO)=.' <<<"$stripe_env" || true)"
-  if [[ $stripe_count -gt 0 && $stripe_count -lt 4 ]]; then
-    warn "billing needs STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_TINKERER and STRIPE_PRICE_PRO; $stripe_count of 4 are set"
+  stripe_count="$(grep -cE '^STRIPE_(SECRET_KEY|PUBLISHABLE_KEY|WEBHOOK_SECRET|PRICE_TINKERER|PRICE_PRO)=.' <<<"$stripe_env" || true)"
+  if [[ $stripe_count -gt 0 && $stripe_count -lt 5 ]]; then
+    warn "billing needs STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_TINKERER and STRIPE_PRICE_PRO; $stripe_count of 5 are set"
   fi
 
   (

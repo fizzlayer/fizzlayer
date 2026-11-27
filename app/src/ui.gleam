@@ -144,6 +144,30 @@ pub fn notice_text(tone: Tone, message: String) -> Element(msg) {
   notice(tone, [], [html.p([], [text(message)])])
 }
 
+// Checkout -------------------------------------------------------------------
+
+/// The `/app/checkout` page. Stripe mounts its form into the element with
+/// `frame_id`. That element keeps its key and never gets children from Lustre,
+/// so redraws around it leave the form alone.
+pub fn checkout_page(
+  title: String,
+  intro: String,
+  status: Element(msg),
+  frame_id: String,
+  buttons: List(Element(msg)),
+) -> Element(msg) {
+  keyed.element("section", [attribute.class("card checkout")], [
+    #("title", html.h1([], [text(title)])),
+    #("intro", lead(intro)),
+    #("status", status),
+    #(
+      "frame",
+      html.div([attribute.id(frame_id), attribute.class("checkout-frame")], []),
+    ),
+    #("actions", actions(buttons)),
+  ])
+}
+
 // Actions --------------------------------------------------------------------
 
 /// A `<button>`. Pass `attribute.type_` yourself: "submit" in a form,
