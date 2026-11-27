@@ -140,11 +140,65 @@ pub fn hobbyist_pages_offer_tinkerer_and_pro_test() {
   })
 }
 
-pub fn tinkerer_pages_offer_pro_only_test() {
-  let html = on_plan("gateways", tinkerer(), True)
-  string.contains(html, pro_checkout) |> should.be_true
-  string.contains(html, tinkerer_checkout) |> should.be_false
-  string.contains(html, "25 MCP servers instead of 10") |> should.be_true
+pub fn hobbyist_buttons_go_to_checkout_test() {
+  let html = on_plan("gateways", api.hobbyist(), True)
+  string.contains(html, "Upgrade to Tinkerer") |> should.be_true
+  string.contains(html, "Upgrade to Pro") |> should.be_true
+  string.contains(html, "Switch to") |> should.be_false
+}
+
+pub fn tinkerer_switches_to_pro_in_the_billing_portal_test() {
+  list.each(["gateways", "create", "overview"], fn(screen) {
+    let html = on_plan(screen, tinkerer(), True)
+    // Checkout refuses a second subscription, so no checkout link at all.
+    string.contains(html, "/app/checkout") |> should.be_false
+    string.contains(html, "Switch to Pro") |> should.be_true
+    string.contains(html, "Upgrade to") |> should.be_false
+    string.contains(html, "25 MCP servers instead of 10") |> should.be_true
+  })
+}
+
+pub fn the_portal_answer_opens_stripe_or_says_why_not_test() {
+  let model =
+    gateway.Model(
+      ..gateway.preview("gateways"),
+      plan: tinkerer(),
+      billing: True,
+    )
+  element.to_string(gateway.view(model))
+  |> string.contains("disabled")
+  |> should.be_false
+  let #(asking, _, _) = gateway.update(model, gateway.OpenPortal)
+  asking.busy |> should.be_true
+  // The button is disabled while the request runs.
+  element.to_string(gateway.view(asking))
+  |> string.contains("disabled")
+  |> should.be_true
+  let #(opened, _, path) =
+    gateway.update(
+      asking,
+      gateway.PortalOpened(#(
+        200,
+        "{\"url\":\"https://billing.stripe.com/p/x\"}",
+      )),
+    )
+  opened.busy |> should.be_false
+  opened.notice |> should.equal(gateway.Quiet)
+  path |> should.equal("")
+  let #(refused, _, _) =
+    gateway.update(
+      asking,
+      gateway.PortalOpened(#(
+        409,
+        "{\"error\":{\"code\":\"no_billing_account\",\"message\":\"Choose a paid plan first.\"}}",
+      )),
+    )
+  refused.busy |> should.be_false
+  refused.notice |> should.equal(gateway.Bad("Choose a paid plan first."))
+  let #(offline, _, _) =
+    gateway.update(asking, gateway.PortalOpened(#(0, "Failed to fetch")))
+  offline.notice
+  |> should.equal(gateway.Bad("Billing could not be opened. Try again."))
 }
 
 pub fn pro_and_enterprise_pages_offer_nothing_test() {

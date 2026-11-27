@@ -187,9 +187,23 @@ pub fn the_view_keeps_the_frame_and_offers_the_right_buttons_test() {
 }
 
 pub fn each_plan_is_offered_the_paid_plans_above_it_test() {
-  checkout.upgrades("hobbyist") |> should.equal([Tinkerer, Pro])
-  checkout.upgrades("tinkerer") |> should.equal([Pro])
+  // Hobbyist has no subscription and buys one; Tinkerer changes its own.
+  checkout.upgrades("hobbyist")
+  |> should.equal([checkout.Subscribe(Tinkerer), checkout.Subscribe(Pro)])
+  checkout.upgrades("tinkerer") |> should.equal([checkout.Switch(Pro)])
   checkout.upgrades("pro") |> should.equal([])
   checkout.upgrades("enterprise") |> should.equal([])
   checkout.upgrades("") |> should.equal([])
+}
+
+pub fn the_portal_comes_back_to_the_gateways_test() {
+  checkout.portal_body(Gateways)
+  |> should.equal("{\"action\":\"portal\",\"return_to\":\"gateway\"}")
+  checkout.portal_url(200, "{\"url\":\"https://billing.stripe.com/p/x\"}")
+  |> should.equal(Ok("https://billing.stripe.com/p/x"))
+  checkout.portal_url(200, "{\"url\":\"javascript:alert(1)\"}")
+  |> should.equal(Error(Nil))
+  checkout.portal_url(409, "{\"url\":\"https://billing.stripe.com/p/x\"}")
+  |> should.equal(Error(Nil))
+  checkout.portal_url(200, "{}") |> should.equal(Error(Nil))
 }

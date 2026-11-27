@@ -365,14 +365,47 @@ pub fn plan_price(plan: Plan) -> String {
 
 // Upgrades -------------------------------------------------------------------
 
+/// How a plan offer is taken up.
+pub type Upgrade {
+  /// No subscription yet: pay on `/app/checkout`.
+  Subscribe(Plan)
+  /// Already subscribed: checkout refuses a second subscription
+  /// (`already_subscribed`), so the change happens in the Stripe billing
+  /// portal.
+  Switch(Plan)
+}
+
 /// The paid plans worth offering to someone on `current`, a plan id from the
-/// API. Enterprise is arranged with us, so Pro and Enterprise get no offer,
-/// and neither does a plan id this app does not know.
-pub fn upgrades(current: String) -> List(Plan) {
+/// API. Tinkerer is paid, so it already has a subscription to change.
+/// Enterprise is arranged with us, so Pro and Enterprise get no offer, and
+/// neither does a plan id this app does not know.
+pub fn upgrades(current: String) -> List(Upgrade) {
   case current {
-    "hobbyist" -> [Tinkerer, Pro]
-    "tinkerer" -> [Pro]
+    "hobbyist" -> [Subscribe(Tinkerer), Subscribe(Pro)]
+    "tinkerer" -> [Switch(Pro)]
     _ -> []
+  }
+}
+
+/// `POST /api/billing` for a Stripe billing portal link that comes back to
+/// `back`.
+pub fn portal_body(back: Return) -> String {
+  json.object([
+    #("action", json.string("portal")),
+    #("return_to", json.string(return_id(back))),
+  ])
+  |> json.to_string
+}
+
+/// Read the portal answer: a Stripe-hosted `https://` page to open.
+pub fn portal_url(status: Int, body: String) -> Result(String, Nil) {
+  case status, json.parse(body, decode.at(["url"], decode.string)) {
+    200, Ok(url) ->
+      case string.starts_with(url, "https://") {
+        True -> Ok(url)
+        False -> Error(Nil)
+      }
+    _, _ -> Error(Nil)
   }
 }
 

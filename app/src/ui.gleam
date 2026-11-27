@@ -9,6 +9,7 @@ import lustre/attribute.{type Attribute}
 import lustre/element.{type Element, text}
 import lustre/element/html
 import lustre/element/keyed
+import lustre/event
 
 /// How much weight a button carries. One `Primary` per screen section.
 pub type Variant {
@@ -366,14 +367,27 @@ pub fn plan_summary(children: List(Element(msg))) -> Element(msg) {
 }
 
 /// One paid plan offered in `upsell`: its name and price, what it adds, and
-/// the checkout link.
-pub type Offer {
-  Offer(name: String, price: String, reason: String, href: String)
+/// its button.
+pub type Offer(msg) {
+  Offer(
+    name: String,
+    price: String,
+    reason: String,
+    button: String,
+    action: OfferAction(msg),
+  )
+}
+
+/// What an offer's button does: follow a link, or send a message. `busy`
+/// disables the button while that message's request runs.
+pub type OfferAction(msg) {
+  GoTo(href: String)
+  Send(msg: msg, busy: Bool)
 }
 
 /// A compact card offering the next plans, one row each. Nothing renders when
 /// there is nothing to offer. It reads on the white page and on navy panels.
-pub fn upsell(offers: List(Offer)) -> Element(msg) {
+pub fn upsell(offers: List(Offer(msg))) -> Element(msg) {
   case offers {
     [] -> element.none()
     offers ->
@@ -388,9 +402,19 @@ pub fn upsell(offers: List(Offer)) -> Element(msg) {
                 text(offer.reason),
               ]),
             ]),
-            link_button(Secondary, offer.href, [
-              text("Upgrade to " <> offer.name),
-            ]),
+            case offer.action {
+              GoTo(href) -> link_button(Secondary, href, [text(offer.button)])
+              Send(msg, busy) ->
+                button(
+                  Secondary,
+                  [
+                    attribute.type_("button"),
+                    attribute.disabled(busy),
+                    event.on_click(msg),
+                  ],
+                  [text(offer.button)],
+                )
+            },
           ])
         }),
       )
@@ -405,7 +429,10 @@ pub type UpsellPlace {
   UnderPanel
 }
 
-pub fn gateway_upsell(place: UpsellPlace, offers: List(Offer)) -> Element(msg) {
+pub fn gateway_upsell(
+  place: UpsellPlace,
+  offers: List(Offer(msg)),
+) -> Element(msg) {
   case offers {
     [] -> element.none()
     offers ->
