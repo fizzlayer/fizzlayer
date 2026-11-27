@@ -175,3 +175,11 @@ pub fn the_view_keeps_the_frame_and_offers_the_right_buttons_test() {
   )
   |> should.be_true
 }
+
+pub fn each_plan_is_offered_the_paid_plans_above_it_test() {
+  checkout.upgrades("hobbyist") |> should.equal([Tinkerer, Pro])
+  checkout.upgrades("tinkerer") |> should.equal([Pro])
+  checkout.upgrades("pro") |> should.equal([])
+  checkout.upgrades("enterprise") |> should.equal([])
+  checkout.upgrades("") |> should.equal([])
+}

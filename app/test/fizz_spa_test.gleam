@@ -98,6 +98,92 @@ pub fn gateway_page_has_every_tab_and_counts_test() {
   string.contains(html, "/app/gateways//") |> should.be_false
 }
 
+fn on_plan(screen: String, plan: api.Plan, billing: Bool) -> String {
+  element.to_string(gateway.view(
+    gateway.Model(..gateway.preview(screen), plan:, billing:),
+  ))
+}
+
+fn tinkerer() -> api.Plan {
+  api.Plan(
+    ..api.hobbyist(),
+    id: "tinkerer",
+    name: "Tinkerer",
+    server_limit: api.Limited(10),
+    phone_calls: api.Limited(20),
+  )
+}
+
+fn pro() -> api.Plan {
+  api.Plan(
+    ..api.hobbyist(),
+    id: "pro",
+    name: "Pro",
+    server_limit: api.Limited(25),
+    phone_calls: api.Limited(100),
+    stdio: True,
+    dedicated: True,
+  )
+}
+
+const tinkerer_checkout = "/app/checkout?plan=tinkerer&amp;return=gateway"
+
+const pro_checkout = "/app/checkout?plan=pro&amp;return=gateway"
+
+pub fn hobbyist_pages_offer_tinkerer_and_pro_test() {
+  list.each(["gateways", "create", "overview", "servers"], fn(screen) {
+    let html = on_plan(screen, api.hobbyist(), True)
+    string.contains(html, "class=\"upsell\"") |> should.be_true
+    string.contains(html, tinkerer_checkout) |> should.be_true
+    string.contains(html, pro_checkout) |> should.be_true
+    string.contains(html, "10 MCP servers instead of 3") |> should.be_true
+  })
+}
+
+pub fn tinkerer_pages_offer_pro_only_test() {
+  let html = on_plan("gateways", tinkerer(), True)
+  string.contains(html, pro_checkout) |> should.be_true
+  string.contains(html, tinkerer_checkout) |> should.be_false
+  string.contains(html, "25 MCP servers instead of 10") |> should.be_true
+}
+
+pub fn pro_and_enterprise_pages_offer_nothing_test() {
+  let enterprise = api.Plan(..pro(), id: "enterprise", name: "Enterprise")
+  list.each([pro(), enterprise], fn(plan) {
+    list.each(["gateways", "create", "overview"], fn(screen) {
+      string.contains(on_plan(screen, plan, True), "/app/checkout")
+      |> should.be_false
+    })
+  })
+}
+
+pub fn no_offer_without_billing_test() {
+  list.each(["gateways", "create", "overview"], fn(screen) {
+    let html = on_plan(screen, api.hobbyist(), False)
+    string.contains(html, "upsell") |> should.be_false
+    string.contains(html, "/app/checkout") |> should.be_false
+  })
+}
+
+pub fn billing_answer_turns_offers_on_test() {
+  let model = gateway.preview("gateways")
+  model.billing |> should.be_false
+  let #(on, _, _) =
+    gateway.update(model, gateway.BillingLoaded(#(200, "{\"available\":true}")))
+  on.billing |> should.be_true
+  let #(off, _, _) =
+    gateway.update(on, gateway.BillingLoaded(#(200, "{\"available\":false}")))
+  off.billing |> should.be_false
+  let #(down, _, _) = gateway.update(on, gateway.BillingLoaded(#(404, "")))
+  down.billing |> should.be_false
+}
+
+pub fn plan_line_uses_the_body_colour_test() {
+  let html = on_plan("gateways", api.hobbyist(), False)
+  string.contains(html, "class=\"plan-summary\"") |> should.be_true
+  string.contains(html, "Hobbyist plan: 1 of 1 gateways") |> should.be_true
+}
+
 pub fn servers_tab_lists_the_featured_registry_servers_test() {
   let html = element.to_string(gateway.view(gateway.preview("servers")))
   list.each(catalog.featured(), fn(entry) {

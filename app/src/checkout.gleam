@@ -348,7 +348,7 @@ fn back_button(label: String) -> Element(Msg) {
   )
 }
 
-fn plan_name(plan: Plan) -> String {
+pub fn plan_name(plan: Plan) -> String {
   case plan {
     Tinkerer -> "Tinkerer"
     Pro -> "Pro"
@@ -356,9 +356,39 @@ fn plan_name(plan: Plan) -> String {
 }
 
 /// The same prices as the pricing page.
-fn plan_price(plan: Plan) -> String {
+pub fn plan_price(plan: Plan) -> String {
   case plan {
     Tinkerer -> "$10 a month"
     Pro -> "$25 a month"
+  }
+}
+
+// Upgrades -------------------------------------------------------------------
+
+/// The paid plans worth offering to someone on `current`, a plan id from the
+/// API. Enterprise is arranged with us, so Pro and Enterprise get no offer,
+/// and neither does a plan id this app does not know.
+pub fn upgrades(current: String) -> List(Plan) {
+  case current {
+    "hobbyist" -> [Tinkerer, Pro]
+    "tinkerer" -> [Pro]
+    _ -> []
+  }
+}
+
+/// MCP servers per gateway, as on the pricing page and in
+/// `src/gateway/limits.rs`.
+pub fn server_limit(plan: Plan) -> Int {
+  case plan {
+    Tinkerer -> 10
+    Pro -> 25
+  }
+}
+
+/// Phone calls a month, shared by alert calls and phone approvals.
+pub fn phone_calls(plan: Plan) -> Int {
+  case plan {
+    Tinkerer -> 20
+    Pro -> 100
   }
 }

@@ -399,6 +399,28 @@
   .plan { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
   .plan h2 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
   .plan ul { margin: 0 0 var(--space-3); color: var(--color-text-muted); font-size: var(--text-sm); }
+  .plan-summary { margin: 0; color: var(--color-body); }
+
+  /* Upgrade offers. The tokens make it read on the white page and on navy
+     panels alike. Each row wraps its button under the text when narrow. */
+  .upsell { display: grid; gap: var(--space-3); max-width: var(--content-width); margin: var(--space-4) 0; padding: var(--space-4); border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); border-radius: var(--radius-md); background: var(--color-subtle); }
+  .upsell-offer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .upsell-offer + .upsell-offer { padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+  .upsell-text { flex: 1 1 16rem; margin: 0; color: var(--color-body); font-size: var(--text-sm); }
+  .upsell-text strong { color: var(--color-text); font-size: var(--text-base); }
+  .upsell-price { margin-left: var(--space-2); }
+  .upsell-reason { display: block; margin-top: 2px; }
+  .upsell .button { flex: none; }
+  /* A gateway page shows the side copy on wide screens and the copy under
+     the panel on narrow ones (see the 900px query below). */
+  .gw-side .upsell { margin: var(--space-4) 0 0; padding: var(--space-3); }
+  .gw-side .upsell .button { flex: 1 1 auto; }
+  .gw-upsell-under { display: none; }
+  .gw-upsell-under .upsell { margin: var(--space-3) 0 0; max-width: none; }
+  @media (max-width: 900px) {
+    .gw-upsell-side { display: none; }
+    .gw-upsell-under { display: block; }
+  }
 }
 
 @layer components {

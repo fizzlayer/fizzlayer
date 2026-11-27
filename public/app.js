@@ -325,6 +325,19 @@ function showDashboard(sensors) {
   document.querySelector('.shell').classList.remove('setup-active', 'plan-active');
   document.querySelector('.shell').classList.add('dashboard-active');
   window.fizzDashboard.start(signedInUsername, sensors);
+  showUpsell();
+}
+
+// Offer the next plan under the summary, once billing is known to be available.
+async function showUpsell() {
+  const box = $('plan-upsell');
+  box.hidden = true;
+  await billingKnown;
+  if (!billingAvailable) return;
+  try {
+    const account = await send('/api/account', 'GET');
+    if (!$('dashboard').hidden) window.fizzUpsell.render(box, account.plan?.id, 'app');
+  } catch { /* The offer is optional; the dashboard works without it. */ }
 }
 
 async function send(url, method, data) {

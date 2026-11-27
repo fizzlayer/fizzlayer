@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/design.css">
 <link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/dashboard.css"><link rel="stylesheet" href="/sensors.css"><link rel="stylesheet" href="/settings.css">
 <script src="/passkey.js" defer></script>
+<script src="/upsell.js" defer></script>
 <script src="/settings.js" defer></script>
   <link rel="stylesheet" href="/workspace.css">
   <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
@@ -47,10 +48,9 @@
     </dl>
     <p class="settings-intro plan-intro">Sample sensors don't count toward your devices. One credit is one message to Fizz. Hobbyist ($0) includes dashboard and webhook alerts. Email alerts are included on every plan and appear in the alert form only when mail is configured. Phone-call alerts and phone approvals are on Tinkerer and Pro, which share one monthly call cap. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). <a href="/pricing">Compare plans</a></p>
     <p class="plan-status" id="plan-status" hidden></p>
+    <aside class="plan-upsell" id="plan-upsell" aria-label="Upgrade" hidden></aside>
     <div class="plan-actions" id="plan-actions" hidden>
-      <button class="primary" type="button" data-plan="tinkerer" hidden>Upgrade to Tinkerer · $10/month</button>
-      <button class="primary" type="button" data-plan="pro" hidden>Upgrade to Pro · $25/month</button>
-      <button class="secondary" type="button" id="manage-billing" hidden>Manage billing</button>
+      <button class="secondary" type="button" id="manage-billing">Manage billing</button>
     </div>
     <p class="form-message" id="billing-message" role="status" aria-live="polite"></p>
   </section>

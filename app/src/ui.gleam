@@ -347,6 +347,68 @@ pub fn plan(
   html.section([attribute.class("plan"), ..attrs], children)
 }
 
+/// The one-line plan summary under the gateway list. It sits on the white
+/// page, so it uses the body colour rather than the muted one.
+pub fn plan_summary(children: List(Element(msg))) -> Element(msg) {
+  html.p([attribute.class("plan-summary")], children)
+}
+
+/// One paid plan offered in `upsell`: its name and price, what it adds, and
+/// the checkout link.
+pub type Offer {
+  Offer(name: String, price: String, reason: String, href: String)
+}
+
+/// A compact card offering the next plans, one row each. Nothing renders when
+/// there is nothing to offer. It reads on the white page and on navy panels.
+pub fn upsell(offers: List(Offer)) -> Element(msg) {
+  case offers {
+    [] -> element.none()
+    offers ->
+      html.aside(
+        [attribute.class("upsell"), attribute.aria_label("Upgrade")],
+        list.map(offers, fn(offer) {
+          html.div([attribute.class("upsell-offer")], [
+            html.p([attribute.class("upsell-text")], [
+              html.strong([], [text(offer.name)]),
+              html.span([attribute.class("upsell-price")], [text(offer.price)]),
+              html.span([attribute.class("upsell-reason")], [
+                text(offer.reason),
+              ]),
+            ]),
+            link_button(Secondary, offer.href, [
+              text("Upgrade to " <> offer.name),
+            ]),
+          ])
+        }),
+      )
+  }
+}
+
+/// `upsell` for a gateway page, which places it twice: `InSide` under the
+/// side menu on wide screens, and `UnderPanel` below the panel on narrow
+/// ones, where the menu is a row of tabs above the panel. CSS shows one.
+pub type UpsellPlace {
+  InSide
+  UnderPanel
+}
+
+pub fn gateway_upsell(place: UpsellPlace, offers: List(Offer)) -> Element(msg) {
+  case offers {
+    [] -> element.none()
+    offers ->
+      html.div(
+        [
+          attribute.class(case place {
+            InSide -> "gw-upsell-side"
+            UnderPanel -> "gw-upsell-under"
+          }),
+        ],
+        [upsell(offers)],
+      )
+  }
+}
+
 // Sign-in ----------------------------------------------------------------------
 
 /// Two or three buttons that act as tabs over one form. Each item is
