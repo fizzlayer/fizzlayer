@@ -134,7 +134,7 @@
         const next = sensors.length ? [
           'list_sensors and get_readings show live data; ask_fizz answers questions about it.',
           'add_sensor connects a real device (API key or phone link) or a sample stream; pair_device claims a code from `fizz pair` on a Linux device.',
-          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in the dashboard, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
+          'create_alert sets a threshold alert or a silence alert (no reading for N minutes). A phone call is optional and only works for a number the owner has already paired in Settings, on Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts. Email is included on every plan and is hidden until mail is configured. Pairing is done by the owner in the dashboard, not by a tool.',
           'create_agent_connection issues an MCP token so an agent can reach this account from outside the browser.',
           'start_checkout upgrades the plan; the person completes payment on the Stripe page it opens.',
         ] : [
@@ -467,7 +467,7 @@
     },
     {
       name: 'create_alert',
-      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in the dashboard, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
+      description: 'Create a threshold alert on a sensor metric, or a silence alert that fires when the sensor sends no reading for N minutes (default 10, minimum 1). A threshold alert needs comparator and threshold. channels can include dashboard, phone, email, and webhook. Phone calls require a US number the person has already paired in Settings, and Tinkerer, Pro, or Enterprise. Tinkerer and Pro share one monthly call cap with phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC). Hobbyist includes dashboard and webhook alerts and does not place calls. This tool cannot pair a number. Email uses the account verified address and is hidden when the server has no mail provider. webhook_url must be a public https URL and is included on every plan. Asking again for the same alert returns the existing one.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -480,7 +480,7 @@
           silence_minutes: { type: 'integer', minimum: 1, maximum: 10080, default: 10, description: 'Silence alerts. Minutes without a reading. Minimum 1, above the 15-second ingest floor.' },
           notify_recovery: { type: 'boolean', default: false, description: 'Silence alerts. Also notify when readings resume.' },
           channels: { type: 'array', items: { type: 'string', enum: ['dashboard', 'phone', 'email', 'webhook'] }, description: 'Where to notify. Default is the dashboard. phone is a paid call on Tinkerer and Pro, which share one monthly call cap. email is hidden until mail is configured. webhook is on every plan, including Hobbyist, and needs webhook_url.' },
-          call_phone: { type: 'string', description: 'US number when phone is a channel. The owner must already have paired it under Phones. Pairing is owner-only.' },
+          call_phone: { type: 'string', description: 'US number when phone is a channel. The owner must already have paired it in Settings. Pairing is owner-only.' },
           webhook_url: { type: 'string', description: 'Public https URL for the webhook channel.' },
           webhook_secret: { type: 'string', description: 'Optional per-alert HMAC secret, 16 to 128 characters. Omit to use the account secret.' },
         },

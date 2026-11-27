@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/dashboard.css"><link rel="stylesheet" href="/sensors.css"><link rel="stylesheet" href="/settings.css">
 <script src="/passkey.js" defer></script>
 <script src="/settings.js" defer></script>
+<script src="/settings-phones.js" defer></script>
   <link rel="stylesheet" href="/workspace.css">
   <!-- WebMCP origin trial for https://fizzlayer.com, expires 2027-03-30. -->
   <meta http-equiv="origin-trial" content="AxF27oYssyj8cvJlJbnS48Y6Bj5Z1+hBUowrfkKCmhgiBfYx7KCn/0+kiAsKPfmxho2LSMztNGgIIHF+pAbBuggAAABheyJvcmlnaW4iOiJodHRwczovL2ZpenpsYXllci5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
@@ -64,6 +65,16 @@
     <p id="passkey-empty" class="dashboard-empty" hidden>No passkeys yet. Press + to add one.</p>
     <p class="form-message" id="passkey-message" role="status"></p>
     <button class="secondary sign-in-again" id="sign-in-again" type="button" hidden>Sign in again</button>
+  </section>
+  <section class="dash-panel settings-panel phones-panel" id="phones" aria-labelledby="phones-title">
+    <div class="section-heading"><div><p class="setup-eyebrow">04 / PHONE</p><h2 id="phones-title">Phone for approval calls</h2></div></div>
+    <p class="settings-intro phones-intro">When a gateway rule asks first and notifies by phone, Fizzlayer calls a number paired here. Pair a US number: Fizzlayer calls it and reads a 6-digit code, and you enter the code here. Phone calls are on Tinkerer, Pro, and Enterprise. Tinkerer and Pro share one monthly call cap. Tinkerer includes 20 calls a month and Pro includes 100. Enterprise is unlimited unless a contract sets a cap. The cap resets on the first of each month (UTC).</p>
+    <p class="sample-notice" id="phones-upgrade" hidden></p>
+    <ul id="phone-list" class="phone-list"></ul>
+    <p class="dashboard-empty" id="phones-empty" hidden>No paired numbers yet.</p>
+    <form id="phone-pair-form" class="phone-pair" hidden><label for="phone-number">US phone number<input id="phone-number" type="tel" inputmode="tel" autocomplete="tel" placeholder="(415) 555-0123" required></label><button class="primary" id="phone-start" type="submit">Call me with a code</button></form>
+    <form id="phone-confirm-form" class="phone-pair" hidden><label for="phone-code">6-digit code<input id="phone-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required></label><button class="primary" type="submit">Confirm</button><button class="secondary" id="phone-resend" type="button">Call again</button></form>
+    <p class="form-message" id="phone-message" role="status" aria-live="polite"></p>
   </section>
   <p class="form-message" id="page-error" role="alert"></p>
 </div></section></main>

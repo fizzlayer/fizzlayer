@@ -129,7 +129,7 @@ fn allowed_flag(value: &Value, mirrored: bool) -> bool {
 
 pub const APPROVAL_CAP_MESSAGE: &str = "This month's shared call cap is used. No approval call was placed. Approve it in the app. A webhook is used when one is configured. Tinkerer is 20 a month and Pro is 100, shared with sensor alerts.";
 
-pub const APPROVAL_UNPAIRED_MESSAGE: &str = "No paired phone number is on this account. Pair a number in the dashboard. No approval call was placed. Approve it in the app.";
+pub const APPROVAL_UNPAIRED_MESSAGE: &str = "No paired phone number is on this account. Pair a number in Settings. No approval call was placed. Approve it in the app.";
 
 /// What `gateway.reserve_phone_approval_call` recorded. `reserved` is the only
 /// value that queued a dial and consumed the cap.
