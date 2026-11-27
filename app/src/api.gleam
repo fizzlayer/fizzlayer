@@ -287,6 +287,23 @@ pub fn hosted_available(status: Int, body: String) -> Bool {
   }
 }
 
+/// Read `GET /api/billing`, which says whether paid checkout is configured.
+pub fn billing_available(status: Int, body: String) -> Bool {
+  case status {
+    200 ->
+      case json.parse(body, available_decoder()) {
+        Ok(True) -> True
+        _ -> False
+      }
+    _ -> False
+  }
+}
+
+fn available_decoder() -> decode.Decoder(Bool) {
+  use value <- decode.field("available", decode.bool)
+  decode.success(value)
+}
+
 pub fn gateway_body(name: String, mode: String, public_url: String) -> String {
   let fields = [
     #("name", json.string(name)),
