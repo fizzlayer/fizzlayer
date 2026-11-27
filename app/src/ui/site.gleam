@@ -190,9 +190,7 @@ fn footer() -> Element(msg) {
         html.div([], [
           wordmark(),
           html.p([attribute.class("footer-tagline")], [
-            text(
-              "Rules and approvals for your agents' tools, and alerts from your sensors.",
-            ),
+            text("Rules and approvals for the MCP tools your AI agents call."),
           ]),
         ]),
         ..list.map(footer_columns, fn(column) {
@@ -488,7 +486,7 @@ pub fn pro_callout() -> Element(msg) {
           ]),
           html.p([], [
             text(
-              "Hobbyist stops at 3 MCP servers and does not place phone calls. Pro allows 25 servers and 50 devices, includes 100 phone calls a month for alerts and approvals, and has 3 seats.",
+              "Hobbyist stops at 3 MCP servers and does not place phone calls. Pro allows 25 servers, includes 100 phone calls a month for approvals, and has 3 seats.",
             ),
           ]),
         ]),
@@ -836,7 +834,7 @@ pub fn sales_form(title: String, intro: String) -> Element(msg) {
         ]),
         field(
           "business-interest",
-          "What would you like Fizz to watch?",
+          "What do you need from the gateway?",
           True,
           True,
           [
@@ -848,7 +846,7 @@ pub fn sales_form(title: String, intro: String) -> Element(msg) {
                 attribute.attribute("maxlength", "500"),
                 attribute.rows(3),
                 attribute.placeholder(
-                  "e.g. Cold room temperatures across 3 warehouses",
+                  "e.g. 40 MCP servers for 12 engineers, with phone approvals",
                 ),
               ],
               "",

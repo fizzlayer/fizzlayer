@@ -21,13 +21,12 @@ pub fn page() -> Element(msg) {
       safety(),
       landing.run_it(),
       questions(),
-      site.pro_callout(),
       site.cta(
         "Put your first server behind a rule.",
-        "Self-host free with Docker, or set up your gateway in the app.",
+        "We recommend Pro, at $25 a month: 25 MCP servers, 100 phone calls a month for approvals, and 3 seats. You can also start free on Hobbyist, or self-host with Docker.",
         [
-          site.primary("/app", "Get started"),
-          site.link_arrow("/docs", "Read the docs"),
+          site.primary("/app?plan=pro", "Start Pro"),
+          site.link_arrow("/app", "Start free on Hobbyist"),
         ],
       ),
     ],
