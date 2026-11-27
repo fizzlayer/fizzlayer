@@ -69,7 +69,7 @@ pub fn document(meta: Meta, content: List(Element(msg))) -> Element(msg) {
       html.a([attribute.class("skip-link"), attribute.href("#main")], [
         text("Skip to content"),
       ]),
-      header(),
+      header(meta.path),
       html.main([attribute.id("main")], content),
       footer(),
     ]),
@@ -95,12 +95,20 @@ const nav_items = [
   #("/pricing", "Pricing"),
 ]
 
-fn header() -> Element(msg) {
+/// `path` is the page's own path; its nav item gets `aria-current="page"`.
+fn header(path: String) -> Element(msg) {
   let links = fn() {
     list.map(nav_items, fn(item) {
-      html.a([attribute.class("site-nav-link"), attribute.href(item.0)], [
-        text(item.1),
-      ])
+      // A list, not `attribute.none()`, which renders as a trailing space in
+      // `class`.
+      let current = case item.0 == path {
+        True -> [attribute.aria_current("page")]
+        False -> []
+      }
+      html.a(
+        [attribute.class("site-nav-link"), attribute.href(item.0), ..current],
+        [text(item.1)],
+      )
     })
   }
   html.header([attribute.class("site-header")], [

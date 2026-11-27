@@ -24,6 +24,7 @@ import rewrites
 import route
 import signin
 import site/landing
+import site/pricing
 import ui/site
 
 pub fn main() -> Nil {
@@ -532,6 +533,15 @@ pub fn landing_points_hosted_at_the_app_and_keeps_agent_hooks_test() {
   assert !string.contains(html, "gateway-beta.js")
   assert string.contains(html, "Set one up")
   assert string.contains(html, "href=\"/fizz.css\"")
+}
+
+pub fn site_header_marks_the_current_page_test() {
+  let html = element.to_document_string(pricing.page())
+  // Once in the desktop nav and once in the mobile menu.
+  let current =
+    "aria-current=\"page\" class=\"site-nav-link\" href=\"/pricing\""
+  assert list.length(string.split(html, current)) == 3
+  assert list.length(string.split(html, "aria-current")) == 3
 }
 
 pub fn sign_in_form_has_its_own_url_test() {
