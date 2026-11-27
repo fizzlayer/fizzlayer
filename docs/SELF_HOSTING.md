@@ -19,7 +19,33 @@ The same tags are also pushed to `ghcr.io/fizzlayer/fizzlayer-api` and `ghcr.io/
 - About **1 GB of free RAM**. An idle stack used about 140 MB. Give it **4 GB of free disk**. The images are a little over 1 GB, and Postgres grows with readings.
 - A browser on the same machine for the first account, or another computer that can reach port 8080.
 
-Nothing else is required to sign up, create a sensor, and store readings. Chat, voice, phone calls, and card checkout stay off until you add those keys.
+Nothing else is required to sign up and set up a gateway. With [Sensors turned on](#sensors-are-opt-in), nothing else is required to create a sensor and store readings either. Chat, voice, phone calls, and card checkout stay off until you add those keys.
+
+## Sensors are opt-in
+
+Sensors is the older device product: the dashboard at `/app.html`, the `/sensors` pages (product page, docs, agents, and the self-host guide), the demo, phone and Home Assistant pairing pages, and the APIs behind them. fizzlayer.com does not offer Sensors. A self-hosted `fizz-serve` serves it only when you set:
+
+```sh
+# in .env next to compose.yml, or deploy/.env in a checkout
+FIZZ_SENSORS=1
+```
+
+Then `docker compose up -d`. `1`, `true`, `yes`, and `on` turn Sensors on. Anything else, or no value, leaves them off. `fizz-serve` prints which one it chose when it starts (`docker compose logs api`).
+
+| | `FIZZ_SENSORS` unset or `0` (default) | `FIZZ_SENSORS=1` |
+| --- | --- | --- |
+| `/sensors`, `/sensors/docs`, `/sensors/agents`, `/sensors/self-host` and their old `.html` names | `307` to `/` (`/sensors/self-host` and `/self-host.html` go to `/self-host`) | Served |
+| `/app.html`, `/demo.html`, `/phone.html`, `/ha.html` | `307` to `/app` | Served |
+| App header at `/app` | Gateway only | Gateway and **Sensors** |
+| `/api/ingest`, `/api/readings`, `/api/sensors`, `/api/setup`, `/api/devices`, `/api/phone`, `/api/alerts`, `/api/chat`, `/api/voice`, `/api/mcp`, `/api/agents` | `404` with code `sensors_off` | Served |
+
+Everything else is the same either way: sign-in, Settings, billing, phone numbers, `/api/gateway`, `/api/status`, `/api/stream`, and the scheduler. The redirects are temporary, so a browser follows the pages again as soon as you turn Sensors on. The site's header and footer never link to Sensors, because those pages are shared with fizzlayer.com. With Sensors on, the app header at `/app` links to them. The app reads the flag from `/app/config.json`, which `fizz-serve` answers with `"sensors": true` or `false` added to the file the build wrote.
+
+The live worker is not gated. With Sensors off, nobody can create a sensor key, so it has nothing to accept. Keys made before you turned Sensors off still work on the worker. Delete those sensors first if that matters.
+
+**Upgrading an install that already uses Sensors.** Images from before this flag served Sensors to everyone. Add `FIZZ_SENSORS=1` to your `.env` before you pull the new image, or the dashboard redirects to `/app` and devices get `404 sensors_off` on `/api/ingest` until you do. Nothing is deleted while Sensors are off. Turning them back on brings back every sensor, reading, alert, and agent token. Hosted Sensors users who want to keep using Sensors can self-host with this flag.
+
+`FIZZ_SENSORS` applies to `fizz-serve` only. A [Vercel deployment](#deploy-on-vercel-and-supabase) uses `vercel.json`, which always sends the Sensors pages away, as on fizzlayer.com. Its sensor API functions stay deployed, so devices that were already sending readings keep working.
 
 ## Quick start with published images
 
@@ -162,6 +188,7 @@ Leave these empty. The website still runs.
 
 | Variable | When set |
 | --- | --- |
+| `FIZZ_SENSORS` | `1` turns on Sensors: the dashboard, the `/sensors` pages, and their APIs. Default `0`. See [Sensors are opt-in](#sensors-are-opt-in) |
 | `OPENAI_BASE_URL` | OpenAI-compatible `/v1` root, such as `http://host.docker.internal:11434/v1` for Ollama on the host. `AI_GATEWAY_BASE_URL` is the same setting. Unset uses `https://ai-gateway.vercel.sh/v1` |
 | `OPENAI_API_KEY` | Bearer token for that server. If the base URL is custom and this is empty, the API sends a placeholder bearer for servers that ignore it |
 | `OPENAI_MODEL` | Model name. `AI_GATEWAY_MODEL` is the same setting. Default `openai/gpt-5-mini`, which an Ollama server does not have. Set this to the model you pulled |
@@ -174,7 +201,7 @@ The model behind `OPENAI_BASE_URL` must accept JSON mode (`response_format: json
 
 ## Create an account and sign in
 
-In a browser, open <http://localhost:8080/app.html>. Choose **Create account**, enter an email and a password of at least 12 characters, and submit. You land in the dashboard. **Sign in** on the same page uses that email and password later.
+In a browser, open <http://localhost:8080/app>. Choose **Create account**, enter an email and a password of at least 12 characters, and submit. You land in Gateway setup. **Sign in** at `/app/sign-in` uses that email and password later. With [Sensors on](#sensors-are-opt-in), the Sensors dashboard is at <http://localhost:8080/app.html> and the app header links to it.
 
 The same calls from a terminal, which is what you want when you are checking the install:
 
@@ -203,6 +230,8 @@ docker compose -f deploy/docker-compose.yml exec db \
 Existing accounts can still sign in.
 
 ## Add a sensor and send readings
+
+Everything in this section, devices and the CLI included, needs `FIZZ_SENSORS=1`. See [Sensors are opt-in](#sensors-are-opt-in). Without it these routes answer `404 sensors_off`.
 
 ### From the dashboard
 
@@ -370,6 +399,8 @@ The Compose file maps `host.docker.internal` to the host. Pull a model that supp
 
 ## Upgrade, back up, and read logs
 
+If this install uses Sensors, set `FIZZ_SENSORS=1` in `.env` before you pull an image that has the flag. See [Sensors are opt-in](#sensors-are-opt-in).
+
 Pull new images and start them. The migrate container runs again. SQL is inside `fizzlayer/fizzlayer-api`, so a new API image is what brings new migrations. The container records applied filenames in `public.fizz_schema_migrations` and skips them next time. An image rollback does not roll back SQL.
 
 ```sh
@@ -406,6 +437,8 @@ docker compose -f deploy/docker-compose.yml ps -a
 `migrate` showing `Exited (0)` is a finished migration, not a crash. `Exited (1)` is a failed migration. `docker compose -f deploy/docker-compose.yml logs migrate` prints the SQL error.
 
 ## Troubleshooting
+
+**`/app.html` or `/sensors` redirects, or a device gets `404` with `sensors_off`.** Sensors are off. Set `FIZZ_SENSORS=1` and run `docker compose up -d`. See [Sensors are opt-in](#sensors-are-opt-in).
 
 **`/api/status` says `database` `unavailable` or `unconfigured`.** `unconfigured` means `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing. `unavailable` means PostgREST refused the key or the gateway is down. Check `logs rest`, `logs gateway`, and `logs auth`. On a first boot, wait until `logs migrate` says `migrations applied`.
 

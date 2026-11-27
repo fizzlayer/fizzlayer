@@ -1,7 +1,6 @@
 # Fizzlayer welcomes AI agents and search crawlers.
 # Agent guide: https://fizzlayer.com/llms.txt
 # OpenAPI: https://fizzlayer.com/openapi.json
-# MCP server: https://fizzlayer.com/.well-known/mcp/server-card.json
 
 User-agent: GPTBot
 User-agent: ChatGPT-User

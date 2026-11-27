@@ -24,6 +24,7 @@ import rewrites
 import route
 import signin
 import site/landing
+import ui/site
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -267,13 +268,74 @@ pub fn view_does_not_render_the_access_token_test() {
       ),
       gate: gateway.preview("choose"),
       checkout: checkout.Unknown,
+      sensors: True,
     )
   let html = element.to_string(fizz_spa.view(model))
   string.contains(html, token) |> should.be_false
   string.contains(html, "not-shown-after-sign-in") |> should.be_false
   string.contains(html, "ada") |> should.be_true
   string.contains(html, "Gateway") |> should.be_true
-  string.contains(html, "/sensors") |> should.be_true
+  string.contains(html, "href=\"/sensors\"") |> should.be_true
+}
+
+fn signed_in_at_gateways() -> fizz_spa.Model {
+  let assert Ok(target) = uri.parse("/app/gateways")
+  fizz_spa.Model(
+    ..fizz_spa.first_model(target),
+    busy: False,
+    account: fizz_spa.SignedIn(username: "ada", body: "{\"username\":\"ada\"}"),
+  )
+}
+
+pub fn app_header_leaves_sensors_out_by_default_test() {
+  let model = signed_in_at_gateways()
+  model.sensors |> should.be_false
+  let html = element.to_string(fizz_spa.view(model))
+  string.contains(html, "href=\"/app/gateways\"") |> should.be_true
+  string.contains(html, "/sensors") |> should.be_false
+  string.contains(html, "Sensors") |> should.be_false
+}
+
+pub fn app_header_links_to_sensors_when_the_server_serves_them_test() {
+  let model = fizz_spa.Model(..signed_in_at_gateways(), sensors: True)
+  let html = element.to_string(fizz_spa.view(model))
+  string.contains(html, "href=\"/app/gateways\"") |> should.be_true
+  string.contains(html, "href=\"/sensors\"") |> should.be_true
+  // Signed out, there is no header nav at all, with or without Sensors.
+  let assert Ok(target) = uri.parse("/app/sign-in")
+  let signed_out = fizz_spa.Model(..fizz_spa.first_model(target), sensors: True)
+  element.to_string(fizz_spa.view(signed_out))
+  |> string.contains("href=\"/sensors\"")
+  |> should.be_false
+}
+
+pub fn only_the_server_config_turns_sensors_on_test() {
+  config.sensors_enabled(
+    "{\"supabaseUrl\":\"https://x.supabase.co\",\"supabaseAnonKey\":\"k\"}",
+  )
+  |> should.be_false
+  config.sensors_enabled("{\"sensors\":false}") |> should.be_false
+  config.sensors_enabled("{\"sensors\":\"true\"}") |> should.be_false
+  config.sensors_enabled("{\"sensors\":1}") |> should.be_false
+  config.sensors_enabled("<!doctype html>") |> should.be_false
+  config.sensors_enabled("{\"supabaseUrl\":\"\",\"sensors\":true}")
+  |> should.be_true
+  let model = signed_in_at_gateways()
+  let #(on, _) =
+    fizz_spa.update(model, fizz_spa.ConfigLoaded(#(True, "{\"sensors\":true}")))
+  on.sensors |> should.be_true
+  let #(off, _) =
+    fizz_spa.update(
+      on,
+      fizz_spa.ConfigLoaded(#(True, "{\"supabaseUrl\":\"\"}")),
+    )
+  off.sensors |> should.be_false
+  let #(missing, _) =
+    fizz_spa.update(
+      model,
+      fizz_spa.ConfigLoaded(#(False, "Missing config.json")),
+    )
+  missing.sensors |> should.be_false
 }
 
 pub fn gateway_screens_do_not_repeat_secrets_test() {
@@ -707,4 +769,25 @@ pub fn tokens_are_named_by_the_user_and_kept_with_their_app_test() {
   minted.minted_for |> should.equal("claude")
   minted.minted_name |> should.equal("Work Mac")
   minted.token_name |> should.equal("")
+}
+
+pub fn site_header_and_footer_leave_sensors_out_test() {
+  // The committed site pages are shared by fizzlayer.com and self-hosted
+  // servers, and only a self-hosted server with FIZZ_SENSORS=1 serves Sensors.
+  let html =
+    site.document(
+      site.Meta(
+        title: "T",
+        description: "D",
+        path: "/",
+        image_alt: "A",
+        scripts: [],
+      ),
+      [],
+    )
+    |> element.to_document_string
+  string.contains(html, "href=\"/gateway\"") |> should.be_true
+  string.contains(html, "href=\"/docs\"") |> should.be_true
+  string.contains(html, "/sensors") |> should.be_false
+  string.contains(html, "Sensors") |> should.be_false
 }
