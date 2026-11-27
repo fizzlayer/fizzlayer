@@ -833,7 +833,10 @@
   .site-menu > summary { list-style: none; cursor: pointer; padding: 8px 14px; border: 1px solid var(--color-border-strong); border-radius: 999px; color: var(--color-text); font-size: 0.9375rem; font-weight: 500; }
   .site-menu > summary::-webkit-details-marker { display: none; }
   .site-menu-panel { position: absolute; left: 0; right: 0; top: 100%; display: grid; gap: 2px; padding: 12px 24px 20px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); box-shadow: 0 16px 24px -16px rgb(13 33 54 / 0.3); }
-  .site-menu-panel .site-nav-link { padding: 12px 0; border-radius: 0; font-size: 1.0625rem; }
+  /* Rows keep their text on the 24px gutter; the negative margin lets the
+     hover and current-page highlight extend past it with the text inset. */
+  .site-menu-panel .site-nav-link { margin-inline: -12px; padding: 12px; border-radius: var(--radius-md); font-size: 1.0625rem; }
+  .site-menu-panel .site-nav-link[aria-current='page'] { background: var(--color-subtle); font-weight: 600; }
   @media (max-width: 900px) {
     .site-nav, .site-header-actions { display: none; }
     .site-menu { display: block; }
@@ -936,6 +939,11 @@
   .band p { margin: 0; }
   .section-tight { padding-top: clamp(48px, 7vw, 80px); }
 
+  /* The Pro plan pitch near the end of a public page */
+  .pro-callout p { max-width: 44rem; }
+  .pro-callout-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+  @media (max-width: 560px) { .pro-callout { padding: 28px 24px; } }
+
   /* Closing call to action: a dark panel inside the white page. */
   .cta-panel { padding: clamp(48px, 7vw, 80px) clamp(28px, 6vw, 72px); border-radius: 24px; background: var(--color-surface); }
   .cta-panel h2 { margin: 0; font-size: clamp(2rem, 3.6vw, 2.875rem); font-weight: 600; line-height: 1.1; letter-spacing: -0.035em; max-width: 22ch; }
@@ -973,6 +981,7 @@
   .plan-card { display: flex; flex-direction: column; padding: 28px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
   .plan-card-featured { box-shadow: 0 0 0 2px var(--color-primary), var(--shadow-lg); }
   .plan-name { margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .plan-badge { display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px; background: var(--color-primary); color: #fff; font-size: 0.75rem; font-weight: 600; vertical-align: 2px; }
   .plan-tagline { margin: 4px 0 0; color: var(--color-text-muted); font-size: 0.9375rem; }
   .plan-price { margin: 20px 0 16px; color: var(--color-text); font-size: 2.5rem; font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
   .plan-price small { color: var(--color-text-muted); font-size: 0.9375rem; font-weight: 400; letter-spacing: 0; }

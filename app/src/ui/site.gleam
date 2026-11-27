@@ -69,7 +69,7 @@ pub fn document(meta: Meta, content: List(Element(msg))) -> Element(msg) {
       html.a([attribute.class("skip-link"), attribute.href("#main")], [
         text("Skip to content"),
       ]),
-      header(),
+      header(meta.path),
       html.main([attribute.id("main")], content),
       footer(),
     ]),
@@ -93,12 +93,20 @@ const nav_items = [
   #("/pricing", "Pricing"),
 ]
 
-fn header() -> Element(msg) {
+/// `path` is the page's own path; its nav item gets `aria-current="page"`.
+fn header(path: String) -> Element(msg) {
   let links = fn() {
     list.map(nav_items, fn(item) {
-      html.a([attribute.class("site-nav-link"), attribute.href(item.0)], [
-        text(item.1),
-      ])
+      // A list, not `attribute.none()`, which renders as a trailing space in
+      // `class`.
+      let current = case item.0 == path {
+        True -> [attribute.aria_current("page")]
+        False -> []
+      }
+      html.a(
+        [attribute.class("site-nav-link"), attribute.href(item.0), ..current],
+        [text(item.1)],
+      )
     })
   }
   html.header([attribute.class("site-header")], [
@@ -190,7 +198,7 @@ fn footer() -> Element(msg) {
         html.div([], [
           wordmark(),
           html.p([attribute.class("footer-tagline")], [
-            text("Control what your AI agents can do."),
+            text("Rules and approvals for the MCP tools your AI agents call."),
           ]),
         ]),
         ..list.map(footer_columns, fn(column) {
@@ -470,6 +478,35 @@ pub fn band(title: String, body: String, link: Element(msg)) -> Element(msg) {
   ])
 }
 
+/// A short pitch for the Pro plan, near the end of a public page. The limits
+/// are the Pro column of `site/pricing.gleam` and must change with it.
+pub fn pro_callout() -> Element(msg) {
+  html.section(
+    [
+      attribute.class("container section-tight"),
+      attribute.attribute("aria-labelledby", "pro-callout-title"),
+    ],
+    [
+      html.div([attribute.class("band pro-callout")], [
+        html.div([], [
+          html.h2([attribute.id("pro-callout-title")], [
+            text("Fizzlayer Pro is $25 a month"),
+          ]),
+          html.p([], [
+            text(
+              "Hobbyist stops at 3 MCP servers and does not place phone calls. Pro allows 25 servers, includes 100 phone calls a month for approvals, and has 3 seats.",
+            ),
+          ]),
+        ]),
+        html.div([attribute.class("pro-callout-actions")], [
+          primary("/app?plan=pro", "Start Pro"),
+          link_arrow("/pricing", "Compare plans"),
+        ]),
+      ]),
+    ],
+  )
+}
+
 /// The dark closing panel.
 pub fn cta(
   title: String,
@@ -599,7 +636,16 @@ pub fn plans(cards: List(Plan)) -> Element(msg) {
           }),
         ],
         [
-          html.h2([attribute.class("plan-name")], [text(plan.name)]),
+          html.h2([attribute.class("plan-name")], [
+            text(plan.name),
+            case plan.featured {
+              True ->
+                html.span([attribute.class("plan-badge")], [
+                  text("Recommended"),
+                ])
+              False -> element.none()
+            },
+          ]),
           html.p([attribute.class("plan-tagline")], [text(plan.tagline)]),
           html.p([attribute.class("plan-price")], [
             text(plan.price),
@@ -796,7 +842,7 @@ pub fn sales_form(title: String, intro: String) -> Element(msg) {
         ]),
         field(
           "business-interest",
-          "What would you like Fizz to watch?",
+          "What do you need from the gateway?",
           True,
           True,
           [
@@ -808,7 +854,7 @@ pub fn sales_form(title: String, intro: String) -> Element(msg) {
                 attribute.attribute("maxlength", "500"),
                 attribute.rows(3),
                 attribute.placeholder(
-                  "e.g. Cold room temperatures across 3 warehouses",
+                  "e.g. 40 MCP servers for 12 engineers, with phone approvals",
                 ),
               ],
               "",

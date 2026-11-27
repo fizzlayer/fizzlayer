@@ -1,5 +1,6 @@
 //// The Enterprise page at `/enterprise`. `public/enterprise.js` sends the
-//// form to `/api/contact`.
+//// form to `/api/contact`. Limits here are the `enterprise` plan in
+//// `src/gateway/limits.rs`.
 
 import lustre/element.{type Element, text}
 import lustre/element/html
@@ -9,7 +10,7 @@ pub fn page() -> Element(msg) {
   site.document(
     site.Meta(
       title: "Enterprise | Fizzlayer",
-      description: "Fizzlayer Enterprise is a custom plan for sites such as cold storage and factory floors. Tell us what you need to watch.",
+      description: "Fizzlayer Enterprise is a custom plan for teams that run Fizzlayer Gateway. Gateway, MCP server and seat limits are set for your team, and phone approvals are set by contract.",
       path: "/enterprise",
       image_alt: "Fizzlayer Enterprise.",
       scripts: ["/webmcp.js", "/enterprise.js", "/analytics.js"],
@@ -17,37 +18,38 @@ pub fn page() -> Element(msg) {
     [
       site.page_hero_split(
         "Enterprise",
-        "Sensors for a site, and a gateway when you need one.",
-        "Cold storage, logistics, or the factory floor. Bring your signals into one workspace and get the right person on the phone when a threshold is crossed. Gateway limits on Enterprise are custom. This form does not start a dedicated gateway.",
+        "Fizzlayer Gateway for your team.",
+        "On Enterprise, the number of gateways, MCP servers and seats is set for your team instead of the fixed plan limits. Use the hosted gateway or run it yourself with Docker. This form does not start a dedicated gateway.",
         [site.link_arrow("/pricing", "See the other plans")],
         site.sales_form(
           "Bring Fizzlayer to your team.",
-          "Tell us what you need to watch. We'll be in touch about Enterprise.",
+          "Tell us how many servers, agents and people you have. We'll be in touch about Enterprise.",
         ),
       ),
       site.section("included", "Included", "What Enterprise adds.", "", [
         site.feature_row([
           site.feature_text(
-            "Control access, device by device.",
-            "Separate, revocable keys for your sensors and tokens for your agents.",
+            "Limits set for your team",
+            "Gateways, MCP servers and seats are agreed with you. Pro stops at 1 gateway, 25 servers and 3 seats.",
           ),
           site.feature_text(
-            "Start before install day.",
-            "Explore with simulated sensor streams while your hardware is on its way.",
+            "Phone approvals by contract",
+            "When an Ask first rule holds a call, Fizzlayer phones a paired number and reads the request. You approve it in the app. Calls are unlimited unless a contract sets a cap.",
           ),
           site.feature_text(
-            "Reach the right person.",
-            "Pair the number first. Fizz calls it when an alert fires. Phone calls are included with Enterprise, unlimited unless a contract sets a cap.",
+            "Hosted or self-hosted",
+            "Use the shared hosted gateway at gw.fizzlayer.com, or run the open-source gateway with Docker and link it to your account. Dedicated hosted gateways aren't ready yet.",
           ),
         ]),
         site.notes([
           html.p([], [
             text(
-              "Tinkerer and Pro share one monthly call cap for phone-call alerts and phone approvals. Tinkerer includes 20 calls a month and Pro includes 100. The cap resets on the first of each month (UTC). Hobbyist ($0) does not place calls. It includes dashboard and webhook alerts. Email alerts are included on every plan and stay hidden in the dashboard until mail is configured.",
+              "Tinkerer includes 20 phone calls a month and Pro includes 100. The cap resets on the first of each month (UTC). Hobbyist ($0) does not place calls. Approvals there go to a webhook or the log.",
             ),
           ]),
         ]),
       ]),
+      site.pro_callout(),
     ],
   )
 }

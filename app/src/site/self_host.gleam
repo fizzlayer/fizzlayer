@@ -33,6 +33,7 @@ pub fn page() -> Element(msg) {
           ),
         ]),
       ]),
+      site.pro_callout(),
     ],
   )
 }
