@@ -530,6 +530,15 @@ pub fn pricing_recommends_pro_test() {
   assert string.contains(html, "href=\"/app?plan=pro\"")
 }
 
+pub fn site_header_marks_the_current_page_test() {
+  let html = element.to_document_string(pricing.page())
+  // Once in the desktop nav and once in the mobile menu.
+  let current =
+    "aria-current=\"page\" class=\"site-nav-link\" href=\"/pricing\""
+  assert list.length(string.split(html, current)) == 3
+  assert list.length(string.split(html, "aria-current")) == 3
+}
+
 pub fn sign_in_form_has_its_own_url_test() {
   route.parse("/app/sign-in") |> should.equal(route.SignIn)
   route.parse("/pricing") |> should.equal(route.Leave("/pricing"))
